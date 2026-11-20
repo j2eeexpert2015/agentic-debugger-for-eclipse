@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<site>
+    <feature id="org.learningfromexperience.eclipse.agentdebug.feature">
+        <category name="agentic.debugger"/>
+    </feature>
+    <category-def name="agentic.debugger" label="Agentic Debugger">
+        <description>AI-assisted Java debugging integration for Eclipse IDE.</description>
+    </category-def>
+</site>
