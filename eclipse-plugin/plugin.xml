@@ -4,4 +4,10 @@
    <extension point="org.eclipse.ui.startup">
       <startup class="org.learningfromexperience.eclipse.agentdebug.AgentDebugStartup"/>
    </extension>
+   <extension point="org.eclipse.ui.preferencePages">
+      <page
+          id="org.learningfromexperience.eclipse.agentdebug.preferences"
+          name="Agentic Debugger"
+          class="org.learningfromexperience.eclipse.agentdebug.ui.ClaudeIntegrationPreferences"/>
+   </extension>
 </plugin>
