@@ -1,0 +1,14 @@
+# Build outputs and editor state
+**/bin/
+**/target/
+**/.settings/
+**/.metadata/
+*.log
+
+# Runtime-only credentials and private local configuration
+bridge.token
+.claude.json
+
+# OS metadata
+.DS_Store
+Thumbs.db
