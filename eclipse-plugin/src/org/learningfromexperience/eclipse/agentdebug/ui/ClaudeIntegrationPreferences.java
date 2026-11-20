@@ -3,6 +3,7 @@ package org.learningfromexperience.eclipse.agentdebug.ui;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.preference.PreferencePage;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
@@ -49,10 +50,43 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
                         case "remove" -> integration.remove();
                         default -> throw new IllegalArgumentException(action);
                     };
+                } catch (ClaudeIntegration.MigrationRequiredException migration) {
+                    String previous = migration.getMessage();
+                    if (!root.isDisposed()) root.getDisplay().asyncExec(() -> {
+                        if (root.isDisposed()) return;
+                        boolean approved = MessageDialog.openQuestion(root.getShell(),
+                                "Update Agentic Debugger Registration",
+                                previous + "\n\nReplace ONLY the existing user-scoped eclipse-debugger entry "
+                                + "with the MCP server bundled with this Eclipse plugin? "
+                                + "All other MCP entries will remain untouched.");
+                        if (approved) {
+                            status.setText("Updating previous registration...");
+                            root.layout(true, true);
+                            Job update = Job.create("Update Agentic Debugger registration", monitor2 -> {
+                                String response;
+                                try { response = new ClaudeIntegration().migrateExisting(); }
+                                catch (Exception error) { response = "Failed: " + error.getMessage(); }
+                                String finalResponse = response;
+                                if (!root.isDisposed()) root.getDisplay().asyncExec(() -> {
+                                    if (!root.isDisposed()) { status.setText(finalResponse); root.layout(true, true); }
+                                });
+                                return Status.OK_STATUS;
+                            });
+                            update.setSystem(true); update.schedule();
+                        } else {
+                            status.setText("Migration cancelled; existing registration unchanged.");
+                            root.layout(true, true);
+                        }
+                    });
+                    message = null;
                 } catch (Exception error) { message = "Failed: " + error.getMessage(); }
                 String result = message;
                 if (!root.isDisposed()) root.getDisplay().asyncExec(() -> {
-                    if (!root.isDisposed()) { status.setText(result); button.setEnabled(true); root.layout(true, true); }
+                    if (!root.isDisposed()) {
+                        if (result != null) status.setText(result);
+                        button.setEnabled(true);
+                        root.layout(true, true);
+                    }
                 });
                 return Status.OK_STATUS;
             });

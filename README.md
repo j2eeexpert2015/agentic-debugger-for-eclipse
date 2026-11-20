@@ -1,122 +1,195 @@
 # Agentic Debugger for Eclipse IDE
 
-An independent Eclipse IDE plugin that makes Eclipse's Java debugger available to Claude Code through a local MCP server. The MCP server supports the Eclipse debugger operations implemented by this repository, including launching Java debugging sessions, breakpoints, threads, stack frames, variables and stepping.
+Debug Java applications inside Eclipse IDE using Claude Code through the Model Context Protocol (MCP). The Eclipse plugin provides access to Eclipse's debugger; a bundled Java MCP server connects Claude Code to that plugin.
 
-> **Build status:** This repository is a source build candidate. The complete Maven/Tycho p2 build and installation on Windows Eclipse have **not yet been verified**. Do not publish it as a production release until the checks under *Release verification* pass.
+> **Release status:** This repository is an **unverified source build candidate**, not a published, tested Eclipse release. The Maven/Tycho build, p2 installation, and first-run configuration still require end-to-end testing. The steps below describe the actual installation flow implemented in this source, not a claim that a release has passed verification.
 
-## For Eclipse IDE users — one installation
+## Start here — install and use the plugin
 
-**Prerequisites:** Eclipse IDE with Java debugging support, Java 21+, and Claude Code installed. Claude Code must be available to the Eclipse process (the plugin checks `PATH` and the user's `.local/bin` directory).
+There are **two ways to obtain the Eclipse update-site ZIP**. Choose **A** if you have a prebuilt release ZIP. Choose **B** if you have this source repository. After obtaining the update-site ZIP, follow Steps 1–5.
 
-1. Download the built p2 update-site ZIP from a release, or use the URL of the published update site.
-2. In Eclipse select **Help → Install New Software → Add → Archive** (for a ZIP) or enter the update-site URL.
-3. Select **Agentic Debugger for Eclipse IDE**, complete installation, and restart Eclipse.
-4. On first restart, click **Configure** in the Agentic Debugger prompt. The plugin registers the bundled MCP server and reports success or failure. The same action is available later under **Window → Preferences → Agentic Debugger**.
-5. Restart Claude Code if it was already open. Type `/mcp` to view the `eclipse-debugger` MCP server, and try `eclipse_ping`.
+### A. If you downloaded a prebuilt release
 
-**No Maven build, standalone Java installer, manual JSON edits, or MCP JAR download is required for end users.** If the startup prompt was dismissed, open **Window → Preferences → Agentic Debugger** at any time.
+Download the **Eclipse update-site ZIP** from the project's published release (when one is available). **Do not select the source-code ZIP** in Eclipse's installer. Skip to **Step 1** below.
 
-The first-time confirmation is intentional: we do not change third-party tool settings without the user's permission.
+### B. If you downloaded this source repository (current testing method)
 
-## Files created and modified
+You need **JDK 21 or newer**, **Apache Maven**, and internet connectivity to resolve the build dependencies. The build currently targets the Eclipse **2026-09** p2 repository. From the repository root (the directory containing the top-level `pom.xml`), open Command Prompt and run:
 
-| Where | Action | Why |
+```cmd
+java -version
+mvn -version
+mvn clean package
+```
+
+Only continue if Maven prints `BUILD SUCCESS`. Then open:
+
+```text
+eclipse-update-site/target/
+```
+
+Find the generated **update-site `.zip`** (not the repository source ZIP). It should contain Eclipse p2 metadata such as `content.jar`/`content.xml` and `artifacts.jar`/`artifacts.xml`, plus `features/` and `plugins/` entries. **The ZIP filename can vary with Maven version/configuration; do not guess it.** If no installable ZIP was produced, the build or packaging needs correction before proceeding.
+
+### Step 1 — Install into Eclipse IDE
+
+1. Start your **regular Eclipse IDE for Java Developers** (the Eclipse instance in which you will debug Java code), not a separate PDE Runtime Eclipse instance.
+2. Select **Help → Install New Software…**.
+3. Click **Add…**.
+4. For a local ZIP, click **Archive…**, select the generated **update-site ZIP** from `eclipse-update-site/target/`, and click **Add** or **OK**. **Do not extract the ZIP** before selecting it in Eclipse.
+   - For a future published update-site URL, enter that URL in **Work with** instead of selecting an archive.
+5. Wait for Eclipse to load the available software. Expand **Agentic Debugger** (the category) if necessary.
+6. Select **Agentic Debugger for Eclipse IDE** (the installable feature).
+7. Click **Next**, review the installation details and license prompts, and complete the installation. Accept any trust/security prompt **only if you trust the source**.
+8. When Eclipse asks to restart, click **Restart Now**.
+
+**If Eclipse says “There is no categorized item”:** uncheck **Group items by category** and look for **Agentic Debugger for Eclipse IDE**. If nothing appears, verify that you chose a generated p2 update-site ZIP, not the source repository ZIP.
+
+### Step 2 — Configure Claude Code (once)
+
+**Prerequisite:** Claude Code must already be installed on this computer. On Windows, our plugin checks PATH and the native per-user `.local/bin` directory. If you just installed Claude Code, restart Eclipse so it sees your environment.
+
+1. After Eclipse restarts, look for a prompt titled **Agentic Debugger for Eclipse IDE** asking whether to configure the bundled MCP server for Claude Code.
+2. Click **Yes** to configure. This is a one-time permission step; it is **not** a second JAR installation.
+3. Wait for Eclipse's configuration result message. A successful result should report that the MCP server was configured at **user scope** and suggest restarting Claude Code.
+
+**If you dismissed the prompt, or it did not appear:** In Eclipse open **Window → Preferences → Agentic Debugger**. Click **Configure Claude Code**. On macOS, the Preferences menu may appear under the Eclipse application menu.
+
+**If a previous Agentic Debugger installation is detected:** The plugin shows the current command and asks whether to **Update Registration**. Click **Yes** only if you want to migrate it to the bundled MCP server. The plugin updates only the user-scoped `eclipse-debugger` entry, leaves other entries alone, and attempts to restore the previous command if migration fails. **No** keeps the old registration unchanged.
+
+**If an unrecognized `eclipse-debugger` entry exists:** The plugin refuses to replace it. Inspect the entry with `claude mcp get eclipse-debugger` before making any manual change.
+
+### Step 3 — Verify from Eclipse
+
+1. Open **Window → Preferences → Agentic Debugger**.
+2. Click **Verify registration**.
+3. Confirm the status reads **Configured (user scope)**. If it reads **Update available — previous Agentic Debugger registration detected**, click **Configure Claude Code**, review the old command, and approve migration if appropriate. Then click **Verify registration** again.
+
+This verifies the Claude Code **registration**. It does not by itself prove that the live Eclipse debugger connection works.
+
+### Step 4 — Verify from Claude Code
+
+1. Keep Eclipse open.
+2. Open Command Prompt in your **Java project's directory** (or your normal Claude Code working directory).
+3. Start Claude Code:
+
+```cmd
+claude
+```
+
+4. Enter `/mcp`. Confirm the **`eclipse-debugger`** server is present and connected. If Claude Code was already running before registration, close and reopen it first.
+5. Ask Claude Code:
+
+```text
+Use the eclipse-debugger MCP server to call eclipse_ping. Show the response.
+```
+
+The expected bridge response is **`PONG`**. If registration succeeds but the live connection fails, ensure you started the **same Eclipse IDE installation** into which the plugin was installed, and verify that Eclipse is still running.
+
+### Step 5 — Debug a Java application
+
+1. Open or import a Java project into **that same Eclipse IDE**. Make sure it can run normally and has a Java launch/debug configuration (or a runnable `main` class).
+2. Keep Eclipse running and open Claude Code from the relevant project directory.
+3. Give Claude Code a task such as:
+
+```text
+Using the eclipse-debugger MCP server, find my available Java launch
+configurations, start DebugAverageCalculation in debug mode, set a
+breakpoint in calculateAverage, inspect the suspended thread and
+variables, and explain the calculation. Do not modify source code or
+remove my existing breakpoints.
+```
+
+Claude Code uses the MCP server to request debugger actions from **the running Eclipse IDE**. The example class is only an example: substitute a class or launch configuration that actually exists in your project. Individual debugging capabilities must be confirmed in the installed build.
+
+**Everyday use after the initial setup:** Open Eclipse with your Java project → open Claude Code → give a debugging prompt. You do **not** rerun Maven, install a separate MCP JAR, or repeat configuration for each Java project.
+
+## What gets installed or changed?
+
+| Location | Action | Purpose |
 |---|---|---|
-| Eclipse's p2-managed plugin location | Installed by Eclipse | Contains Eclipse debugger plugin and embedded `agentic-debugger-mcp.jar` |
-| `~/.eclipse-agentdebug/agentic-debugger-mcp.jar` | Created by our plugin **after** Configure; replaced when plugin upgrades | Stable absolute path used by Claude Code despite changing Eclipse bundle versions |
-| `~/.eclipse-agentdebug/claude-registration.properties` | Created after successful verification | Marks the plugin's **own** registration; used to prevent removing somebody else's MCP entry |
-| `~/.claude.json` | **Claude Code CLI** adds/removes the user-scoped `eclipse-debugger` entry | Allows MCP access across all Java projects; other entries remain managed by Claude Code |
-| `~/.eclipse-agentdebug/bridge.token` | Created/refreshed when the Eclipse bridge starts | Ephemeral local bridge authentication |
-| Eclipse workspace preferences | Records that the first-launch prompt was displayed | Prevents repeating the prompt in the same workspace |
+| Eclipse's p2-managed installation | Installs the debugger plugin with bundled MCP JAR | Actual Eclipse feature |
+| `~/.eclipse-agentdebug/agentic-debugger-mcp.jar` | Copies/refreshes the bundled JAR after configuration | Stable MCP executable path across Eclipse upgrades |
+| `~/.claude.json` | Updated by **Claude Code's own CLI** | User-scoped `eclipse-debugger` MCP registration |
+| `~/.eclipse-agentdebug/claude-registration.properties` | Created by the plugin | Records ownership of its own registration |
+| `~/.eclipse-agentdebug/bridge.token` | Generated/refreshed by the Eclipse plugin | Authenticates local debugger bridge |
+| Eclipse workspace preferences | Records whether first-run prompt appeared | Avoids repeated prompts |
 
-On Windows, `~` is normally `C:\Users\<WindowsUser>`. **No `.mcp.json` is created inside a Java project.** The plugin does not directly parse or rewrite `.claude.json`. Its configuration action invokes the documented `claude mcp add --scope user --transport stdio ...` command; removal invokes `claude mcp remove eclipse-debugger --scope user` only after ownership checks.
+On Windows, `~` normally means `C:\Users\<WindowsUser>`. **No `.mcp.json` is created inside your Java project.** Registration makes the debugger available to Claude Code across projects for the same user account.
 
-### Sample Claude MCP registration
+### Conceptual Claude Code registration
 
-The `mcpServers` entry managed by Claude Code looks conceptually like this (actual paths are detected automatically):
+Claude Code manages the actual user-level JSON. A representative entry is:
 
 ```json
 {
   "mcpServers": {
     "eclipse-debugger": {
       "type": "stdio",
-      "command": "C:\\Java\\bin\\java.exe",
+      "command": "C:\\path\\to\\java.exe",
       "args": ["-jar", "C:\\Users\\developer\\.eclipse-agentdebug\\agentic-debugger-mcp.jar"]
     }
   }
 }
 ```
 
-**This is an illustration, not an instruction to replace the existing `.claude.json` file.** Claude Code often stores many unrelated settings in that file.
+**Never replace your complete `.claude.json` with this example.** The real file can contain other MCP registrations and unrelated settings. The plugin calls Claude Code's CLI to add or remove only `eclipse-debugger`, rather than parsing and rewriting the JSON itself. It refuses to take over an existing entry it cannot identify as plugin-managed. For important configurations, keeping a backup of `.claude.json` is prudent.
 
-### Existing registration protection
+## Modify, verify, remove, or uninstall
 
-- If `eclipse-debugger` already resolves in Claude Code and isn't confirmed as managed by the plugin, **Configure refuses to overwrite it**. Other MCP entries are never intentionally changed.
-- **Remove managed registration** first checks the plugin's own marker and checks the server JAR path reported by Claude Code. If ownership cannot be confirmed, removal is refused.
-- A failed registration is reported, not silently treated as successful.
-- **Verify registration** checks the stored CLI entry. The live `/mcp` connection and Eclipse `eclipse_ping` are separate end-to-end checks.
-- Registration uses Claude's CLI; the exact formatting of `~/.claude.json` remains Claude Code's responsibility. For extra protection, make a backup of `~/.claude.json` before installing any tool that modifies Claude settings.
+**Verify:** Eclipse → **Window → Preferences → Agentic Debugger → Verify registration**. For independent diagnosis, run `claude mcp get eclipse-debugger` in a terminal.
 
-### How to modify or remove
+**Reconfigure:** Use **Configure Claude Code** on the same Preferences page. If the entry already points to the bundled JAR, the plugin reports **Already configured**, even if an older installation did not create a marker file. For a recognized previous standalone installation, it offers an explicit, confirmed migration. Unknown same-named entries are never replaced automatically.
 
-- To **inspect** registration: run `claude mcp get eclipse-debugger` (optional diagnostic).
-- To **modify/reconfigure** it: use **Window → Preferences → Agentic Debugger**. If an unrecognized existing registration is present, review/remove it yourself first; this plugin never automatically takes ownership of it.
-- To **remove only our MCP registration**: click **Remove managed registration** on that Preferences page. It does not remove unrelated MCP entries or files from Java projects.
-- To **uninstall the Eclipse plugin**: use **Help → About Eclipse IDE → Installation Details → Installed Software → Uninstall**, then restart Eclipse. If you also want to remove the Claude registration, use the Preferences page **before uninstalling**.
-- The staged per-user JAR, ownership marker, and bridge token may remain after uninstall. After unregistering and closing Eclipse, these can be removed by deleting the `~/.eclipse-agentdebug` directory; do this only if you no longer need other files in that directory.
+**Remove only the Claude Code integration:** Open Eclipse → **Window → Preferences → Agentic Debugger → Remove managed registration**. The action checks ownership and removes only the plugin-managed **user-level** `eclipse-debugger` registration. It preserves unrelated MCP registrations and does not delete Java project files. Close and restart Claude Code afterward.
 
-## Developer build
+**Uninstall the Eclipse plugin:** First remove the managed Claude registration **while the plugin is still installed** if you no longer want it. Then choose **Help → About Eclipse IDE → Installation Details → Installed Software**, select Agentic Debugger, click **Uninstall**, and restart Eclipse.
 
-Repository layout:
+**Residual local files:** After unregistering and closing Eclipse, `~/.eclipse-agentdebug/` may still contain the staged MCP JAR, marker, and token. Remove these only when you are sure they are no longer needed. The plugin does not promise to erase all per-user files during p2 uninstall.
+
+## Troubleshooting
+
+| Symptom | What to check |
+|---|---|
+| No installable feature appears | Confirm you selected the **p2 update-site ZIP**, not the source ZIP. Try disabling **Group items by category**. |
+| “No repository found” / dependency resolution failure | Confirm the ZIP contains p2 metadata; check your Eclipse version and required Java debugging components. This source build currently targets Eclipse 2026-09. |
+| First-run prompt does not appear | Open **Window → Preferences → Agentic Debugger** and select **Configure Claude Code** directly. |
+| Claude Code CLI not found | Run `claude --version` in Command Prompt; if newly installed, restart Eclipse. On Windows, native installs commonly use `%USERPROFILE%\.local\bin\claude.exe`. |
+| Older Agentic Debugger registration detected | Use **Configure Claude Code** and approve migration after reviewing its existing command. Other MCP entries are preserved. |
+| Unrecognized `eclipse-debugger` entry | Run `claude mcp get eclipse-debugger`; the plugin will not overwrite it. |
+| `Verify registration` fails | Read the Preferences status message. Check that Claude Code can be invoked and that no conflicting registration exists. |
+| `/mcp` does not show the server | Close and relaunch Claude Code after configuration; check `claude mcp get eclipse-debugger`. |
+| MCP listed but `eclipse_ping` fails | Keep the installed Eclipse IDE open; ensure its debugger bridge started and the same IDE owns the Java debugging sessions. |
+| No Java debug session is found | Open/import the project in the **same running Eclipse instance** and check it has a runnable Java launch configuration. |
+
+## Developer reference
 
 ```text
 agentic-debugger-for-eclipse/
-├── pom.xml
-├── eclipse-plugin/         # Eclipse bridge, debugger commands and Claude Code Preferences UI
-├── mcp-server/             # Java STDIO MCP server, packaged into Eclipse plugin
-├── eclipse-feature/        # Installable Eclipse feature
-├── eclipse-update-site/    # p2 repository / installable ZIP
-└── installer/              # Legacy stand-alone setup source, NOT used by the new default build
+├── pom.xml                    # Maven/Tycho reactor
+├── eclipse-plugin/             # Eclipse bridge + Preferences UI
+├── mcp-server/                 # Java STDIO MCP server
+├── eclipse-feature/            # p2 installable feature
+├── eclipse-update-site/        # p2 repository and ZIP assembly
+└── installer/                  # Legacy standalone installer; not in default reactor
 ```
 
-Using Java 21+ and Maven, from the root of this repository:
+The Eclipse bridge listens on **`127.0.0.1:8765`** and uses the local `bridge.token` for authenticated requests. Claude Code launches the Java MCP process on demand over STDIO; Eclipse does not run a separate, always-on MCP process.
 
-```cmd
-mvn clean package
-```
+The legacy standalone installer is **not** part of the default root build and is **not** needed for the one-installation workflow.
 
-On a successful build, locate the generated update-site ZIP in `eclipse-update-site/target/`. Do **not** assume it exists unless the build reports success. Install from that ZIP using the instructions above. Maven/Tycho dependencies require access to a compatible Eclipse p2 repository and Maven Central.
+### Release validation required
 
-The normal build deliberately does not package the legacy `installer` module. End users must not be instructed to run `java -jar agentic-debugger-setup.jar` in this distribution.
-
-## Architecture
-
-```text
-Claude Code (launches stdio subprocess)
-      |
-      v
-MCP server JAR (staged once into user-owned path by Eclipse)
-      |
-      | localhost TCP bridge, authenticated with bridge.token
-      v
-Eclipse plugin -> JDT/Debug Platform -> Java debugging session
-```
-
-The plugin's bridge binds to `127.0.0.1:8765`, not a public network interface. Claude Code starts the MCP subprocess as needed; Eclipse itself does not need to keep a separate MCP server process running.
-
-## Release verification (required before publishing)
-
-- [ ] `mvn clean package` succeeds from a clean checkout with Maven and JDK 21/25.
-- [ ] Generated p2 repository ZIP contains p2 metadata, feature, and Eclipse plugin bundle.
-- [ ] Installed Eclipse plugin bundle **contains** `lib/agentic-debugger-mcp.jar` and the executable runtime is functional.
-- [ ] Eclipse installs, restarts, and shows **Window → Preferences → Agentic Debugger**.
-- [ ] First-run prompt appears once. Dismissing it makes **no** changes to Claude Code settings.
-- [ ] Configure succeeds with native Windows `claude.exe` located at `%USERPROFILE%\.local\bin`.
-- [ ] With existing unrelated entries in `.claude.json`, Configure/Verify/Remove retain them unchanged in meaning; with a conflicting `eclipse-debugger` registration, Configure refuses and preserves it.
-- [ ] Plugin upgrade refreshes bundled runtime at the stable path; `/mcp`, `eclipse_ping` and Java debugging still work.
-- [ ] Validate actual debugging tools against Eclipse 2026-06 and 2026-09, Java 21 and Java 25 as applicable.
-- [ ] Test Windows, Linux and macOS process launching and p2 upgrades/removal.
+- [ ] `mvn clean package` succeeds from a clean checkout with the intended JDK.
+- [ ] A generated update-site ZIP contains valid p2 metadata, installable feature, and the bundled MCP JAR.
+- [ ] Eclipse IDE installs and restarts successfully; **Agentic Debugger** Preferences page is visible.
+- [ ] First-run prompt correctly configures Claude Code when authorized, including Windows native `claude.exe` detection.
+- [ ] Other MCP entries in `.claude.json` remain intact after Configure, Verify and Remove.
+- [ ] Existing unrelated `eclipse-debugger` entries are protected.
+- [ ] Existing standalone Agentic Debugger installs are recognized, offer explicit migration, and preserve unrelated registrations.
+- [ ] `/mcp`, `eclipse_ping`, launch, breakpoint, variables and stepping work end-to-end.
+- [ ] Upgrade keeps the registered stable runtime functional; removal and reinstall work.
+- [ ] Validate target Eclipse versions and Windows/Linux/macOS behavior separately.
 
 ## Trademark
 
-Independent open-source project. Not affiliated with or endorsed by the Eclipse Foundation. Eclipse is a trademark of Eclipse Foundation AISBL.
+Agentic Debugger is an independent open-source project and is not affiliated with or endorsed by the Eclipse Foundation. Eclipse is a trademark of Eclipse Foundation AISBL.

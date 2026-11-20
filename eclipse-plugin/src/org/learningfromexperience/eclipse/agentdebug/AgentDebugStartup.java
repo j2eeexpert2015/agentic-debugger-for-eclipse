@@ -34,6 +34,28 @@ public class AgentDebugStartup implements IStartup {
                 Job configureJob = Job.create("Configure Claude Code MCP integration", monitor -> {
                     String result;
                     try { result = new ClaudeIntegration().configure(); }
+                    catch (ClaudeIntegration.MigrationRequiredException migration) {
+                        Display.getDefault().asyncExec(() -> {
+                            boolean approved = MessageDialog.openQuestion(Display.getDefault().getActiveShell(),
+                                    "Update Agentic Debugger Registration",
+                                    migration.getMessage() + "\n\nReplace only the previous user-scoped "
+                                    + "eclipse-debugger entry with the bundled MCP server? "
+                                    + "Other MCP registrations will not be modified.");
+                            if (approved) {
+                                Job migrate = Job.create("Migrate Agentic Debugger MCP", m -> {
+                                    String response;
+                                    try { response = new ClaudeIntegration().migrateExisting(); }
+                                    catch (Exception failure) { response = "Migration failed: " + failure.getMessage(); }
+                                    String text = response;
+                                    Display.getDefault().asyncExec(() -> MessageDialog.openInformation(
+                                            Display.getDefault().getActiveShell(), "Agentic Debugger", text));
+                                    return Status.OK_STATUS;
+                                });
+                                migrate.setSystem(true); migrate.schedule();
+                            }
+                        });
+                        return Status.OK_STATUS;
+                    }
                     catch (Exception ex) { result = "Configuration failed: " + ex.getMessage()
                             + "\n\nOpen Window > Preferences > Agentic Debugger to retry."; }
                     String message = result;

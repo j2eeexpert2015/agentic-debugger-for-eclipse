@@ -64,60 +64,104 @@ public final class ClaudeIntegration {
     public String status() throws Exception {
         Path cli = locateClaude();
         Result r = invoke(cli, "mcp", "get", SERVER);
-        if (r.exit() != 0) return "Not registered with Claude Code";
-        return isOwned(cli) ? "Configured (user scope)" : "Existing registration found; not managed by this plugin";
+        if (r.exit() != 0) return "Not configured";
+        ClaudeRegistration registration = ClaudeRegistration.parse(r.text());
+        if (registration.exactJar(jar())) return "Configured (user scope)";
+        if (registration.legacyJar(Path.of(System.getProperty("user.home")), isWindows())) {
+            return "Update available — previous Agentic Debugger registration detected";
+        }
+        return "Existing eclipse-debugger registration is not recognized; no changes made";
     }
 
+    /** Registers on first use; recognizes same-path registrations even without a marker. */
     public String configure() throws Exception {
         Path cli = locateClaude();
         Result existing = invoke(cli, "mcp", "get", SERVER);
         if (existing.exit() == 0) {
-            if (isOwned(cli)) {
-                refreshBundledRuntime();
-                return "Already configured. MCP runtime refreshed.";
+            ClaudeRegistration registration = ClaudeRegistration.parse(existing.text());
+            if (registration.exactJar(jar())) {
+                stageJar();
+                writeMarker(); // Adopt our exact, user-scoped registration without touching Claude JSON.
+                return "Already configured (user scope). Bundled MCP runtime refreshed.";
             }
-            throw new IOException("An eclipse-debugger MCP entry already exists. It was NOT changed. "
-                    + "Review it with 'claude mcp get eclipse-debugger' before continuing.");
+            if (registration.legacyJar(Path.of(System.getProperty("user.home")), isWindows())) {
+                throw new MigrationRequiredException(registration.command + " " + registration.args);
+            }
+            throw new IOException("An unrecognized eclipse-debugger entry exists. Nothing was changed. "
+                    + "Inspect it with 'claude mcp get eclipse-debugger'.");
         }
         Path java = locateJava();
         stageJar();
-        Result add = invoke(cli, "mcp", "add", "--transport", "stdio", "--scope", "user", SERVER,
-                "--", java.toString(), "-jar", jar().toAbsolutePath().toString());
-        if (add.exit() != 0) throw new IOException("Claude registration failed: " + add.text());
-        Result verify = invoke(cli, "mcp", "get", SERVER);
-        if (verify.exit() != 0 || !mentionsExpectedJar(verify.text())) {
-            throw new IOException("Registration could not be verified. Inspect 'claude mcp get eclipse-debugger'; "
-                    + "no existing settings were overwritten.");
-        }
+        register(cli, java.toString(), jar().toAbsolutePath().toString());
+        verifyCurrent(cli);
         writeMarker();
         return "Configured at user scope. Restart Claude Code to load the MCP server.";
     }
 
+    /** Called ONLY after displaying the existing command and receiving explicit approval. */
+    public String migrateExisting() throws Exception {
+        Path cli = locateClaude();
+        Result existing = invoke(cli, "mcp", "get", SERVER);
+        if (existing.exit() != 0) throw new IOException("No existing entry to migrate. Use Configure instead.");
+        ClaudeRegistration previous = ClaudeRegistration.parse(existing.text());
+        if (!previous.legacyJar(Path.of(System.getProperty("user.home")), isWindows())) {
+            throw new IOException("Registration changed or is not a recognized legacy installation. Nothing changed.");
+        }
+        Path java = locateJava();
+        stageJar(); // Prepare new JAR before touching Claude configuration.
+        Result removed = invoke(cli, "mcp", "remove", SERVER, "--scope", "user");
+        if (removed.exit() != 0) throw new IOException("Could not remove previous user entry: " + removed.text());
+        try {
+            register(cli, java.toString(), jar().toAbsolutePath().toString());
+            verifyCurrent(cli);
+            writeMarker();
+        } catch (Exception cause) {
+            // Restore the exact old command if replacement fails. Do not modify other MCP servers.
+            try {
+                Result current = invoke(cli, "mcp", "get", SERVER);
+                if (current.exit() == 0 && ClaudeRegistration.parse(current.text()).exactJar(jar())) {
+                    invoke(cli, "mcp", "remove", SERVER, "--scope", "user");
+                }
+                register(cli, previous.command, previous.registeredJar());
+            } catch (Exception rollback) {
+                cause.addSuppressed(rollback);
+                throw new IOException("Migration failed and automatic rollback failed. "
+                        + "Inspect 'claude mcp get eclipse-debugger'.", cause);
+            }
+            throw new IOException("Migration failed; previous registration restored. " + cause.getMessage(), cause);
+        }
+        return "Registration updated to the Eclipse-bundled MCP server. Restart Claude Code.";
+    }
+
+    private void register(Path cli, String command, String serverJar) throws Exception {
+        Result add = invoke(cli, "mcp", "add", "--transport", "stdio", "--scope", "user", SERVER,
+                "--", command, "-jar", serverJar);
+        if (add.exit() != 0) throw new IOException("Claude registration failed: " + add.text());
+    }
+
+    private void verifyCurrent(Path cli) throws Exception {
+        Result verify = invoke(cli, "mcp", "get", SERVER);
+        if (verify.exit() != 0 || !ClaudeRegistration.parse(verify.text()).exactJar(jar())) {
+            throw new IOException("Claude Code registration does not match the bundled MCP server.");
+        }
+    }
+
     public String remove() throws Exception {
         Path cli = locateClaude();
-        if (!isOwned(cli)) throw new IOException("Registration is not confirmed as plugin-managed; nothing was removed.");
-        Result result = invoke(cli, "mcp", "remove", SERVER, "--scope", "user");
-        if (result.exit() != 0) throw new IOException("Claude Code could not remove registration: " + result.text());
-        if (invoke(cli, "mcp", "get", SERVER).exit() == 0) {
-            throw new IOException("A same-named registration still resolves; inspect other scopes. Nothing else was deleted.");
+        Result current = invoke(cli, "mcp", "get", SERVER);
+        if (current.exit() != 0 || !ClaudeRegistration.parse(current.text()).exactJar(jar())) {
+            throw new IOException("Registration is not confirmed as belonging to this plugin; nothing removed.");
         }
+        Result removed = invoke(cli, "mcp", "remove", SERVER, "--scope", "user");
+        if (removed.exit() != 0) throw new IOException("Claude Code could not remove registration: " + removed.text());
         Files.deleteIfExists(marker());
-        // The JAR remains on disk for recovery; it is harmless and may be replaced by future configuration.
-        return "Removed only the plugin-managed user-level registration. Other MCP settings were preserved.";
+        return "Removed the plugin's user-level registration. Other MCP settings were preserved.";
     }
 
-    private boolean isOwned(Path cli) throws Exception {
-        if (!Files.isRegularFile(marker())) return false;
-        Properties props = new Properties();
-        try (InputStream in = Files.newInputStream(marker())) { props.load(in); }
-        if (!jar().toAbsolutePath().toString().equals(props.getProperty("jar"))) return false;
-        Result get = invoke(cli, "mcp", "get", SERVER);
-        return get.exit() == 0 && mentionsExpectedJar(get.text());
-    }
-
-    private boolean mentionsExpectedJar(String output) {
-        // Claude's own 'mcp get' is the source of truth; require exact registered JAR path.
-        return output.contains(jar().toAbsolutePath().toString());
+    public static final class MigrationRequiredException extends IOException {
+        public MigrationRequiredException(String existingCommand) {
+            super("Previous Agentic Debugger registration detected: " + existingCommand);
+        }
     }
 
     private void writeMarker() throws Exception {
