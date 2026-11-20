@@ -4,7 +4,7 @@
 **Descriptive title:** Agentic Debugger for Eclipse IDE  
 **Repository:** `agentic-debugger-for-eclipse`
 
-This is a **minimal two-component source layout** for an independent Java debugging extension for Eclipse IDE. It deliberately does not yet contain an Eclipse feature, p2 update site, tests, examples, release workflows, or documentation tree.
+This is an early source layout for an independent Java debugging extension for Eclipse IDE. It includes the Eclipse plugin, MCP server and a portable Java installer. It does not yet contain an Eclipse feature, p2 update site, full integration tests, examples, release workflows, or a separate documentation tree.
 
 ## Layout
 
@@ -12,6 +12,7 @@ This is a **minimal two-component source layout** for an independent Java debugg
 agentic-debugger-for-eclipse/
 ├── README.md
 ├── .gitignore
+├── pom.xml
 ├── eclipse-plugin/
 │   ├── .project
 │   ├── .classpath
@@ -26,10 +27,18 @@ agentic-debugger-for-eclipse/
 │           ├── EclipseDebugService.java
 │           ├── EclipseBreakpointService.java
 │           └── EclipseAgentOperations.java
-└── mcp-server/
+├── mcp-server/
     ├── pom.xml
     └── src/main/java/org/learningfromexperience/eclipse/agentdebug/mcp/
         └── DebugMcpServer.java
+└── installer/
+    ├── pom.xml
+    └── src/main/java/org/learningfromexperience/agentdebug/setup/
+        ├── SetupApplication.java
+        ├── InstallPaths.java
+        ├── JavaRuntimeDetector.java
+        ├── McpServerInstaller.java
+        └── ClaudeCodeConfigurator.java
 ```
 
 ## What this source is
@@ -49,29 +58,48 @@ agentic-debugger-for-eclipse/
 5. For development, use **Run As → Eclipse Application**; remember that a launched runtime Eclipse is a **separate IDE process** and cannot see debug launches in the host IDE.
 6. For debugging applications in your normal Eclipse IDE, install the plugin **in that host IDE**, restart it and confirm the plugin appears in Installation Details.
 
-## Build the MCP server
+## Build the MCP server and setup utility
 
 Requirements: Maven and a compatible Java JDK (the configured output bytecode level is Java 21).
 
-From `mcp-server/`:
+From the repository root, run:
 
-```powershell
-mvn clean package
+```text
+mvn package
 ```
 
-The shaded executable JAR is generated under `target/`. **Stop running Java/MCP processes that lock that JAR before a Windows `mvn clean`.** The build artifact is for local development; a stable installer/launcher will be added in the distribution phase.
+The root Maven reactor builds the shaded MCP JAR first, then embeds it into `installer/target/agentic-debugger-setup.jar`. **Stop running Java/MCP processes that lock the old JAR before using `mvn clean`.** The Eclipse PDE plugin is deliberately **not** part of this Maven reactor yet; it is imported into Eclipse separately until the Tycho build is introduced.
+
+## Install and register Claude Code — no paths to configure
+
+With Java 21 or newer and Claude Code CLI available, run the packaged utility from the `installer/target` directory:
+
+```text
+java -jar agentic-debugger-setup.jar
+```
+
+This installs the MCP server into an OS-appropriate *per-user application data directory*, detects the Java executable used for setup, and registers the user-scoped `eclipse-debugger` MCP server using the official Claude Code CLI. No PowerShell scripts, user-entered absolute paths or manual `.claude.json` edits are needed. If `eclipse-debugger` already exists, setup asks before replacing it; for non-interactive replacement use `install --replace`.
+
+To verify registration or remove this installer-managed integration:
+
+```text
+java -jar agentic-debugger-setup.jar check
+java -jar agentic-debugger-setup.jar uninstall
+```
+
+The setup utility **does not install the Eclipse PDE plugin**. It also does not edit or remove other MCP server registrations. Restart Claude Code after installing. The installer has not yet been tested on Windows/macOS in this environment.
 
 ## Run and verify
 
 1. Start the Eclipse IDE where the plugin is installed. Check its console for bridge startup on `127.0.0.1:8765`.
-2. Register the shaded MCP executable JAR in Claude Code's MCP configuration using the appropriate Java executable and working paths; preserve other MCP entries. Avoid committing machine-specific configuration or token files.
+2. Run the Java setup utility as described above; avoid committing machine-specific configuration or token files.
 3. Restart Claude Code and check `/mcp` for a connected `eclipse-debugger` server exposing the expected tools.
 4. Ask Claude Code to list Eclipse sessions and launch configurations, then start a saved Java debug configuration. Do not infer that an empty session list means the bridge is broken: no sessions is a valid initial state.
 5. Verify suspension, stack and local variables after a breakpoint is actually hit. Preserve existing user-created breakpoints.
 
 ## Next stages (not included in this ZIP)
 
-After validating this source layout against your latest working projects: establish the target Eclipse 2026-06/2026-09 compatibility matrix; add the Eclipse feature, p2 update site, tests and client installer as **later changes**.
+After validating this source layout against your latest working projects: establish the target Eclipse 2026-06/2026-09 compatibility matrix; add the Eclipse feature, p2 update site, full integration tests and automated release packaging as **later changes**.
 
 ## Caution
 
