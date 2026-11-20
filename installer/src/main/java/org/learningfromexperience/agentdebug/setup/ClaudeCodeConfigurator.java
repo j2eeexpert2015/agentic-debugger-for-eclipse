@@ -18,22 +18,40 @@ final class ClaudeCodeConfigurator {
     private final Path cli;
 
     ClaudeCodeConfigurator(Map<String, String> environment, String osName) {
-        this.cli = locateClaude(environment, osName);
+        this.cli = locateClaude(environment, osName, Path.of(System.getProperty("user.home")));
     }
 
-    private static Path locateClaude(Map<String, String> env, String osName) {
+    static Path locateClaude(Map<String, String> env, String osName, Path userHome) {
         boolean windows = osName.toLowerCase(Locale.ROOT).contains("win");
-        String path = env.getOrDefault("PATH", "");
+        // Windows commonly exposes this key as "Path", not "PATH".
+        String path = env.entrySet().stream()
+                .filter(entry -> entry.getKey().equalsIgnoreCase("PATH"))
+                .map(Map.Entry::getValue)
+                .findFirst().orElse("");
         String separator = windows ? ";" : ":";
         String[] names = windows ? new String[] {"claude.exe", "claude.cmd", "claude.bat"} : new String[] {"claude"};
         for (String folder : path.split(java.util.regex.Pattern.quote(separator))) {
             if (folder.isBlank()) continue;
+            String directory = folder.trim();
+            if (directory.startsWith("\"") && directory.endsWith("\"") && directory.length() > 1) {
+                directory = directory.substring(1, directory.length() - 1);
+            }
             for (String name : names) {
-                Path candidate = Path.of(folder).resolve(name);
+                Path candidate = Path.of(directory).resolve(name);
                 if (Files.isRegularFile(candidate)) return candidate.toAbsolutePath();
             }
         }
-        throw new IllegalStateException("Claude Code CLI was not found on PATH. Install Claude Code, then rerun setup.");
+
+        // Claude Code's native installer uses the user's .local/bin directory.
+        // Resolve it from the user's home, never from a hardcoded account path.
+        Path localBin = userHome.resolve(".local").resolve("bin");
+        for (String name : names) {
+            Path candidate = localBin.resolve(name);
+            if (Files.isRegularFile(candidate)) return candidate.toAbsolutePath();
+        }
+
+        throw new IllegalStateException("Claude Code CLI was not found. "
+                + "Make sure 'claude --version' works in this terminal, then rerun setup.");
     }
 
     boolean registrationExists() throws IOException, InterruptedException {
