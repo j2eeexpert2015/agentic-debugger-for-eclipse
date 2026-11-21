@@ -2,9 +2,13 @@
 
 Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
-**Project status · 22 November 2026.** Phase 1 is implemented and verified on an installed Windows Eclipse candidate. The candidate is unpublished. [Results and remaining work](docs/phase1-implementation-status.md)
+**Project status · 22 November 2026.** Phase 1 features passed installed-Windows candidate verification; publication is pending. [Full test results](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
 
 ## Contents
+
+- [Project roadmap — Phases 0–5](#project-roadmap--phases-05)
+- [Development roadmap (phase-level)](docs/development-roadmap.md)
+- [Feature roadmap and tracker (feature-level)](docs/feature-roadmap.md)
 
 - [1. Install and use (end users)](#1-install-and-use-end-users)
 - [2. Develop and test (contributors)](#2-develop-and-test-contributors)
@@ -15,6 +19,21 @@ Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect loc
 - [6. Current verification boundary](#6-current-verification-boundary)
 - [Phase 1 candidate — advanced core-Java debugging](#phase-1-candidate--advanced-core-java-debugging)
 - [Documentation](#documentation)
+
+## Project roadmap — Phases 0–5
+
+The phase-level [Development Roadmap](docs/development-roadmap.md) defines sequencing, dependencies, deliverables and acceptance gates. The [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) records each capability's benefit, status, feasibility, test evidence and outstanding work. **They complement each other; neither replaces the implementation/test evidence.**
+
+| Phase | Scope | Status | Detailed plan |
+|---|---|---|---|
+| **0** | Core Eclipse ↔ Java MCP debugger, launch, stepping, variables, ownership | Implemented and core regression tested | [Phase 0](docs/development-roadmap.md#phase-0--core-eclipse-mcp-debugger) |
+| **1** | Seven advanced Java features | 7/7 direct + explicit Claude tests on installed candidate; **unpublished** | [Phase 1](docs/development-roadmap.md#phase-1--advanced-core-java-debugging) |
+| **2** | Optional replaceable agentic debugging skill | Not implemented | [Phase 2](docs/development-roadmap.md#phase-2--optional-agentic-debugging-skill) |
+| **3** | Skill A/B testing and quantitative/qualitative evaluation | Framework planned; repeatable runner pending | [Phase 3](docs/development-roadmap.md#phase-3--skill-evaluation-and-refinement) |
+| **4** | Advanced Java: attach, watchpoints, run-to-line, HCR, mutation | Deferred / feasibility TBD | [Phase 4](docs/development-roadmap.md#phase-4--advanced-java-debugging) |
+| **5** | Spring Boot application discovery, launch, readiness, HTTP debugging | Deferred / not implemented | [Phase 5](docs/development-roadmap.md#phase-5--spring-boot-debugging) |
+
+**Next:** Finalize the Phase 1 source-to-tested-artifact release record, then establish a repeatable no-skill baseline before developing the optional skill. Core debugging must always work with the skill absent.
 
 ## 1. Install and use (end users)
 
@@ -80,9 +99,10 @@ The test compares installed debugger class bytes with the freshly built distribu
 
 ## 3. Local Windows deployment (developers)
 
-**Complete Eclipse walkthrough:** [Eclipse Installation, Deployment, and Phase 1 Verification](docs/eclipse-installation-and-validation.md) covers installed Eclipse vs PDE Runtime Eclipse, the Windows scripts, manual p2 installation, Java fixture import, all seven test scenarios, reports, and troubleshooting.
+**Recommended developer entry point:** Run `scripts\windows\dev.bat` from the repository root. It builds and deploys to the configured test Eclipse installation, prepares/imports the fixture and runs installed Claude regression plus the seven Phase 1 direct checks. Use `dev.bat deploy` for deployment only, `dev.bat doctor` for readiness, `dev.bat test` for tests, or `dev.bat conditional` (and other scenario names) for a focused check. A fresh workspace and repeat deployment were verified on Windows. Consult the [Eclipse guide](docs/eclipse-installation-and-validation.md) for workspace and port configuration.
 
-For a fresh Windows development workspace, run `scripts\windows\dev.bat` from the checkout. It packages and installs the current plugin, imports the Maven fixture, and runs the installed Claude and Phase 1 checks. Use `dev.bat deploy` for setup only. [Workspace, Eclipse installation, and bridge port settings](docs/eclipse-installation-and-validation.md#developer-commands)
+
+**Complete Eclipse walkthrough:** [Eclipse Installation, Deployment, and Phase 1 Verification](docs/eclipse-installation-and-validation.md) covers installed Eclipse vs PDE Runtime Eclipse, the Windows scripts, manual p2 installation, Java fixture import, all seven test scenarios, reports, and troubleshooting.
 
 Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the currently installed Agentic Debugger feature, install the newest local p2 build, verify, and optionally start Eclipse**. This changes the configured Eclipse installation; use it only for a development/test Eclipse.
 
@@ -107,7 +127,7 @@ Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the curren
    mvn verify -Pinstalled-e2e
    ```
 
-**Phase 1 feature verification (Java only):** The developer wrapper imports the fixture automatically. For a manually prepared workspace, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
+**Phase 1 feature verification (Java only):** After the new Eclipse starts, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
 
 ```cmd
 scripts\windows\verify-phase1-eclipse.bat
@@ -119,9 +139,9 @@ To check one capability independently:
 scripts\windows\verify-phase1-eclipse.bat conditional
 ```
 
-This invokes `mvn verify -Pphase1-bridge` and writes `evaluation/reports/phase1-live.json`. It does **not** invoke Claude. The seven valid scenarios and their Claude prompts are documented in [Phase 1 Java verification](docs/phase1-java-test-runner.md) and [Phase 1 Claude scenarios](docs/phase1-claude-scenarios.md). Use `dev.bat` for the complete developer workflow or `verify-phase1-eclipse.bat` for the direct suite alone.
+This invokes `mvn verify -Pphase1-bridge` and writes `evaluation/reports/phase1-live.json`. It does **not** invoke Claude. The seven valid scenarios and their Claude prompts are documented in [Phase 1 Java verification](docs/phase1-java-test-runner.md) and [Phase 1 Claude scenarios](docs/phase1-claude-scenarios.md). The existing deployment batch file remains the installer; `verify-phase1-eclipse.bat` is the separate feature tester.
 
-The script does not edit Claude Code's `.claude.json` and does not uninstall other Eclipse features. The entire script has **not yet been executed on Windows**; validate the first deployment against a disposable Eclipse installation.
+The script does not edit Claude Code's `.claude.json` and does not uninstall other Eclipse features. Fresh-workspace and repeat `dev.bat` deployment were recorded as passing in a disposable Windows Eclipse installation. Continue using a dedicated test installation; do not deploy into a production Eclipse instance without reviewing the script.
 
 ## 4. CI/CD (prepared; inactive)
 
@@ -137,20 +157,21 @@ The script does not edit Claude Code's `.claude.json` and does not uninstall oth
 
 ## 6. Current verification boundary
 
-Build `1.5.0.20261121184224374` passed the installed Claude calculator regression, all seven direct bridge scenarios, 32 ownership and failure checks, and all seven explicit Claude feature scenarios. Fresh-workspace setup and repeat deployment also passed on Windows. The separate symptom-only assessment produced five complete and two partial answers across seven single trials. [Candidate record and pending work](docs/phase1-implementation-status.md)
+Candidate `1.5.0.20261121184224374` passed the installed Claude calculator regression, all seven direct Phase 1 bridge scenarios, all seven explicit Claude feature scenarios, and 32 ownership/failure checks. Fresh-workspace setup and repeat deployment passed on Windows. Seven *single-trial* natural-language prompts produced five complete and two partial outcomes; do not treat these as a robust success rate. The tested checkout contained local changes, and public publication remains pending until the tested source and artifact are reconciled. [Exact verification record and gaps](docs/phase1-implementation-status.md).
 
 ## Phase 1 candidate — advanced core-Java debugging
 
-The seven verified capabilities are conditional breakpoints, exception breakpoints, individual JUnit launches, bounded nested-variable inspection, tracepoints, investigation-owned restart, and per-target step filters. The core debugger works without a debugging skill.
+The seven tested capabilities are conditional breakpoints, exception breakpoints, individual JUnit launches, bounded nested-variable inspection, non-suspending tracepoints, investigation-owned restart, and per-target step filtering. These features do not depend on a debugging skill. They were verified against an installed Windows candidate, **not yet published as a public release**.
 
-For an end-to-end check on a Windows test installation, follow [Phase 1 implementation status](docs/phase1-implementation-status.md) and [feature-specific Claude prompts](docs/phase1-claude-scenarios.md). The direct bridge verifier is `mvn verify -Pphase1-bridge` and requires the `phase-one-debugging` Maven fixture imported in Eclipse. Each scenario exercises real debugger state and owns its cleanup.
+Use [Phase 1 status](docs/phase1-implementation-status.md), [Java verification](docs/phase1-java-test-runner.md) and [Claude scenarios](docs/phase1-claude-scenarios.md) for the exact acceptance evidence, limitations and outstanding coverage.
 
 ## Documentation
 
 | Document | Purpose |
 |---|---|
+| [Development Roadmap — Phases 0–5](docs/development-roadmap.md) | Phase milestones, dependencies, pending work and release gates |
+| [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) | Feature-level status, developer benefit, feasibility, test evidence and decisions |
 | [Implemented Capabilities and Verification](docs/capabilities.md) | Existing core-Java features, evidence boundaries, and regression requirements |
-| [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) | Pending, explored, feasible/unknown, deferred, rejected and planned features with stable IDs |
 | [External Research and Feature Mapping](docs/research-sources.md) | What IntelliJ, DebugMCP, Microsoft Java Debug Agent, Debug2Fix and other sources offer, and what applies here |
 | [Regression and Skill Evaluation Plan](docs/evaluation-plan.md) | Deterministic tests, repeatable A/B experiments, scoring and release gates |
 | [Architecture Decisions and Documentation Rules](docs/decisions.md) | Replaceable-skill boundary and maintenance rules |
@@ -159,6 +180,6 @@ For an end-to-end check on a Windows test installation, follow [Phase 1 implemen
 | [Phase 1 Implementation Status](docs/phase1-implementation-status.md) | Exact new tools, confidence level, caveats, and release checklist |
 | [Phase 1 Claude Prompt Scenarios](docs/phase1-claude-scenarios.md) | Explicit/implicit agent prompts, direct test fixtures and quantitative/qualitative criteria |
 
-These documents separate **what is implemented**, **what a source suggests**, **what may be feasible**, and **what has actually been verified**. The debugging skill and A/B evaluation runner are proposals, not installed product features.
+These documents separate **what is implemented**, **what a source suggests**, **what may be feasible**, and **what has actually been verified**. The debugging skill and its repeatable A/B evaluation runner are proposals, not installed product features. The latest release candidate has verified Phase 1 tests but remains unpublished.
 
 For Java-only verification prerequisites, scenario selection, and report format, see [Phase 1 Java verification](docs/phase1-java-test-runner.md).
