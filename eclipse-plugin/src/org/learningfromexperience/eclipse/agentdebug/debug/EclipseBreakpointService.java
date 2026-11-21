@@ -1,6 +1,7 @@
 package org.learningfromexperience.eclipse.agentdebug.debug;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -120,7 +121,7 @@ public class EclipseBreakpointService {
 
         JDIDebugModel.createLineBreakpoint(resource, qualifiedTypeName,
                 lineNumber, -1, -1, 0, true,
-                Map.of(OWNER_ATTRIBUTE, "agent"));
+                new HashMap<>(Map.of(OWNER_ATTRIBUTE, "agent")));
 
         return new BreakpointResult(qualifiedTypeName, lineNumber,
                 resource.getProject().getName(), true, "agent");

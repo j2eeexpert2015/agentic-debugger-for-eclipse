@@ -6,11 +6,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,18 +44,7 @@ public final class ClaudeIntegration {
         if (bundle == null) throw new IOException("Eclipse OSGi bundle is unavailable");
         URL resource = bundle.getEntry(PAYLOAD);
         if (resource == null) throw new IOException("Bundled MCP runtime is missing: " + PAYLOAD);
-        Files.createDirectories(directory);
-        Path temp = Files.createTempFile(directory, "agentic-mcp-", ".jar");
-        try {
-            try (InputStream in = resource.openStream()) {
-                Files.copy(in, temp, StandardCopyOption.REPLACE_EXISTING);
-            }
-            if (Files.size(temp) < 1000) throw new IOException("Bundled MCP runtime is incomplete");
-            try { Files.move(temp, jar(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE); }
-            catch (java.nio.file.AtomicMoveNotSupportedException ex) {
-                Files.move(temp, jar(), StandardCopyOption.REPLACE_EXISTING);
-            }
-        } finally { Files.deleteIfExists(temp); }
+        RuntimeJarInstaller.installIfChanged(resource, jar());
     }
 
     public String status() throws Exception {
@@ -168,7 +154,7 @@ public final class ClaudeIntegration {
         Properties props = new Properties();
         props.setProperty("server", SERVER);
         props.setProperty("jar", jar().toAbsolutePath().toString());
-        props.setProperty("sha256", sha256(jar()));
+        props.setProperty("sha256", RuntimeJarInstaller.sha256(jar()));
         Path tmp = Files.createTempFile(directory, "claude-registration-", ".tmp");
         try {
             try (var out = Files.newOutputStream(tmp)) { props.store(out, "Agentic Debugger managed registration"); }
@@ -176,14 +162,6 @@ public final class ClaudeIntegration {
         } finally { Files.deleteIfExists(tmp); }
     }
 
-    private static String sha256(Path path) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        try (InputStream in = Files.newInputStream(path)) {
-            byte[] buf = new byte[8192]; int n;
-            while ((n = in.read(buf)) != -1) digest.update(buf, 0, n);
-        }
-        return HexFormat.of().formatHex(digest.digest());
-    }
 
     private static Path locateJava() throws IOException {
         String executable = isWindows() ? "java.exe" : "java";

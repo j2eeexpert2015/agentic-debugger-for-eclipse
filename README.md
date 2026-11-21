@@ -103,6 +103,22 @@ Claude Code uses the MCP server to request debugger actions from **the running E
 
 **Everyday use after the initial setup:** Open Eclipse with your Java project → open Claude Code → give a debugging prompt. You do **not** rerun Maven, install a separate MCP JAR, or repeat configuration for each Java project.
 
+### Startup performance behavior
+
+- The Eclipse bridge still starts automatically in a background Job.
+- On startup, the plugin **does not enumerate active Java debug sessions**; session discovery occurs only when a debugging request asks for it.
+- If Claude Code was previously configured through this plugin, the bundled MCP JAR is checked against the installed copy using SHA-256. **Identical JARs are not copied** and the installed file is not touched. New/changed JARs are staged and replaced.
+- Startup does **not** run `claude mcp get`, register a server, or change `.claude.json` automatically; setup requires user approval. The first-run prompt can still appear once.
+- If an updated JAR cannot be replaced because it is in use, close Claude Code and restart Eclipse to retry; the plugin logs the refresh error rather than delaying bridge startup.
+
+To run the standalone runtime-refresh test with JDK 21+ (from the repository root):
+
+```cmd
+javac -d eclipse-plugin/target/runtime-test-classes eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/integration/RuntimeJarInstaller.java eclipse-plugin/tests/org/learningfromexperience/eclipse/agentdebug/integration/RuntimeJarInstallerTest.java
+java -cp eclipse-plugin/target/runtime-test-classes org.learningfromexperience.eclipse.agentdebug.integration.RuntimeJarInstallerTest
+```
+
+
 ## What gets installed or changed?
 
 | Location | Action | Purpose |

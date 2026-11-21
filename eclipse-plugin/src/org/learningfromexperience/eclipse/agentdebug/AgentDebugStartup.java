@@ -11,7 +11,6 @@ import org.eclipse.jface.dialogs.MessageDialog;
 
 
 import org.learningfromexperience.eclipse.agentdebug.bridge.EclipseBridgeServer;
-import org.learningfromexperience.eclipse.agentdebug.debug.EclipseDebugService;
 import org.learningfromexperience.eclipse.agentdebug.integration.ClaudeIntegration;
 
 public class AgentDebugStartup implements IStartup {
@@ -91,30 +90,11 @@ public class AgentDebugStartup implements IStartup {
                         "[Eclipse Agentic Debugger] Background initialization successful."
                 );
 
-                // Refresh an already-configured bundled runtime without modifying Claude settings.
+                // Refresh an already-configured MCP runtime only when its contents have changed.
                 try { new ClaudeIntegration().refreshBundledRuntime(); }
                 catch (Exception error) {
                     System.err.println("[Eclipse Agentic Debugger] MCP runtime refresh failed: " + error.getMessage());
                 }
-
-                // Initialize Eclipse Debug Service.
-                EclipseDebugService debugService =
-                        new EclipseDebugService();
-
-                // Retrieve currently active Java debugging sessions.
-                var sessions = debugService.listDebugSessions();
-
-                System.out.println(
-                        "[Eclipse Agentic Debugger] Active Java debug sessions: "
-                        + sessions.size()
-                );
-
-                // Display debugging session information.
-                sessions.forEach(session ->
-                        System.out.println(
-                                "[Eclipse Agentic Debugger] " + session
-                        )
-                );
 
                 // Start communication bridge.
                 try {
