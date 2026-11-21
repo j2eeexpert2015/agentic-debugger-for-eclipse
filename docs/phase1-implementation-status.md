@@ -11,6 +11,26 @@
 | Tool selection from symptoms | Claude chose the intended mechanism in six of seven trials. Five answers were complete. Trace output covered IDs 1000–1283, and the pause trial sampled one JVM twice instead of repeating the run. Each trial included relevant fixture source. |
 | Same-build acceptance | The installed calculator regression, all seven direct scenarios and all seven explicit Claude scenarios passed on the candidate. Every direct and explicit feature scenario reported successful cleanup. |
 
+## Verified distribution ZIP
+
+On 22 November 2026, a clean source export of `58d361a7bbc04d47c23b816bb18cf035302223b8` was packaged offline with Maven 3.9.16 and Tycho using `-DforceContextQualifier=20261121194127738 clean package`. Eclipse p2 installed the versioned feature directly from the ZIP into a separate Eclipse IDE for Enterprise Java and Web Developers 2026-09 installation on Windows. The workspace and bridge port were dedicated to this run.
+
+| Artifact | SHA-256 |
+|---|---|
+| `agentic-debugger-update-site-1.5.0.20261121194127738.zip` | `08D33CF105F96955CD5BBFCE61C10AC040A2868734043998F207C866F3554CC7` |
+| Installed plug-in JAR, identical to its entry in the ZIP | `EF59D7AD2A6F2E12EECC6A8A4CA94B8291C91D06087189DA45A80A6A996357BE` |
+| MCP server used by the tests, identical to the bundled JAR | `00BB0CC73372E924959C36A4C4C2B5A8187511CC2DFA931C800A6377143F1A9B` |
+
+| Installed check | Result |
+|---|---|
+| Readiness and identity | Loaded candidate version and class hashes matched. Eclipse discovered the imported Java and JUnit fixture. |
+| Ownership and failure handling | 32/32 passed. |
+| Direct Phase 1 scenarios | 7/7 passed with cleanup. |
+| Installed Claude calculator regression | Passed. Stepping showed `sum=10` and Claude identified the defect. |
+| Explicit Phase 1 prompts | 7/7 passed in fresh Claude Sonnet 5.5 sessions. Tool traces showed the requested observations and completed NORMAL cleanup for the original investigation ID in every case. The tracepoint recorded order 1057 within a partial console capture. |
+
+The local evidence archive is `phase1-verification-1.5.0.20261121194127738.zip`. It contains artifact identities, installation and readiness logs, the ownership report, direct results, calculator evidence and the seven explicit prompt traces. The symptom-prompt assessment and repeat-deployment results below belong to the previous candidate. Publication is pending.
+
 ## Source and artifact audit
 
 On 22 November 2026, the plug-in retained in the disposable Eclipse installation matched the SHA-256 recorded by the explicit Claude verification run. The original build ran from a modified checkout based on `7b559f2234029eb72d49b5427de02e68fd91db59`. A subsequent committed revision reproduces its complete unpacked plug-in contents.
@@ -27,7 +47,7 @@ The comparison used an empty directory populated by `git -c core.autocrlf=false 
 
 ## What remains
 
-- **Publication.** The [source and artifact audit](#source-and-artifact-audit) links the tested plug-in to committed source. The original tested update-site ZIP remains unidentified. Before publication, identify and validate the exact distribution ZIP or verify a newly versioned release candidate from committed source. CI and release workflows are disabled.
+- **Publication.** The [source and artifact audit](#source-and-artifact-audit) links the tested plug-in to committed source. The original tested update-site ZIP remains unidentified. The replacement [verified distribution ZIP](#verified-distribution-zip) is ready for a publication decision. CI and release workflows are disabled.
 - **Coverage follow-ups.** Full trace retrieval for fast-exiting launches, repeat-run selection from a symptom alone, visible editor focus with simultaneous sessions, parameterized JUnit coverage, and installed managed-registration changes remain open. The prompt results describe one trial per scenario.
 - **Next development phase.** Phase 2 covers essential Spring Boot workflows and Spring-context JUnit debugging. The optional debugging skill and its A/B evaluation follow. Field watchpoints, remote JVM attach, variable mutation, hot code replacement and advanced Boot work such as JPA diagnostics remain deferred. [Roadmap](feature-roadmap.md)
 

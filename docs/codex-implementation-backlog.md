@@ -19,7 +19,7 @@
 
 **Inspect:** `README.md`, `docs/phase1-implementation-status.md`, `docs/capabilities.md`, `docs/phase1-claude-scenarios.md`, `scripts/windows/dev.bat`, `docs/evaluation-plan.md`, installed test results and current revision. **Deliver:** source SHA + bundle version + artifact hash release record, consistent documentation and a deliberate release decision. **Tests:** `dev.bat doctor`, `dev.bat test`, ownership suite on the disposable IDE and final installed candidate as available. Do not claim the old uncommitted candidate is byte-identical to current `main` without comparison.
 
-**Audit outcome (22 November 2026).** The original installed plug-in hash matches the historical test record, and its unpacked contents match a clean source rebuild of `ff28455`. Hold publication until the exact distribution ZIP is identified and validated or a newly versioned candidate passes verification. [Source and artifact audit](phase1-implementation-status.md#source-and-artifact-audit)
+**Audit outcome (22 November 2026).** The original installed plug-in hash matches the historical test record, and its unpacked contents match a clean source rebuild of `ff28455`. **P1-REL verification complete.** The [newly versioned ZIP](phase1-implementation-status.md#verified-distribution-zip) passed installed acceptance. Publication awaits approval. P2-01 is the next development task. [Source and artifact audit](phase1-implementation-status.md#source-and-artifact-audit)
 
 ### P2-01 — Audit existing API support for Boot and JUnit
 
@@ -59,7 +59,7 @@
 
 ## Suggested Codex execution prompt
 
-> Continue Agentic Debugger for Eclipse IDE in this local repository. Read `README.md`, `docs/development-roadmap.md`, `docs/feature-roadmap.md`, `docs/spring-boot-debugging-scenarios.md`, `docs/evaluation-plan.md`, `docs/codex-implementation-backlog.md` and `docs/phase1-implementation-status.md`. First inspect Git status and current code; preserve all uncommitted changes. Follow P1-REL then Phase 2 packages in order. Before creating Boot-specific APIs, prove whether existing Java and JUnit tools can satisfy each scenario. Implement narrowly, run installed Eclipse tests when available, record PASS/FAIL/NOT RUN separately, keep user-owned launches/breakpoints/configs safe, and avoid unauthorized requests or side effects. Use Java/Maven and batch/PowerShell, no Python. Do not publish or push without approval.
+> Continue Agentic Debugger for Eclipse IDE in this local repository. Read `README.md`, `docs/development-roadmap.md`, `docs/feature-roadmap.md`, `docs/spring-boot-debugging-scenarios.md`, `docs/evaluation-plan.md`, `docs/codex-implementation-backlog.md` and `docs/phase1-implementation-status.md`. First inspect Git status and current code; preserve all uncommitted changes. Review the P1-REL verification record, then follow the Phase 2 packages in order. Before creating Boot-specific APIs, prove whether existing Java and JUnit tools can satisfy each scenario. Implement narrowly, run installed Eclipse tests when available, record PASS/FAIL/NOT RUN separately, keep user-owned launches/breakpoints/configs safe, and avoid unauthorized requests or side effects. Use Java/Maven and batch/PowerShell, no Python. Do not publish or push without approval.
 
 ## Progress convention
 

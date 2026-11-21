@@ -21,7 +21,7 @@
 | Phase | Goal | Present evidence/status | Gate to next phase |
 |---|---|---|---|
 | **0** | Real Eclipse JDT debugger controlled by a Java MCP server | Implemented; installed calculator E2E and ownership evidence | Preserve base regression and resource isolation |
-| **1** | Conditional and exception breakpoints, single JUnit test, nested inspection, tracepoints, owned restart and step filters | **All seven direct and explicit Claude tests passed on installed Windows candidate; publication pending** | Identify and validate the distribution ZIP before publication |
+| **1** | Conditional and exception breakpoints, single JUnit test, nested inspection, tracepoints, owned restart and step filters | **All seven direct and explicit Claude tests passed on installed Windows candidate; publication pending** | Decide publication of the verified ZIP |
 | **2** | Reliable Boot launch/configuration, readiness, HTTP reproduction and practical Boot/JUnit debugging | **Planned, not verified as framework-specific functionality** | One complete real HTTP debugging path, Boot unit/integration test paths, negative/ownership tests and installed regression |
 | **3** | Optional, replaceable Java + JUnit + Spring Boot agentic debugging skill | Research and initial Java behavior baseline exist; **skill not implemented** | Demonstrate correct activation and cross-context guidance without coupling debugger to skill |
 | **4** | Repeatable no-skill / stable-skill / candidate-skill testing | Evaluation specification exists; **A/B runner and repeated trials not built** | Measurable value with predeclared thresholds, no safety or non-debug regressions |
@@ -53,7 +53,7 @@
 
 **Candidate evidence:** Bundle `1.5.0.20261121184224374`: 7/7 direct bridge, 7/7 explicit Claude, 32/32 ownership/failure checks, installed calculator regression; fresh and repeat Windows deployment recorded. In seven **single-run** natural-language trials with relevant fixture source and lifecycle guidance, 6/7 selected intended mechanism, 5/7 complete and 2/7 partial. The partial cases were truncated trace retrieval and pause without requested restart. Do not translate single trials into a population success rate. [Full records](phase1-implementation-status.md) · [Prompts](phase1-claude-scenarios.md).
 
-**Remaining release work:** The [source and artifact audit](phase1-implementation-status.md#source-and-artifact-audit) identified `ff28455` as a match for the installed plug-in contents. Identify and validate the distribution ZIP, or verify a newly versioned candidate before publishing. Track full JUnit Platform discovery/parameterized cases and post-exit output as follow-ups, not as unimplemented Phase 1 fundamentals.
+**Remaining release work:** The [source and artifact audit](phase1-implementation-status.md#source-and-artifact-audit) identified `ff28455` as a match for the installed plug-in contents. The [new distribution ZIP](phase1-implementation-status.md#verified-distribution-zip) passed installed verification. Publication awaits approval. Track full JUnit Platform discovery/parameterized cases and post-exit output as follow-ups, not as unimplemented Phase 1 fundamentals.
 
 ## Phase 2 — Essential Spring Boot and JUnit debugging
 
@@ -136,7 +136,7 @@ All deferred. These are *candidates*, not an implementation promise.
 
 ## Immediate implementation order
 
-1. **Release hygiene:** the installed plug-in audit is complete. Distribution ZIP verification remains open before publication.
+1. **Release hygiene:** the installed plug-in audit is complete. The newly versioned distribution ZIP passed installed verification. Publication awaits approval.
 2. **Boot feasibility + test fixture:** verify existing Java/JUnit tools against a small Boot application; capture the real gaps before adding APIs.
 3. **Core Boot vertical slice:** safe project/launch selection, readiness, approved HTTP reproduction, suspended controller/service evidence and ownership cleanup.
 4. **Boot/JUnit slice:** ordinary service unit test, one Spring-context JUnit test and an HTTP/validation failure scenario; assert real Eclipse evidence.
