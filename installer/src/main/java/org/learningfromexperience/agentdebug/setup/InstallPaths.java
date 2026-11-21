@@ -4,7 +4,10 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 
-/** Resolves user-local storage without assuming the user's name or a drive letter. */
+/** Resolves user-local storage without assuming the user's name or a drive letter.
+ *
+ * @author Ayan Dutta
+ */
 final class InstallPaths {
     private InstallPaths() { }
 

@@ -11,7 +11,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
-/** Stages the bundled MCP JAR only when its bytes differ from the installed runtime. */
+/** Stages the bundled MCP JAR only when its bytes differ from the installed runtime.
+ *
+ * @author Ayan Dutta
+ */
 final class RuntimeJarInstaller {
     private RuntimeJarInstaller() { }
 

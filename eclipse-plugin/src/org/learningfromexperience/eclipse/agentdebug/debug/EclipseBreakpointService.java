@@ -18,7 +18,10 @@ import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.debug.core.IJavaLineBreakpoint;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
 
-/** Creates Java line breakpoints in projects of the current Eclipse workspace. */
+/** Creates Java line breakpoints in projects of the current Eclipse workspace.
+ *
+ * @author Ayan Dutta
+ */
 public class EclipseBreakpointService {
 
     public static final String OWNER_ATTRIBUTE =

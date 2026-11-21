@@ -1,5 +1,10 @@
 package org.learningfromexperience.eclipse.agentdebug.integration;
 import java.nio.file.Path;
+/**
+ * Provides ClaudeRegistrationTest support for the Agentic Debugger integration.
+ *
+ * @author Ayan Dutta
+ */
 class ClaudeRegistrationTest {
   static void check(boolean condition, String label) { if(!condition) throw new AssertionError(label); }
   public static void main(String[] args) {

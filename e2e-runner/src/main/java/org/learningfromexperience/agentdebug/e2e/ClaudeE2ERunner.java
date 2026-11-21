@@ -8,10 +8,18 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.*;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
-/** Single-command Claude->MCP->Eclipse acceptance test. Never edits Claude's user config. */
+/** Single-command Claude->MCP->Eclipse acceptance test. Never edits Claude's user config.
+ *
+ * @author Ayan Dutta
+ */
 public final class ClaudeE2ERunner {
     private static final String TEST_LAUNCH = "AverageCalculatorApplication";
+    private static final boolean INSTALLED_MODE = Boolean.getBoolean("agentdebug.test.installed");
     private static final String PREFIX = "mcp__eclipse-debugger__";
     private static final List<String> REQUIRED_TOOLS = List.of(
         "eclipse_ping", "list_run_configurations", "list_breakpoints", "set_breakpoint",
@@ -46,7 +54,8 @@ public final class ClaudeE2ERunner {
             throw new IOException("Connected Eclipse bridge is not the current calculator-v2 plugin. "
                     + "Actual response: " + info + ". Restart the PDE Runtime Eclipse with the latest plugin source.");
         }
-        String prepared = bridge("PREPARE_SMOKE_TEST", true);
+        if (INSTALLED_MODE) validateInstalledBinary(root, reports, info);
+                String prepared = bridge("PREPARE_SMOKE_TEST", true);
         if (!prepared.contains("\"status\":\"success\""))
             throw new IOException("Cannot prepare fixture in running Eclipse. Restart the PDE Runtime Eclipse with the latest plugin; response: " + prepared);
         System.out.println("Fixture preparation: " + prepared);
@@ -123,7 +132,155 @@ public final class ClaudeE2ERunner {
         if (!breakpointList.contains("\"status\":\"success\""))
             throw new IOException("Eclipse cannot list breakpoints before Claude starts: "
                     + breakpointList + ". See Runtime Eclipse Error Log / console.");
-        System.out.println("Preflight passed: launch discovered and breakpoints readable");
+        if (INSTALLED_MODE) {
+            // Exercise the installed Eclipse breakpoint implementation *before* using Claude quota.
+            String encodedType = Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    "com.learningfromexperience.debugsample.service.AverageCalculator".getBytes(StandardCharsets.UTF_8));
+            String created = bridge("SET_BREAKPOINT " + encodedType + " 10", true);
+            Files.writeString(reports.resolve("preflight.txt"),
+                    "Installed breakpoint create: " + created + System.lineSeparator(),
+                    StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            if (!created.contains("\"status\":\"success\""))
+                throw new IOException("INSTALLED BREAKPOINT FAILED: " + created
+                    + ". Check the installed bundle and Eclipse Error Log, not the PDE test.");
+            // Only remove a breakpoint that this preflight actually created and owns.
+            if (created.contains("\"created\":true") && created.contains("\"owner\":\"agent\"")) {
+                String removal = bridge("REMOVE_BREAKPOINT " + encodedType + " 10", true);
+                if (!removal.contains("\"status\":\"success\""))
+                    throw new IOException("Cannot clean up preflight agent breakpoint: " + removal);
+            }
+        }
+        System.out.println("Preflight passed: launch discovered, breakpoints readable"
+                + (INSTALLED_MODE ? ", installed breakpoint creation works" : ""));
+    }
+
+    /** Verify the installed Eclipse's ACTUAL loaded breakpoint bytecode against the
+     * newest plugin JAR produced by this Maven reactor; JAR-level binary comparison
+     * is unsuitable because archive timestamps and metadata vary.
+     */
+    private static void validateInstalledBinary(Path root, Path reports, String info) throws IOException {
+        // Tycho's eclipse-plugin packaging does not promise a JAR named
+        // <bundle-id>_<version>.jar directly inside eclipse-plugin/target.
+        // Compare compiled class bytes with the distributed p2 ZIP and with
+        // the classes that are actually loaded in the running Eclipse instance.
+        String operationsClass =
+                "org/learningfromexperience/eclipse/agentdebug/debug/EclipseAgentOperations.class";
+        String breakpointClass =
+                "org/learningfromexperience/eclipse/agentdebug/debug/EclipseBreakpointService.class";
+
+        String compiledOperations = compiledClassHash(root, operationsClass);
+        String compiledBreakpoint = compiledClassHash(root, breakpointClass);
+        String packagedOperations = updateSiteClassHash(root, operationsClass);
+        String packagedBreakpoint = updateSiteClassHash(root, breakpointClass);
+
+        String loadedOperations = jsonField(info, "operationsSha256");
+        String loadedBreakpoint = jsonField(info, "breakpointSha256");
+        String loadedFrom = jsonField(info, "loadedFrom");
+        String installedVersion = jsonField(info, "bundleVersion");
+        if (loadedOperations == null || loadedBreakpoint == null || loadedFrom == null) {
+            throw new IOException("Installed Eclipse plugin lacks build identity: " + info
+                    + ". Reinstall the current update-site ZIP and restart Eclipse.");
+        }
+
+        String evidence = "Compiled classes: " + root.resolve("eclipse-plugin/target/classes")
+                + "\nRunning Eclipse plugin: " + loadedFrom
+                + "\nRunning bundle version: " + installedVersion
+                + "\nOperations SHA-256 (compiled/site/loaded): "
+                + compiledOperations + " / " + packagedOperations + " / " + loadedOperations
+                + "\nBreakpoint SHA-256 (compiled/site/loaded): "
+                + compiledBreakpoint + " / " + packagedBreakpoint + " / " + loadedBreakpoint + "\n";
+        Files.writeString(reports.resolve("installed-binary.txt"), evidence, StandardCharsets.UTF_8);
+        if (!loadedFrom.toLowerCase(Locale.ROOT).contains(".jar")) {
+            throw new IOException("Eclipse is running PDE classes rather than the installed plugin JAR: "
+                    + loadedFrom + ". Use the Eclipse instance with the update-site feature installed.");
+        }
+        if (!compiledOperations.equalsIgnoreCase(packagedOperations)
+                || !compiledBreakpoint.equalsIgnoreCase(packagedBreakpoint)) {
+            throw new IOException("UPDATE-SITE DOES NOT MATCH COMPILED SOURCE. " + evidence);
+        }
+        if (!compiledOperations.equalsIgnoreCase(loadedOperations)
+                || !compiledBreakpoint.equalsIgnoreCase(loadedBreakpoint)) {
+            throw new IOException("INSTALLED PLUGIN DOES NOT MATCH CURRENT BUILD. " + evidence
+                    + "Install the newly built ZIP as a higher p2 version, restart Eclipse, and retry.");
+        }
+        System.out.println("Installed Eclipse binary matches compiled and packaged debugger classes: "
+                + loadedFrom);
+    }
+
+    private static String compiledClassHash(Path root, String classEntry) throws IOException {
+        Path classFile = root.resolve("eclipse-plugin/target/classes").resolve(classEntry);
+        if (!Files.isRegularFile(classFile)) {
+            throw new IOException("Compiled Eclipse class not found: " + classFile
+                    + ". Build the full Maven reactor from the repository root first.");
+        }
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(Files.readAllBytes(classFile)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /** Independently prove the release ZIP contains the same debugger bytecode.
+     * The update-site archive contains a nested p2 plugins/<bundle>.jar entry.
+     */
+    private static String updateSiteClassHash(Path root, String classEntry) throws IOException {
+        Path target = root.resolve("eclipse-update-site/target");
+        if (!Files.isDirectory(target)) throw new IOException("Missing update-site target: " + target);
+        List<Path> archives;
+        try (var files = Files.list(target)) {
+            archives = files.filter(p -> p.getFileName().toString().endsWith(".zip")
+                    && p.getFileName().toString().contains("update-site"))
+                .sorted(Comparator.comparingLong((Path p) -> p.toFile().lastModified()).reversed())
+                .toList();
+        }
+        if (archives.isEmpty()) throw new IOException("No update-site ZIP built in " + target);
+        Path site = archives.get(0);
+        try (ZipFile zip = new ZipFile(site.toFile())) {
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                var entry = entries.nextElement();
+                String name = entry.getName().replace('\\', '/');
+                if (!name.contains("plugins/org.learningfromexperience.eclipse.agentdebug_")
+                        || !name.endsWith(".jar")) continue;
+                try (ZipInputStream nested = new ZipInputStream(zip.getInputStream(entry))) {
+                    java.util.zip.ZipEntry item;
+                    while ((item = nested.getNextEntry()) != null) {
+                        if (item.getName().equals(classEntry)) {
+                            try { return HexFormat.of().formatHex(
+                                    MessageDigest.getInstance("SHA-256").digest(nested.readAllBytes())); }
+                            catch (java.security.NoSuchAlgorithmException e) { throw new IOException(e); }
+                        }
+                    }
+                }
+            }
+        }
+        throw new IOException("Installable update-site ZIP " + site
+                + " does not contain plugin class " + classEntry);
+    }
+
+    private static String jsonField(String object, String field) {
+        String key = "\"" + field + "\"";
+        int start = object.indexOf(key);
+        if (start < 0) return null;
+        int colon = object.indexOf(':', start + key.length());
+        if (colon < 0) return null;
+        int openQuote = object.indexOf('"', colon + 1);
+        if (openQuote < 0) return null;
+        int closeQuote = object.indexOf('"', openQuote + 1);
+        return closeQuote < 0 ? null : object.substring(openQuote + 1, closeQuote);
+    }
+
+    private static String zipClassHash(Path jar, String entry) throws IOException {
+        try (ZipFile zip = new ZipFile(jar.toFile())) {
+            var ze = zip.getEntry(entry);
+            if (ze == null) throw new IOException("Missing " + entry + " in " + jar);
+            try (InputStream input = zip.getInputStream(ze)) {
+                try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                            .digest(input.readAllBytes())); }
+                catch (java.security.NoSuchAlgorithmException e) { throw new IOException(e); }
+            }
+        }
     }
 
     private static boolean hasLaunch(String json, String name) {

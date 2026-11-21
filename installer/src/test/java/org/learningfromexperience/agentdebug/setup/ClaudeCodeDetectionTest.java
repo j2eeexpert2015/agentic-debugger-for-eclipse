@@ -4,7 +4,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-/** Lightweight detection checks runnable without installing Claude Code. */
+/** Lightweight detection checks runnable without installing Claude Code.
+ *
+ * @author Ayan Dutta
+ */
 public final class ClaudeCodeDetectionTest {
     public static void main(String[] args) throws Exception {
         Path home = Files.createTempDirectory("agentdebug-detection-");

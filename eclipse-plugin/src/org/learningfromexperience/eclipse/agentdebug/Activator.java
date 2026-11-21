@@ -5,6 +5,11 @@ import org.osgi.framework.BundleContext;
 
 import org.learningfromexperience.eclipse.agentdebug.bridge.EclipseBridgeServer;
 
+/**
+ * Manages the Eclipse plugin lifecycle and debugging bridge.
+ *
+ * @author Ayan Dutta
+ */
 public class Activator implements BundleActivator {
 
     private static BundleContext context;

@@ -16,7 +16,10 @@ import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 
-/** Explicit opt-in E2E fixture. Never changes an existing project or launch configuration. */
+/** Explicit opt-in E2E fixture. Never changes an existing project or launch configuration.
+ *
+ * @author Ayan Dutta
+ */
 public final class SmokeTestProject {
     public static final String PROJECT = "AgenticDebuggerCalculatorE2E";
     public static final String LAUNCH = "AverageCalculatorApplication";

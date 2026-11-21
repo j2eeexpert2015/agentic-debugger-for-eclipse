@@ -5,7 +5,10 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 
-/** Standalone Java sanity test. Run using javac/java; requires no Eclipse dependencies. */
+/** Standalone Java sanity test. Run using javac/java; requires no Eclipse dependencies.
+ *
+ * @author Ayan Dutta
+ */
 public final class RuntimeJarInstallerTest {
     public static void main(String[] args) throws Exception {
         Path root = Files.createTempDirectory("agentic-mcp-test-");

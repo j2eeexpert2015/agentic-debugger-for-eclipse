@@ -6,7 +6,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-/** CLI entry point. No shell scripts, configuration-file edits or manually entered paths. */
+/** CLI entry point. No shell scripts, configuration-file edits or manually entered paths.
+ *
+ * @author Ayan Dutta
+ */
 public final class SetupApplication {
     private SetupApplication() { }
 

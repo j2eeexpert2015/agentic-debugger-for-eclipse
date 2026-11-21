@@ -3,7 +3,10 @@ package org.learningfromexperience.agentdebug.setup;
 import java.nio.file.Path;
 import java.util.Map;
 
-/** Standalone sanity tests; can be run with javac/java without additional libraries. */
+/** Standalone sanity tests; can be run with javac/java without additional libraries.
+ *
+ * @author Ayan Dutta
+ */
 public final class InstallPathsTest {
     public static void main(String[] args) {
         assertPath("C:/Users/example/AppData/Local/agentic-debugger-for-eclipse",

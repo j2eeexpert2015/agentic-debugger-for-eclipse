@@ -10,6 +10,7 @@
       <executions><execution><id>claude-e2e</id><phase>verify</phase><goals><goal>java</goal></goals><configuration>
         <mainClass>org.learningfromexperience.agentdebug.e2e.ClaudeE2ERunner</mainClass>
         <arguments><argument>${maven.multiModuleProjectDirectory}</argument></arguments>
+        <systemProperties><systemProperty><key>agentdebug.test.installed</key><value>${agentdebug.test.installed}</value></systemProperty></systemProperties>
       </configuration></execution></executions>
     </plugin>
   </plugins></build>

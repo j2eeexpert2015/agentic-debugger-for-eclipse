@@ -15,7 +15,10 @@ import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 import org.learningfromexperience.eclipse.agentdebug.integration.ClaudeIntegration;
 
-/** Preferences -> Agentic Debugger: explicit, safe MCP configuration actions. */
+/** Preferences -> Agentic Debugger: explicit, safe MCP configuration actions.
+ *
+ * @author Ayan Dutta
+ */
 public final class ClaudeIntegrationPreferences extends PreferencePage implements IWorkbenchPreferencePage {
     private Label status;
     @Override public void init(IWorkbench workbench) { }

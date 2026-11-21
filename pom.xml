@@ -20,6 +20,9 @@
     </modules>
     <profiles>
       <profile><id>e2e</id><modules><module>e2e-runner</module></modules></profile>
+      <profile><id>installed-e2e</id><modules><module>e2e-runner</module></modules>
+        <properties><agentdebug.test.installed>true</agentdebug.test.installed></properties>
+      </profile>
     </profiles>
     <repositories>
         <repository>

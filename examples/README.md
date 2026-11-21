@@ -1,12 +1,7 @@
-# Java debugging fixture
+# Java Debugging Sample
 
-The E2E runner creates this project automatically in the dedicated PDE Runtime Eclipse workspace. **Manual import is not needed** for `mvn verify -Pe2e`.
+`average-calculator-debug-sample` is an optional two-class Java project for manual demonstrations. Import it into Eclipse with **Existing Projects into Workspace**.
 
-Project: `AgenticDebuggerCalculatorE2E`  
-Launch configuration: `AverageCalculatorApplication`  
-Entry point: `com.learningfromexperience.debugsample.AverageCalculatorApplication`  
-Debugger target: `com.learningfromexperience.debugsample.service.AverageCalculator`, line **10** (`sum += number`).
+The automated `mvn verify -Pe2e` / `-Pinstalled-e2e` tests create their own isolated sample project; do not import this one for those tests.
 
-At the first breakpoint hit: `sum = 0`, `number = 10`. After one step-over: `sum = 10`. Total is 61 and buggy average is `20.0` (integer division); correct average is about `20.3333333333`.
-
-For manual inspection only, import `examples/average-calculator-debug-sample` using **Existing Projects into Workspace**. Do not import this copy into the same workspace in which the E2E runner automatically creates the fixture.
+To check the new automatic launch tools manually, create a Java project with a `main` class **without** using Run As first. Ask Claude to call `list_java_applications`, then `start_java_application` with the explicit project name and fully qualified main class. Set the breakpoint before launching to catch short-running programs.

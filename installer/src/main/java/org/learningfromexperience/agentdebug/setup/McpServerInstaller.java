@@ -7,7 +7,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 
-/** Installs the embedded MCP executable in a stable, per-user location. */
+/** Installs the embedded MCP executable in a stable, per-user location.
+ *
+ * @author Ayan Dutta
+ */
 final class McpServerInstaller {
     static final String PAYLOAD = "/payload/agentic-debugger-mcp-1.0.0-SNAPSHOT.jar";
     private static final String MANAGED_BY = "agentic-debugger-setup";

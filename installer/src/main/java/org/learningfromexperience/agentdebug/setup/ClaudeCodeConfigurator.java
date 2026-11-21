@@ -11,7 +11,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-/** Uses the supported Claude Code CLI; never rewrites ~/.claude.json directly. */
+/** Uses the supported Claude Code CLI; never rewrites ~/.claude.json directly.
+ *
+ * @author Ayan Dutta
+ */
 final class ClaudeCodeConfigurator {
     static final String SERVER_NAME = "eclipse-debugger";
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(30);

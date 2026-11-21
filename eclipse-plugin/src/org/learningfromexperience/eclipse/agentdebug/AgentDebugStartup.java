@@ -13,6 +13,11 @@ import org.eclipse.jface.dialogs.MessageDialog;
 import org.learningfromexperience.eclipse.agentdebug.bridge.EclipseBridgeServer;
 import org.learningfromexperience.eclipse.agentdebug.integration.ClaudeIntegration;
 
+/**
+ * Starts the local debugger bridge when the Eclipse workbench opens.
+ *
+ * @author Ayan Dutta
+ */
 public class AgentDebugStartup implements IStartup {
 
     private static final String PLUGIN_ID =

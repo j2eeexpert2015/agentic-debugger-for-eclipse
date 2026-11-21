@@ -19,7 +19,10 @@ import org.osgi.framework.Bundle;
 import org.osgi.framework.FrameworkUtil;
 
 /** Manages ONLY the user-scoped eclipse-debugger entry through the official Claude CLI.
- *  Never parses/writes ~/.claude.json, never touches project .mcp.json. */
+ *  Never parses/writes ~/.claude.json, never touches project .mcp.json.
+ *
+ * @author Ayan Dutta
+ */
 public final class ClaudeIntegration {
     public static final String SERVER = "eclipse-debugger";
     private static final String PAYLOAD = "lib/agentic-debugger-mcp.jar";

@@ -1,48 +1,90 @@
 # Agentic Debugger for Eclipse IDE
 
-Debug Java applications in Eclipse using Claude Code and an MCP server. **Development build:** the complete Eclipse/Claude integration still needs Windows verification.
+Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
-## 1. Install the plugin in Eclipse
+## 1. Install and use (end users)
 
-**Requirements:** Eclipse IDE with Java Development Tools (JDT), JDK 21+, Maven, and Claude Code CLI.
+**Prerequisites:** Eclipse IDE with Java Development Tools (JDT), Java 21+, and an installed Claude Code CLI. Maven is needed **only if building from source**.
 
-1. Obtain the **Eclipse update-site ZIP** from a published release. Until a release is published, clone this source repository and run `mvn clean package` in the repository root; the installable ZIP is generated under `eclipse-update-site/target/`.
-2. In Eclipse, choose **Help → Install New Software → Add**.
-3. Enter **Name:** `Agentic Debugger for Eclipse IDE`. Click **Archive**, select the **generated update-site ZIP** (not the source ZIP), and confirm **Add**.
-4. Expand **Agentic Debugger**, select **Agentic Debugger for Eclipse IDE**, click **Next**, complete the installation and restart Eclipse. If Eclipse reports *All items are installed*, you already have this version; use a higher-version build to update it.
-5. When prompted, choose **Configure Claude Code**. Or open **Window → Preferences → Agentic Debugger → Configure Claude Code** and then **Verify registration**. Existing unrelated MCP registrations are preserved.
-6. Open a fresh Claude Code terminal (`claude`), enter `/mcp`, confirm `eclipse-debugger` is connected, and ask Claude to call `eclipse_ping` (expected `PONG`).
+1. Download the **Eclipse update-site ZIP** from GitHub Releases (when published). To build it yourself instead, run `mvn clean package` from the repository root and select the ZIP in `eclipse-update-site/target/`. **Do not use the repository source ZIP.**
+2. In Eclipse, select **Help → Install New Software → Add**. Enter **Name:** `Agentic Debugger for Eclipse IDE`; click **Archive** and select the update-site ZIP; click **Add**.
+3. Expand **Agentic Debugger**, select the installable feature, complete installation, and **restart Eclipse**.
+4. Accept the first-run **Configure Claude Code** prompt. Alternatively open **Window → Preferences → Agentic Debugger → Configure Claude Code → Verify registration**. Existing unrelated MCP registrations are preserved.
+5. In an Eclipse terminal, run `claude`, use `/mcp` to confirm `eclipse-debugger`, and ask Claude to call `eclipse_ping` (expect `PONG`). **Keep Eclipse running.**
 
-To debug, open a Java project in the same Eclipse, then ask Claude to discover launch configurations, set a breakpoint, start debugging, and inspect variables.
+**Debug a Java class without manually creating a launch configuration:** Open the Java project in Eclipse and ask Claude:
 
-## 2. Automated developer test
+> Use only the eclipse-debugger MCP server. Discover runnable Java applications, find `com.example.debug.AverageCalculator` in project `AgenticDebugDemo`, set a breakpoint inside `calculateAverage`, and start the main class in debug mode. Wait for the breakpoint, inspect stack and variables, and step over once. Do not change source or remove existing breakpoints. Report real debugger evidence.
 
-**One command from the repository root:**
+The tools `list_java_applications` and `start_java_application` discover main classes and start a selected project/class, creating a standard Java launch configuration only when no matching one exists. Subsequent tools use the `launchName` returned by `start_java_application`. **Use existing configurations** for applications needing special VM/program arguments, environment settings, Spring Boot profiles, or other launch customization. If several main classes or matching configurations exist, explicitly choose one; the plugin does not guess.
+
+To uninstall: **Help → About Eclipse IDE → Installation Details → Installed Software → Uninstall**. To remove the Claude integration, use **Window → Preferences → Agentic Debugger → Remove managed registration** (preserves unrelated entries). The registration is user-scoped in `~/.claude.json`; Eclipse bridge resources live under `~/.eclipse-agentdebug/`. Do not manually overwrite `.claude.json`.
+
+## 2. Develop and test (contributors)
+
+**Prerequisites:** JDK 25, Maven, Eclipse RCP/PDE with JDT, authenticated Claude Code CLI.
+
+**Build:** From the repository root:
 
 ```cmd
-mvn verify -Pe2e
+mvn clean package
 ```
 
-The E2E runner builds the latest MCP server, connects to **an already-running development Eclipse** with the current plugin, creates/reuses the reserved project `AgenticDebuggerCalculatorE2E` with `AverageCalculatorApplication` and an `AverageCalculator` service, invokes Claude Code non-interactively with a temporary *isolated* MCP configuration, and captures the debugger tool trace. The test leaves the session suspended for inspection and writes results under `e2e-runner/target/e2e-report/`.
+**Development E2E — no plugin installation required:**
 
-**One-time prerequisite:** launch an Eclipse PDE Runtime Workbench containing the latest plugin source (**Run → Run Configurations → Eclipse Application**) with a dedicated test workspace. This prerequisite is not automated yet; without it, the command fails clearly rather than pretending an end-to-end test passed. Use a dedicated runtime to keep personal projects and debugger sessions separate. Ensure no other Eclipse instance owns bridge port `8765`.
+1. In Eclipse RCP/PDE, import `eclipse-plugin` with **File → Import → General → Existing Projects into Workspace**.
+2. **Run → Run Configurations → Eclipse Application**: create/run an Eclipse Application configuration with our workspace plugin and a dedicated runtime workspace. Keep that **Runtime Eclipse** open; only it should own `127.0.0.1:8765`.
+3. From the repository root run:
 
-You **do not** import a sample project, create a launch configuration, edit `.claude.json`, paste a prompt, or install a ZIP for each test. Claude Code must already be authenticated, and the run may consume Claude usage quota.
+   ```cmd
+   mvn verify -Pe2e
+   ```
 
-**Output:** `e2e-runner/target/e2e-report/result.txt`, `preflight.txt`, `trace.jsonl` and (on success) `runtime-evidence.txt`. Nonzero Maven exit means failure. The runner checks the expected fixture protocol, exact launch name and breakpoint-listing response **before** invoking Claude, so a stale Runtime Eclipse is reported immediately. The runner checks required tool calls, reported tool errors, a suspended test session, the `AverageCalculator.calculateAverage` stack frame, and the final `sum=10` value directly from Eclipse. The test uses the breakpoint at `com.learningfromexperience.debugsample.service.AverageCalculator:10`. Initially `sum=0` and `number=10`; after one step over `sum=10`. The E2E prompt includes the exact checked-in Java fixture source, so Claude can explain integer division without the consent-gated expression-evaluation tool. The runner separately checks tool errors, that exactly one step-over occurred, final live Eclipse variables, and the defect explanation. Review `trace.jsonl` for full evidence.
+The command builds the MCP server, prepares the sample calculator project and saved launch automatically, invokes Claude non-interactively with an isolated temporary MCP config, and checks breakpoint, suspension, stack, variables, step-over and explanation. **No manual sample import, Claude prompt paste, or user JSON editing.** Report: `e2e-runner/target/e2e-report/result.txt` and `trace.jsonl`. Claude usage may incur charges. The E2E command does **not** start Runtime Eclipse automatically.
 
-**If preflight fails:** Restart **Runtime Eclipse** from the PDE launch configuration, ensuring the workspace plugin is selected (not an older installed binary) and that only this runtime owns port `8765`. A successful `PONG` only proves bridge connectivity, not that the correct plugin version is loaded. Check `preflight.txt` and the Runtime Eclipse console for the exact error. No changes to Claude's user-level MCP configuration are needed.
+**Installed ZIP E2E — validates what users install:**
 
-## 3. Files and safe removal
+1. Build with `mvn clean package`; install the generated `eclipse-update-site/target/*.zip` into a **separate normal Eclipse IDE** through **Help → Install New Software → Add → Archive**; restart and keep that Eclipse open.
+2. Close PDE Runtime Eclipse so the installed instance alone owns port `8765`.
+3. From the repository root run:
 
-| Location | Purpose |
-|---|---|
-| Eclipse-managed plugin installation | Eclipse debugger integration and bundled MCP runtime |
-| `~/.eclipse-agentdebug/` | Bridge token, bundled MCP runtime and registration marker |
-| `~/.claude.json` | User-scoped Claude Code MCP registration (managed through Claude CLI) |
+   ```cmd
+   mvn verify -Pinstalled-e2e
+   ```
 
-No project-level `.mcp.json` is needed for normal installation. In **Window → Preferences → Agentic Debugger**, use **Verify registration** or **Remove managed registration**; only plugin-managed registrations may be removed. Before editing configuration manually, back up `.claude.json` and preserve other MCP entries. Uninstall the Eclipse feature using **Help → About Eclipse IDE → Installation Details → Installed Software → Uninstall**.
+The test compares installed debugger class bytes with the freshly built distribution and tests breakpoint creation before running Claude. Reports: `e2e-runner/target/e2e-report/` (`installed-binary.txt`, `preflight.txt`, `trace.jsonl`, `result.txt`). Maven **does not install or launch Eclipse** in this profile. A new public ZIP needs a higher Eclipse bundle/feature version; reinstalling the same version may reuse old plugin code.
 
-## Build and testing status
+## 3. Local Windows deployment (developers)
 
-The E2E runner source compiles under Java 21. The complete Maven/Tycho build, automated Claude run, and Eclipse p2 installation have **not** been executed in this environment. `mvn verify -Pe2e` is an implementation candidate that must be validated on the Windows development machine.
+Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the currently installed Agentic Debugger feature, install the newest local p2 build, verify, and optionally start Eclipse**. This changes the configured Eclipse installation; use it only for a development/test Eclipse.
+
+1. Edit the **first two paths** in `scripts/windows/deploy-eclipse-plugin.bat`:
+
+   ```bat
+   set "ECLIPSE_DIR=C:\All_Softwares\eclipse"
+   set "PROJECT_DIR=C:\All_GitHub_Desktop\agentic-debugger-for-eclipse"
+   ```
+
+2. **Close the target Eclipse IDE**, then run from the repository root:
+
+   ```cmd
+   scripts\windows\deploy-eclipse-plugin.bat
+   ```
+
+3. Confirm the prompt. The script builds with `mvn clean package`, uses Eclipse **p2 Director** to remove only our installed feature and install its latest build from `eclipse-update-site/target/repository`, verifies installation, then starts Eclipse if `START_ECLIPSE=YES`. Each stage reports progress directly in Command Prompt. Failed Maven commands print `[ERROR]` lines; failed Eclipse p2 commands print their full output immediately. Complete command output is also saved under `deploy-logs/`. **Do not run it concurrently with Eclipse or other installers.** If uninstall succeeds but installation fails, repair the installation before restarting Eclipse.
+
+4. Once Eclipse is open and the bridge is listening, run the installed E2E test from the repository root:
+
+   ```cmd
+   mvn verify -Pinstalled-e2e
+   ```
+
+The script does not edit Claude Code's `.claude.json` and does not uninstall other Eclipse features. The entire script has **not yet been executed on Windows**; validate the first deployment against a disposable Eclipse installation.
+
+## 4. CI/CD (prepared; inactive)
+
+`.github/workflows/ci.yml.disabled` and `release.yml.disabled` are complete workflow templates. **GitHub does not run them while the `.disabled` suffix is present.** To enable CI, rename `ci.yml.disabled` to `ci.yml` and commit. To enable release publishing, separately rename `release.yml.disabled` to `release.yml` and commit. CI builds/tests/packages on pushes and pull requests; release publishing runs on version tags. Release tags require consistent, increasing Eclipse bundle and feature versions; these templates do not automatically bump project versions. **Neither workflow executes Claude Code or modifies a user's MCP registration.**
+
+## 5. Current verification boundary
+
+Previous source revisions passed the Maven/Claude installed-plugin test in a Windows Eclipse setup. **The new automatic main-class discovery/launch tools and disabled GitHub Actions templates have not yet been exercised end to end on Windows.** Validate those changes before publishing a release.

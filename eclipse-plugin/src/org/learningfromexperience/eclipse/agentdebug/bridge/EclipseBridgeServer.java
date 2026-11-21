@@ -23,6 +23,11 @@ import org.learningfromexperience.eclipse.agentdebug.debug.EclipseDebugService;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseDebugService.DebugSessionInfo;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseAgentOperations;
 
+/**
+ * Accepts authenticated local requests from the MCP server.
+ *
+ * @author Ayan Dutta
+ */
 public class EclipseBridgeServer implements AutoCloseable {
 
     private static final int PORT = 8765;

@@ -1,6 +1,11 @@
 package org.learningfromexperience.eclipse.agentdebug.debug;
 
 import java.nio.charset.StandardCharsets;
+import java.io.InputStream;
+import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -24,6 +29,11 @@ import org.eclipse.debug.core.model.IValue;
 import org.eclipse.debug.core.model.IVariable;
 import org.eclipse.debug.core.model.IStreamsProxy;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IPackageFragment;
+import org.eclipse.jdt.core.IPackageFragmentRoot;
+import org.eclipse.jdt.core.IType;
+import org.eclipse.jdt.launching.IJavaLaunchConfigurationConstants;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 import org.eclipse.jdt.debug.core.IJavaStackFrame;
@@ -31,7 +41,11 @@ import org.eclipse.jdt.debug.eval.EvaluationManager;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 
-/** Authenticated bridge operations. Selects sessions explicitly and never assumes one of many. */
+/**
+ * Exposes authenticated Eclipse Java debugging operations to the local MCP bridge.
+ *
+ * @author Ayan Dutta
+ */
 public final class EclipseAgentOperations {
     private final EclipseBreakpointService breakpoints = new EclipseBreakpointService();
 
@@ -39,12 +53,14 @@ public final class EclipseAgentOperations {
         try {
             String[] p = command.split(" ", -1);
             return switch (p[0]) {
-                case "GET_E2E_INFO" -> "{\"status\":\"success\",\"fixtureProtocol\":\"calculator-v2\"}";
+                case "GET_E2E_INFO" -> buildIdentity();
                 case "PREPARE_SMOKE_TEST" -> new SmokeTestProject().prepare();
                 case "LIST_BREAKPOINTS" -> listBreakpoints();
                 case "SET_BREAKPOINT" -> setBreakpoint(p);
                 case "REMOVE_BREAKPOINT" -> removeBreakpoint(p);
                 case "LIST_RUN_CONFIGURATIONS" -> listRunConfigurations();
+                case "LIST_JAVA_APPLICATIONS" -> listJavaApplications();
+                case "START_JAVA_APPLICATION" -> startJavaApplication(p);
                 case "START_DEBUG" -> startDebug(p);
                 case "GET_DEBUG_STATE" -> getDebugState(p);
                 case "GET_THREADS" -> getThreads(p);
@@ -57,6 +73,35 @@ public final class EclipseAgentOperations {
             };
         } catch (Exception e) {
             return error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+        }
+    }
+
+    /** Identifies the exact loaded classes, not merely the installed feature label.
+     * Read-only and deliberately available to the authenticated local test runner.
+     */
+    private static String buildIdentity() throws IOException {
+        String bundleVersion = EclipseAgentOperations.class.getPackage().getImplementationVersion();
+        // OSGi bundle metadata is authoritative; Package implementation version may be null.
+        org.osgi.framework.Bundle bundle = org.osgi.framework.FrameworkUtil.getBundle(EclipseAgentOperations.class);
+        if (bundle != null) bundleVersion = bundle.getVersion().toString();
+        var source = EclipseAgentOperations.class.getProtectionDomain().getCodeSource();
+        String loadedFrom = source == null ? "unknown" : source.getLocation().toString();
+        // Bundle location reliably distinguishes p2-installed JARs from PDE workspace bundles.
+        if (bundle != null && bundle.getLocation() != null) loadedFrom = bundle.getLocation();
+        return ok(",\"fixtureProtocol\":\"calculator-v2\",\"bundleVersion\":" + q(bundleVersion)
+                + ",\"loadedFrom\":" + q(loadedFrom)
+                + ",\"operationsSha256\":" + q(classSha256(EclipseAgentOperations.class))
+                + ",\"breakpointSha256\":" + q(classSha256(EclipseBreakpointService.class)));
+    }
+
+    private static String classSha256(Class<?> type) throws IOException {
+        try (InputStream stream = type.getResourceAsStream(type.getSimpleName() + ".class")) {
+            if (stream == null) throw new IOException("Cannot read loaded class: " + type.getName());
+            try {
+                return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(stream.readAllBytes()));
+            } catch (NoSuchAlgorithmException e) {
+                throw new IOException("SHA-256 unavailable", e);
+            }
         }
     }
 
@@ -118,6 +163,92 @@ public final class EclipseAgentOperations {
             result.add("{\"name\":" + q(c.getName()) + ",\"type\":" + q(c.getType().getIdentifier()) + "}");
         }
         return ok(",\"configurations\":[" + String.join(",", result) + "]");
+    }
+
+    /** Discovers source main methods without creating or modifying configurations. */
+    private String listJavaApplications() throws CoreException {
+        List<String> items = new ArrayList<>();
+        for (IProject project : ResourcesPlugin.getWorkspace().getRoot().getProjects()) {
+            if (!project.isOpen() || !project.hasNature(JavaCore.NATURE_ID)) continue;
+            IJavaProject javaProject = JavaCore.create(project);
+            for (IPackageFragment fragment : javaProject.getPackageFragments()) {
+                if (fragment.getKind() != IPackageFragmentRoot.K_SOURCE) continue;
+                for (ICompilationUnit unit : fragment.getCompilationUnits()) {
+                    for (IType type : unit.getAllTypes()) {
+                        if (type.getDeclaringType() != null || (!type.isClass() && !type.isEnum())) continue;
+                        for (var method : type.getMethods()) {
+                            if (method.isMainMethod()) {
+                                items.add("{\"project\":" + q(project.getName())
+                                        + ",\"mainType\":" + q(type.getFullyQualifiedName()) + "}");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return ok(",\"applications\":[" + String.join(",", items) + "]");
+    }
+
+    /**
+     * Creates a Java Application configuration only for an unambiguous, validated main type.
+     * Existing application configurations are reused and never overwritten.
+     */
+    private String startJavaApplication(String[] parts) throws CoreException {
+        String projectName = require(parts, 1);
+        String mainType = require(parts, 2);
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (!project.exists() || !project.isOpen() || !project.hasNature(JavaCore.NATURE_ID)) {
+            throw new IllegalArgumentException("Open Java project not found: " + projectName);
+        }
+        IJavaProject javaProject = JavaCore.create(project);
+        IType type = javaProject.findType(mainType);
+        if (type == null || !type.exists()) {
+            throw new IllegalArgumentException("Main type not found in project: " + mainType);
+        }
+        boolean runnable = false;
+        for (var method : type.getMethods()) {
+            if (method.isMainMethod()) { runnable = true; break; }
+        }
+        if (!runnable) throw new IllegalArgumentException("Type has no Java main method: " + mainType);
+
+        String configurationTypeId = IJavaLaunchConfigurationConstants.ID_JAVA_APPLICATION;
+        List<ILaunchConfiguration> matching = new ArrayList<>();
+        for (var config : manager().getLaunchConfigurations()) {
+            if (!configurationTypeId.equals(config.getType().getIdentifier())) continue;
+            if (projectName.equals(config.getAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, ""))
+                    && mainType.equals(config.getAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, ""))) {
+                matching.add(config);
+            }
+        }
+        if (matching.size() > 1) {
+            throw new IllegalArgumentException("Several launch configurations match this application; choose one by launch name");
+        }
+        ILaunchConfiguration config;
+        boolean created = matching.isEmpty();
+        if (created) {
+            var configType = manager().getLaunchConfigurationType(configurationTypeId);
+            if (configType == null) throw new IllegalStateException("Java Application launch support is unavailable");
+            String suggestedName = "Agentic Debugger - " + projectName + " - " + type.getElementName();
+            var workingCopy = configType.newInstance(null, manager().generateLaunchConfigurationName(suggestedName));
+            workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, projectName);
+            workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, mainType);
+            config = workingCopy.doSave();
+        } else {
+            config = matching.get(0);
+        }
+        String name = config.getName();
+        // Preserve an active session, including its suspended state, rather than restarting it.
+        for (var launch : manager().getLaunches()) {
+            if (!launch.isTerminated() && ILaunchManager.DEBUG_MODE.equals(launch.getLaunchMode())
+                    && config.equals(launch.getLaunchConfiguration())) {
+                return ok(",\"launchName\":" + q(name)
+                        + ",\"createdConfiguration\":" + created + ",\"reusedSession\":true");
+            }
+        }
+        config.launch(ILaunchManager.DEBUG_MODE, null);
+        return ok(",\"launchName\":" + q(name)
+                + ",\"createdConfiguration\":" + created + ",\"reusedSession\":false");
     }
 
     private static ILaunchManager manager() { return DebugPlugin.getDefault().getLaunchManager(); }

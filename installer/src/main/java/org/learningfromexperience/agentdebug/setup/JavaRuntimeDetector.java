@@ -3,6 +3,11 @@ package org.learningfromexperience.agentdebug.setup;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * Provides JavaRuntimeDetector support for the Agentic Debugger integration.
+ *
+ * @author Ayan Dutta
+ */
 final class JavaRuntimeDetector {
     Path currentJava() {
         if (Runtime.version().feature() < 21) {

@@ -28,6 +28,11 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.Tool;
 
+/**
+ * Registers Claude Code MCP tools and forwards authenticated requests to Eclipse.
+ *
+ * @author Ayan Dutta
+ */
 public class DebugMcpServer {
 
     private static final String ECLIPSE_HOST = "127.0.0.1";
@@ -217,6 +222,16 @@ public class DebugMcpServer {
                 a -> "REMOVE_BREAKPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")));
         allTools.add(bridgeTool("list_run_configurations", "List saved debug-capable Eclipse launch configurations.",
                 Map.of(), List.of(), a -> "LIST_RUN_CONFIGURATIONS"));
+        allTools.add(bridgeTool("list_java_applications",
+                "Discover Java main classes in open Eclipse Java source projects without creating configurations.",
+                Map.of(), List.of(), a -> "LIST_JAVA_APPLICATIONS"));
+        allTools.add(bridgeTool("start_java_application",
+                "Start a Java main class in debug mode without a preexisting launch configuration. "
+                        + "Validates the open Java project and fully qualified main class, reuses an existing matching "
+                        + "configuration or creates one when absent. Returns launchName for subsequent debugger tools.",
+                Map.of("projectName", str(), "mainType", str()), List.of("projectName", "mainType"),
+                a -> "START_JAVA_APPLICATION " + enc(arg(a, "projectName")) + " "
+                        + enc(arg(a, "mainType"))));
         allTools.add(bridgeTool("start_debug_session", "Start or reuse a saved Eclipse debug launch configuration.",
                 Map.of("launchName",str()), List.of("launchName"),
                 a -> "START_DEBUG " + enc(arg(a,"launchName"))));

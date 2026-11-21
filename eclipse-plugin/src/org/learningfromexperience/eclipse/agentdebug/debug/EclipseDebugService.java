@@ -14,6 +14,11 @@ import org.eclipse.debug.core.model.IThread;
 
 import org.eclipse.jdt.debug.core.IJavaDebugTarget;
 
+/**
+ * Reads active Eclipse Java debugging sessions.
+ *
+ * @author Ayan Dutta
+ */
 public class EclipseDebugService {
 
     public record DebugSessionInfo(

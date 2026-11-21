@@ -5,7 +5,10 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Parses the official `claude mcp get` response without reading or editing Claude's JSON. */
+/** Parses the official `claude mcp get` response without reading or editing Claude's JSON.
+ *
+ * @author Ayan Dutta
+ */
 final class ClaudeRegistration {
     private static final Pattern FIELD = Pattern.compile("(?m)^\\s*(Scope|Type|Command|Args):\\s*(.*?)\\s*$");
     final String scope;
