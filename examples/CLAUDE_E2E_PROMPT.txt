@@ -1,0 +1,13 @@
+Use ONLY the eclipse-debugger MCP server to perform an end-to-end Java debugger smoke test in the currently running Eclipse IDE.
+
+The Eclipse workspace contains the imported project AgenticDebuggerSmokeTest, with test.TestDebug in src/test/TestDebug.java. A shared Eclipse Java Application launch configuration named TestDebug is included in the project.
+
+1. Call eclipse_ping and require PONG. Then call list_run_configurations and locate the exact launch configuration named TestDebug. If it is missing, stop and explain what is missing: do not guess a launch name.
+2. Call list_breakpoints. Set a line breakpoint at fully qualified type test.TestDebug, line 8, using set_breakpoint. Verify the result. Do not remove or modify user-owned breakpoints.
+3. Start the TestDebug launch configuration with start_debug_session. Then call wait_for_debug_pause with an appropriate timeout (e.g. 15 seconds). If it does not suspend, report the exact tool response rather than assuming the test passed.
+4. Inspect the suspended thread, stack frames, and local variables. At the first loop hit, sum should be 0 and number should be 10 (depending on whether the debugger has stopped before the statement executes).
+5. Step OVER exactly once, then inspect the variables again. The running sum should now be 10. Do not repeatedly resume or step without permission.
+6. Explain why the code prints Average: 20.0 rather than the mathematically correct value 20.333... (integer division), using actual source and runtime evidence.
+7. Report PASS/FAIL for: connectivity; launch discovery; breakpoint; launch; suspension; stack; variables; step-over; defect identification. Include the exact failed tool response for any FAIL.
+
+Do not change source code, do not create or delete launch configurations, and do not delete existing breakpoints. Leave the session suspended when finished. Use only observed results; do not invent debugger output.

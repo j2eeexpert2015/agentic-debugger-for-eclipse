@@ -177,6 +177,48 @@ Claude Code manages the actual user-level JSON. A representative entry is:
 | MCP listed but `eclipse_ping` fails | Keep the installed Eclipse IDE open; ensure its debugger bridge started and the same IDE owns the Java debugging sessions. |
 | No Java debug session is found | Open/import the project in the **same running Eclipse instance** and check it has a runnable Java launch configuration. |
 
+## Local development: end-to-end Claude Code debugging test
+
+**This is the recommended test after every debugger change.** It exercises a real Claude Code prompt against the Eclipse plugin, rather than merely checking Maven compilation. No p2 ZIP reinstall is needed when developing through Eclipse PDE.
+
+### One-time preparation
+
+1. Have **Eclipse IDE with PDE and Java Development Tools (JDT)**, JDK 21+, and Claude Code available. Ensure the `eclipse-debugger` MCP server is registered with Claude Code (see the installation guide above). Keep **only one Eclipse bridge listening on `127.0.0.1:8765`**. Shut down the regular Eclipse instance if it has the installed Agentic Debugger plugin before launching the PDE runtime.
+2. In your development Eclipse, import `eclipse-plugin` via **File → Import → General → Existing Projects into Workspace**, select the `eclipse-plugin` directory, and ensure the project is recognized as a **Plug-in Development** project. If PDE cannot find the bundled MCP JAR, perform a one-time `mvn package` from the repository root so that `eclipse-plugin/lib/agentic-debugger-mcp.jar` is generated; refresh the project.
+3. In the development Eclipse, choose **Run → Run Configurations → Eclipse Application**. Create `Agentic Debugger - Development`, choose a **separate runtime workspace**, and ensure the workspace plugin and required Eclipse/JDT bundles are included in the launched Eclipse application. Click **Run**. This starts the *Runtime Eclipse* containing the plugin directly from source; it is not a p2 installation.
+4. In **Runtime Eclipse**, choose **File → Import → General → Existing Projects into Workspace**. Select `examples/agentic-debugger-smoke-test` as the root directory. Import project `AgenticDebuggerSmokeTest` and wait for Eclipse to finish building it. The project includes a shared `TestDebug.launch` file with the correct fully qualified Main class `test.TestDebug`.
+5. In Runtime Eclipse, confirm **Run → Debug Configurations → Java Application → TestDebug** has **Project** `AgenticDebuggerSmokeTest` and **Main class** `test.TestDebug`. Do not launch the program yet. If the shared launch does not appear, open `TestDebug.java` and use **Run As → Java Application** once, then verify the resulting launch configuration has the fully qualified main class.
+6. If you previously registered the MCP server through an installed Eclipse version, its registration may still refer to that stable MCP JAR. You can test the current PDE bridge through that server if the protocol is compatible. To exercise MCP changes too, configure the current bundled MCP runtime and **restart Claude Code**. `/mcp` must show `eclipse-debugger` connected; `eclipse_ping` must reach the Runtime Eclipse, not another Eclipse instance.
+
+### Run the genuine Claude-driven test
+
+Open a terminal in the repository root and start Claude Code:
+
+```cmd
+claude
+```
+
+Paste the **complete test prompt from [`examples/CLAUDE_E2E_PROMPT.txt`](examples/CLAUDE_E2E_PROMPT.txt)** into Claude Code. It instructs Claude to:
+
+1. Verify `eclipse_ping` returns `PONG`.
+2. Discover the shared launch configuration `TestDebug`.
+3. Set a breakpoint at **`test.TestDebug` line 8**, using the MCP `set_breakpoint` tool.
+4. Launch `TestDebug` in debug mode and wait until execution suspends.
+5. Inspect stack frames and local variables (`sum = 0`, `number = 10` before the first addition).
+6. Step over once and inspect `sum = 10`.
+7. Explain the deliberate **integer-division defect** and output `Average: 20.0` (the mathematically correct mean is approximately `20.3333`).
+8. Return an explicit PASS/FAIL report for each operation, with evidence. The session is left suspended for inspection.
+
+**Pass criterion:** The Claude transcript must show successful MCP tool calls with observed suspension, local values, and step-over—not only a successful Java launch or a connected `/mcp` status. Do not claim an end-to-end pass when a tool fails or when the breakpoint was never hit.
+
+**After a source change:** Eclipse incrementally rebuilds the plugin; **terminate and relaunch the PDE Runtime Eclipse** to pick up changes that require bundle reinitialization. Repeat the same Claude prompt. **Do not rebuild an update-site ZIP or uninstall/reinstall Eclipse for every iteration.** If your change affects the MCP server JAR, rebuild that module and refresh the runtime/configuration as appropriate.
+
+**Before a release:** Separately execute `mvn clean package`, install the generated p2 update-site ZIP into a clean test Eclipse, configure Claude Code, and repeat the same prompt. PDE tests validate development behavior; p2 installation tests validate packaging and first-run setup.
+
+**Known limitation:** The current plugin discovers and launches **existing** Eclipse Java launch configurations; the fixture provides one. It does not yet create arbitrary new launch configurations on demand. The Claude prompt is a reproducible **manual E2E test**, not an unattended CI test; reliable fully automated MCP/IDE tests would need a dedicated test harness.
+
+---
+
 ## Developer reference
 
 ```text
