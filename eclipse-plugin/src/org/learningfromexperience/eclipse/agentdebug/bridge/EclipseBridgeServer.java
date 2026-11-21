@@ -179,13 +179,21 @@ public class EclipseBridgeServer implements AutoCloseable {
 
             String command = parts[2];
 
-            switch (command) {
-
-                case "LIST_DEBUG_SESSIONS" ->
-                        writer.println(listDebugSessionsAsJson());
-
-                default ->
-                        writer.println(operations.execute(command));
+            // Always answer the client, including when a debugger operation throws an
+            // unchecked exception or a linkage error. Otherwise callers only see EOF.
+            try {
+                String response = switch (command) {
+                    case "LIST_DEBUG_SESSIONS" -> listDebugSessionsAsJson();
+                    default -> operations.execute(command);
+                };
+                writer.println(response);
+            } catch (Throwable failure) {
+                System.err.println("[Eclipse Agentic Debugger] Bridge command failed: " + command);
+                failure.printStackTrace(System.err);
+                String detail = failure.getClass().getName() + ": "
+                        + String.valueOf(failure.getMessage());
+                writer.println("{\"status\":\"error\",\"message\":"
+                        + EclipseAgentOperations.q(detail) + "}");
             }
 
         } catch (IOException e) {

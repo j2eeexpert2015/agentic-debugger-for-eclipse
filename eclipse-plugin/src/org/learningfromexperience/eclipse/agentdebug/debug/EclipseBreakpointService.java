@@ -39,11 +39,22 @@ public class EclipseBreakpointService {
             if (!(breakpoint instanceof IJavaLineBreakpoint javaBreakpoint)) {
                 continue;
             }
-            IResource resource = javaBreakpoint.getMarker().getResource();
-            result.add(new BreakpointInfo(
-                    javaBreakpoint.getTypeName(), javaBreakpoint.getLineNumber(),
-                    resource.getProject().getName(), javaBreakpoint.isEnabled(),
-                    getOwner(javaBreakpoint)));
+            // Eclipse may retain a breakpoint while its underlying marker is
+            // being removed. Such stale entries must not break the entire list.
+            var marker = javaBreakpoint.getMarker();
+            if (marker == null || !marker.exists() || marker.getResource() == null
+                    || marker.getResource().getProject() == null) continue;
+            try {
+                IResource resource = marker.getResource();
+                result.add(new BreakpointInfo(
+                        javaBreakpoint.getTypeName(), javaBreakpoint.getLineNumber(),
+                        resource.getProject().getName(), javaBreakpoint.isEnabled(),
+                        getOwner(javaBreakpoint)));
+            } catch (CoreException staleBreakpoint) {
+                // Another thread may remove the marker during enumeration.
+                System.err.println("[Eclipse Agentic Debugger] Skipped stale breakpoint: "
+                        + staleBreakpoint.getMessage());
+            }
         }
         return result;
     }

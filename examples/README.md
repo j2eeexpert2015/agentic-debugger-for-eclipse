@@ -1,9 +1,12 @@
-# Claude Code + Eclipse Debugger Smoke Test
+# Java debugging fixture
 
-Import `agentic-debugger-smoke-test` into the **same Eclipse workspace in which the debugger bridge is running** using **File → Import → General → Existing Projects into Workspace**. Select `examples/agentic-debugger-smoke-test` as the root directory and click Finish.
+The E2E runner creates this project automatically in the dedicated PDE Runtime Eclipse workspace. **Manual import is not needed** for `mvn verify -Pe2e`.
 
-Confirm **Run → Debug Configurations → Java Application → TestDebug** exists, has Project `AgenticDebuggerSmokeTest`, and Main class `test.TestDebug`. The supplied `TestDebug.launch` file should provide these values. If it does not appear, select the project in Package Explorer and choose **Run As → Java Application** once, then verify its Main class is `test.TestDebug`; do not leave a launch targeting unqualified `TestDebug`.
+Project: `AgenticDebuggerCalculatorE2E`  
+Launch configuration: `AverageCalculatorApplication`  
+Entry point: `com.learningfromexperience.debugsample.AverageCalculatorApplication`  
+Debugger target: `com.learningfromexperience.debugsample.service.AverageCalculator`, line **10** (`sum += number`).
 
-Open Claude Code in a terminal and paste `../CLAUDE_E2E_PROMPT.txt` (or copy the text from that file). This is a **manual Claude-driven end-to-end test**; it cannot be verified by Maven compilation alone. See the repository root README for the PDE runtime workbench setup.
+At the first breakpoint hit: `sum = 0`, `number = 10`. After one step-over: `sum = 10`. Total is 61 and buggy average is `20.0` (integer division); correct average is about `20.3333333333`.
 
-Source marker: `src/test/TestDebug.java:8` is the intended breakpoint line. The program is deliberately incorrect (integer division); it prints `Average: 20.0` when allowed to finish. **Never interpret that intentional defect as a plugin failure.**
+For manual inspection only, import `examples/average-calculator-debug-sample` using **Existing Projects into Workspace**. Do not import this copy into the same workspace in which the E2E runner automatically creates the fixture.

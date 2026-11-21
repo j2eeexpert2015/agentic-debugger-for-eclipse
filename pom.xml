@@ -18,6 +18,9 @@
         <module>eclipse-feature</module>
         <module>eclipse-update-site</module>
     </modules>
+    <profiles>
+      <profile><id>e2e</id><modules><module>e2e-runner</module></modules></profile>
+    </profiles>
     <repositories>
         <repository>
             <id>eclipse-2026-09</id>

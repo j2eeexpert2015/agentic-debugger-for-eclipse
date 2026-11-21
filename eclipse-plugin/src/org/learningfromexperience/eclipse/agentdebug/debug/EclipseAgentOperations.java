@@ -39,6 +39,8 @@ public final class EclipseAgentOperations {
         try {
             String[] p = command.split(" ", -1);
             return switch (p[0]) {
+                case "GET_E2E_INFO" -> "{\"status\":\"success\",\"fixtureProtocol\":\"calculator-v2\"}";
+                case "PREPARE_SMOKE_TEST" -> new SmokeTestProject().prepare();
                 case "LIST_BREAKPOINTS" -> listBreakpoints();
                 case "SET_BREAKPOINT" -> setBreakpoint(p);
                 case "REMOVE_BREAKPOINT" -> removeBreakpoint(p);
