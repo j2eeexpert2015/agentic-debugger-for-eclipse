@@ -15,7 +15,7 @@
 
 - **Publication.** The tested checkout had local changes on base commit `7b559f2234029eb72d49b5427de02e68fd91db59`. Review and record the intended source revision, associate it with the tested artifact, and publish the versioned update-site ZIP when approved. If the binary changes, repeat candidate verification. CI and release workflows are disabled.
 - **Coverage follow-ups.** Full trace retrieval for fast-exiting launches, repeat-run selection from a symptom alone, visible editor focus with simultaneous sessions, parameterized JUnit coverage, and installed managed-registration changes remain open. The prompt results describe one trial per scenario.
-- **Later roadmap.** The optional debugging skill and skill A/B runner are future work. Field watchpoints, remote JVM attach, variable mutation, hot code replacement and Spring Boot workflows are deferred. [Roadmap](feature-roadmap.md)
+- **Next development phase.** Phase 2 covers essential Spring Boot workflows and Spring-context JUnit debugging. The optional debugging skill and its A/B evaluation follow. Field watchpoints, remote JVM attach, variable mutation, hot code replacement and advanced Boot work such as JPA diagnostics remain deferred. [Roadmap](feature-roadmap.md)
 
 ## Verified Phase 1 features
 

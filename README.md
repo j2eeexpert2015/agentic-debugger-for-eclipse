@@ -36,7 +36,7 @@ The [Development Roadmap](docs/development-roadmap.md) defines phase order and e
 | **4** | Repeatable no-skill / stable / candidate **skill A/B evaluation** | Baseline observations exist; runner and replicated comparisons pending | [Phase 4](docs/development-roadmap.md#phase-4--skill-evaluation-and-optimization) |
 | **5** | Advanced Java + Boot: remote attach, watchpoints, run-to-line, HCR, mutation, JPA/transactions | Deferred; individual feasibility required | [Phase 5](docs/development-roadmap.md#phase-5--advanced-java-and-spring-boot-capabilities) |
 
-**Current evidence boundary:** On installed candidate `1.5.0.20261121184224374`, the repo records 7/7 direct Java feature checks, 7/7 explicit Claude runs and 32/32 ownership checks. In **seven single-run, symptom-only sessions with relevant fixture source supplied**, Claude selected the intended mechanism in 6/7 and provided complete answers in 5/7. Trace output completeness and choosing a restart were the two partial cases; this is a skill-evaluation baseline, **not** evidence that the Phase 1 tools failed. [Details](docs/phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
+**Current evidence boundary:** On installed candidate `1.5.0.20261121184224374`, the repo records 7/7 direct Java feature checks, 7/7 explicit Claude runs and 32/32 ownership checks. In **seven trials (one per symptom prompt, with relevant fixture source supplied)**, Claude selected the intended mechanism in 6/7 and provided complete answers in 5/7. Trace output completeness and choosing a restart were the two partial cases; this is a skill-evaluation baseline, **not** evidence that the Phase 1 tools failed. [Details](docs/phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
 
 **Implementation order:** Finalize the Phase 1 source/artifact release record → verify a minimal Spring Boot + Spring-context JUnit debugging vertical slice using existing tools first → establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
 
@@ -132,7 +132,7 @@ Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the curren
    mvn verify -Pinstalled-e2e
    ```
 
-**Phase 1 feature verification (Java only):** After the new Eclipse starts, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
+**Phase 1 feature verification (Java only).** The default `dev.bat` workflow imports `examples/phase-one-debugging` and runs the direct checks automatically. If you prepared the Eclipse workspace yourself and the fixture is missing, import it with **File → Import → Maven → Existing Maven Projects** and confirm it builds. To run the direct checks separately in either workspace, use this command from the repository root:
 
 ```cmd
 scripts\windows\verify-phase1-eclipse.bat

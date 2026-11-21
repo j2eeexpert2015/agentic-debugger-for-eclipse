@@ -124,14 +124,17 @@ For every SB-ID record: test fixture revision, test-specific preconditions/IDE i
 
 ## 3. Acceptance matrix and release gating
 
-| Gate | Required result to call Phase 2 verified |
+The table lists the minimum evidence for the initial installed Boot milestone. For **full Phase 2 verification**, record a passing direct check, explicit Claude trial, skill-free symptom trial and negative/ownership/cleanup check for each scenario from SB-01 through SB-10 on the identified candidate. Report any partial, failed or unrun check alongside its scenario and keep full verification open.
+
+| Gate | Required evidence for the initial milestone |
 |---|---|
 | Existing regression | Installed calculator, seven Phase 1 direct scenarios, ownership suite still pass with **no skill** |
 | Core Boot | SB-01–SB-04 direct assertions on same installed candidate; SB-04 explicit Claude observed live HTTP and JVM values |
+| Request tracing | SB-05 records the controller and service frames and whether the request reached the repository |
 | Boot JUnit | SB-06 plain JUnit and SB-07 Spring-context single method observed in real Eclipse debugger |
 | Error paths | SB-03 failed startup and SB-08 validation/exception case recorded honestly |
 | Safety | SB-09 cross-session safety/consent negative tests pass, actual launch object tracked |
-| Environment | SB-10 prerequisite coverage documented (unavailable combinations marked unsupported rather than passing) |
+| Environment | SB-10 prerequisite coverage documented (record unavailable IDE combinations as NOT RUN and identify the configuration actually tested) |
 | Natural-language baseline | SB-04, SB-06/07, SB-08 run without skill; log mechanism selection, correctness, completeness; repeat before claiming rates |
 | Evidence | Commit, candidate artifact/hash, actual report paths, real traces, stop/cleanup state included in release record |
 

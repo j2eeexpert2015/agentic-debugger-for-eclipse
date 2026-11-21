@@ -21,11 +21,11 @@
 
 ### P2-01 — Audit existing API support for Boot and JUnit
 
-**Inspect:** Java main discovery and `start_java_application`, saved launch reuse, JDT/STS compatibility, `list_junit_tests` and `start_junit_test`, bridge protocol, MCP tool schemas, trace/process-output APIs and verifier. **Deliver:** short evidence-based reuse/gap matrix for BOOT-01/02/03/04/06/07; note Eclipse prerequisites. **Tests:** run existing tools on a minimal Boot fixture; identify actual failures with logs. **Stop condition:** no speculative new APIs before gap is proven.
+**Inspect:** Java main discovery and `start_java_application`, saved launch reuse, JDT/STS compatibility, `list_junit_tests` and `start_junit_test`, bridge protocol, MCP tool schemas, trace/process-output APIs and verifier. **Deliver:** a preliminary matrix for BOOT-01/02/03/04/06/07 identifying existing operations, source references, Eclipse prerequisites and questions to test once the P2-02 fixture exists.
 
 ### P2-02 — Create safe, deterministic Boot fixture
 
-**Deliver:** `examples/spring-boot-debugging` as a standalone Maven Spring Boot sample with an order endpoint, controller/service/in-memory repository, fixed deterministic discount defect, invalid-quantity error path, two candidate Boot mains/projects or test ambiguity setup, ordinary JUnit service test and `@SpringBootTest` test. Add distinct `@WebMvcTest` example only if useful, clearly labelled MockMvc. Document intended failure and root-cause oracle outside agent prompts. **Tests:** compile and run passing fixture setup/smoke checks, execute intentionally failing checks separately, ensure root package unaffected. **No real payments/databases/cloud accounts.**
+**Deliver:** `examples/spring-boot-debugging` as a standalone Maven Spring Boot sample with an order endpoint, controller/service/in-memory repository, fixed deterministic discount defect, invalid-quantity error path, two candidate Boot mains/projects or test ambiguity setup, ordinary JUnit service test and `@SpringBootTest` test. Add distinct `@WebMvcTest` example only if useful, clearly labelled MockMvc. Document intended failure and root-cause oracle outside agent prompts. **Tests:** compile and run passing fixture setup/smoke checks, execute intentionally failing checks separately, ensure root package unaffected. Once the fixture builds, run the existing Java and JUnit tools against it in Eclipse. Update the P2-01 matrix with observed behavior and logs before proposing a Boot-specific API. **No real payments/databases/cloud accounts.**
 
 ### P2-03 — Boot launch, configuration and readiness
 
@@ -41,7 +41,7 @@
 
 ### P2-06 — Validation, sessions and installed acceptance
 
-**Deliver:** SB-08 real validation/exception trace, SB-09 session/HTTP consent matrix, SB-10 IDE prerequisites. Expand Java-only verifier or separate Java Boot verifier and integrate optional mode into `dev.bat` without changing existing default regressions unless stable. **Tests:** Phase 0/1 existing + Boot direct + explicit Claude + ownership + no-skill symptom baseline. **Definition of done:** honest Phase 2 installed candidate report with source/hash/versions and negative-case results. Mark unverified environments openly.
+**Deliver:** SB-08 real validation/exception trace, SB-09 session/HTTP consent matrix, SB-10 IDE prerequisites. Expand Java-only verifier or separate Java Boot verifier and integrate optional mode into `dev.bat` without changing existing default regressions unless stable. **Tests:** Phase 0/1 existing + Boot direct + explicit Claude + ownership + no-skill symptom baseline. **Definition of done:** Phase 2 installed candidate report with source/hash/versions, negative-case results and the four outcomes for each of SB-01 through SB-10 required by the [full verification criteria](spring-boot-debugging-scenarios.md#3-acceptance-matrix-and-release-gating). Mark unverified environments openly.
 
 ### P3-01 — Independent unified debugging skill
 
