@@ -38,7 +38,7 @@ The [Development Roadmap](docs/development-roadmap.md) defines phase order and e
 
 **Current evidence boundary:** On installed candidate `1.5.0.20261121184224374`, the repo records 7/7 direct Java feature checks, 7/7 explicit Claude runs and 32/32 ownership checks. In **seven trials (one per symptom prompt, with relevant fixture source supplied)**, Claude selected the intended mechanism in 6/7 and provided complete answers in 5/7. Trace output completeness and choosing a restart were the two partial cases; this is a skill-evaluation baseline, **not** evidence that the Phase 1 tools failed. [Details](docs/phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
 
-**Implementation order:** Finalize the Phase 1 source/artifact release record → verify a minimal Spring Boot + Spring-context JUnit debugging vertical slice using existing tools first → establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
+**Implementation order:** Use the [Phase 1 source and artifact audit](docs/phase1-implementation-status.md#source-and-artifact-audit) for release packaging → verify a minimal Spring Boot + Spring-context JUnit debugging vertical slice using existing tools first → establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
 
 ## 1. Install and use (end users)
 
@@ -162,7 +162,7 @@ The script does not edit Claude Code's `.claude.json` and does not uninstall oth
 
 ## 6. Current verification boundary
 
-Candidate `1.5.0.20261121184224374` passed the installed Claude calculator regression, all seven direct Phase 1 bridge scenarios, all seven explicit Claude feature scenarios, and 32 ownership/failure checks. Fresh-workspace setup and repeat deployment passed on Windows. Seven *single-trial* natural-language prompts produced five complete and two partial outcomes; do not treat these as a robust success rate. The tested checkout contained local changes, and public publication remains pending until the tested source and artifact are reconciled. [Exact verification record and gaps](docs/phase1-implementation-status.md).
+Candidate `1.5.0.20261121184224374` passed the installed Claude calculator regression, all seven direct Phase 1 bridge scenarios, all seven explicit Claude feature scenarios, and 32 ownership/failure checks. Fresh-workspace setup and repeat deployment passed on Windows. Seven *single-trial* natural-language prompts produced five complete and two partial outcomes; do not treat these as a robust success rate. A rebuild of `ff28455` reproduced the installed plug-in contents. Identifying and validating the distribution ZIP remains a release step. [Exact verification record and gaps](docs/phase1-implementation-status.md).
 
 ## Phase 1 candidate — advanced core-Java debugging
 

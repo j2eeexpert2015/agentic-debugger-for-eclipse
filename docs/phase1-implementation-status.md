@@ -11,9 +11,23 @@
 | Tool selection from symptoms | Claude chose the intended mechanism in six of seven trials. Five answers were complete. Trace output covered IDs 1000–1283, and the pause trial sampled one JVM twice instead of repeating the run. Each trial included relevant fixture source. |
 | Same-build acceptance | The installed calculator regression, all seven direct scenarios and all seven explicit Claude scenarios passed on the candidate. Every direct and explicit feature scenario reported successful cleanup. |
 
+## Source and artifact audit
+
+On 22 November 2026, the plug-in retained in the disposable Eclipse installation matched the SHA-256 recorded by the explicit Claude verification run. The original build ran from a modified checkout based on `7b559f2234029eb72d49b5427de02e68fd91db59`. A subsequent committed revision reproduces its complete unpacked plug-in contents.
+
+| Item | Verified value |
+|---|---|
+| Source revision rebuilt | `ff28455bcdd8be96901d0629533da6fb61d18843` |
+| Installed bundle | `org.learningfromexperience.eclipse.agentdebug_1.5.0.20261121184224374.jar` |
+| Tested plug-in JAR SHA-256 | `0D2C8F070148B122806C0EB17DC2B5B324310D9838381733D95F4FBCCA437211` |
+| Comparison rebuild JAR SHA-256 | `B56E836D8903F5A4EA7E3183DDCBBF573BCDDE208BE9F8D7A1867F04A8CA340E` |
+| File comparison | All 3,315 file paths and SHA-256 values matched, including 3,286 entries inside the bundled MCP JAR. The two installed feature files also matched. |
+
+The comparison used an empty directory populated by `git -c core.autocrlf=false archive` of the source revision, with CRLF restored for `mcp-server/pom.xml` as in the Windows checkout. Maven 3.9.16 ran `mvn -o -DforceContextQualifier=20261121184224374 clean package`. The audit compared uncompressed file bytes recursively through the nested MCP JAR. The outer archive hashes differ. Runtime acceptance results belong to the original installed JAR. The local update-site ZIP inspected during the audit contained plug-in qualifier `202611211846`, a different build. The original tested ZIP has no verified hash in the available evidence.
+
 ## What remains
 
-- **Publication.** The tested checkout had local changes on base commit `7b559f2234029eb72d49b5427de02e68fd91db59`. Review and record the intended source revision, associate it with the tested artifact, and publish the versioned update-site ZIP when approved. If the binary changes, repeat candidate verification. CI and release workflows are disabled.
+- **Publication.** The [source and artifact audit](#source-and-artifact-audit) links the tested plug-in to committed source. The original tested update-site ZIP remains unidentified. Before publication, identify and validate the exact distribution ZIP or verify a newly versioned release candidate from committed source. CI and release workflows are disabled.
 - **Coverage follow-ups.** Full trace retrieval for fast-exiting launches, repeat-run selection from a symptom alone, visible editor focus with simultaneous sessions, parameterized JUnit coverage, and installed managed-registration changes remain open. The prompt results describe one trial per scenario.
 - **Next development phase.** Phase 2 covers essential Spring Boot workflows and Spring-context JUnit debugging. The optional debugging skill and its A/B evaluation follow. Field watchpoints, remote JVM attach, variable mutation, hot code replacement and advanced Boot work such as JPA diagnostics remain deferred. [Roadmap](feature-roadmap.md)
 

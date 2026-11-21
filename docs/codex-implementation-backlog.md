@@ -19,6 +19,8 @@
 
 **Inspect:** `README.md`, `docs/phase1-implementation-status.md`, `docs/capabilities.md`, `docs/phase1-claude-scenarios.md`, `scripts/windows/dev.bat`, `docs/evaluation-plan.md`, installed test results and current revision. **Deliver:** source SHA + bundle version + artifact hash release record, consistent documentation and a deliberate release decision. **Tests:** `dev.bat doctor`, `dev.bat test`, ownership suite on the disposable IDE and final installed candidate as available. Do not claim the old uncommitted candidate is byte-identical to current `main` without comparison.
 
+**Audit outcome (22 November 2026).** The original installed plug-in hash matches the historical test record, and its unpacked contents match a clean source rebuild of `ff28455`. Hold publication until the exact distribution ZIP is identified and validated or a newly versioned candidate passes verification. [Source and artifact audit](phase1-implementation-status.md#source-and-artifact-audit)
+
 ### P2-01 — Audit existing API support for Boot and JUnit
 
 **Inspect:** Java main discovery and `start_java_application`, saved launch reuse, JDT/STS compatibility, `list_junit_tests` and `start_junit_test`, bridge protocol, MCP tool schemas, trace/process-output APIs and verifier. **Deliver:** a preliminary matrix for BOOT-01/02/03/04/06/07 identifying existing operations, source references, Eclipse prerequisites and questions to test once the P2-02 fixture exists.
