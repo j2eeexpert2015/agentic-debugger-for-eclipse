@@ -21,6 +21,7 @@ public final class DebugInvestigationPolicy {
         private final String id;
         private final Mode mode;
         private final Set<Breakpoint> ownedBreakpoints = new LinkedHashSet<>();
+        private final Set<String> ownedExceptions = new LinkedHashSet<>();
         private Object ownedLaunch;
         private String launchName;
         private boolean complete;
@@ -34,6 +35,8 @@ public final class DebugInvestigationPolicy {
         public synchronized String launchName() { return launchName; }
         public synchronized Object ownedLaunch() { return ownedLaunch; }
         public synchronized Set<Breakpoint> breakpoints() { return Set.copyOf(ownedBreakpoints); }
+        public synchronized Set<String> exceptions() { return Set.copyOf(ownedExceptions); }
+        public synchronized void recordException(String name) { ensureActive(); ownedExceptions.add(name); }
         public synchronized boolean complete() { return complete; }
 
         public synchronized void recordBreakpoint(String type, int line) {
@@ -45,6 +48,13 @@ public final class DebugInvestigationPolicy {
             if (launchName != null && !launchName.equals(name)) {
                 throw new IllegalStateException("Investigation already targets another debug session");
             }
+        }
+        public synchronized void replaceOwnedLaunch(String name, Object previous, Object replacement) {
+            ensureActive();
+            if (!name.equals(launchName) || ownedLaunch != previous) {
+                throw new IllegalStateException("Cannot restart a session this investigation does not own");
+            }
+            ownedLaunch = replacement;
         }
         public synchronized void recordLaunch(String name, Object launch, boolean createdByAgent) {
             verifyLaunchTarget(name);

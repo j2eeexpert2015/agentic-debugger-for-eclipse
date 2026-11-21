@@ -2,7 +2,7 @@
 <feature
       id="org.learningfromexperience.eclipse.agentdebug.feature"
       label="Agentic Debugger for Eclipse IDE"
-      version="1.4.0.qualifier"
+      version="1.5.0.qualifier"
       provider-name="LearningFromExperience">
    <description>
       Agentic Debugger provides an MCP bridge for the Java debugger in Eclipse IDE.

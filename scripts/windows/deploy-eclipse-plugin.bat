@@ -153,7 +153,9 @@ if /I "%START_ECLIPSE%"=="YES" (
     echo [WARNING] Eclipse launcher not found; start Eclipse manually.
   )
 )
-echo [NEXT] Once Eclipse starts: mvn verify -Pinstalled-e2e
+echo [NEXT] Wait until Eclipse has fully started; import examples\phase-one-debugging as Maven project.
+echo [NEXT] Phase 1 Java bridge tests: scripts\windows\verify-phase1-eclipse.bat
+echo [NEXT] Existing Claude installed regression (separate): mvn verify -Pinstalled-e2e
 echo [LOG] %LOG%
 exit /b 0
 

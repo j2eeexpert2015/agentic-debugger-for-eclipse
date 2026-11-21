@@ -16,6 +16,7 @@ import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.IType;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.debug.core.IJavaLineBreakpoint;
+import org.eclipse.jdt.debug.core.IJavaExceptionBreakpoint;
 import org.eclipse.jdt.debug.core.JDIDebugModel;
 
 /** Creates Java line breakpoints in projects of the current Eclipse workspace.
@@ -27,6 +28,9 @@ public class EclipseBreakpointService {
     public static final String INVESTIGATION_ATTRIBUTE =
             "org.learningfromexperience.eclipse.agentdebug.investigationId";
 
+    public static final String TRACEPOINT_ATTRIBUTE =
+            "org.learningfromexperience.eclipse.agentdebug.tracepoint";
+
     public static final String OWNER_ATTRIBUTE =
             "org.learningfromexperience.eclipse.agentdebug.owner";
 
@@ -34,9 +38,77 @@ public class EclipseBreakpointService {
                                    String projectName, boolean created,
                                    String owner) {}
 
+    public record ExceptionBreakpointResult(String exceptionName, boolean created, String owner) {}
+
+    /** Exceptions are workspace-global; keep user markers unchanged. */
+    public ExceptionBreakpointResult setExceptionBreakpoint(String exceptionName, boolean caught,
+            boolean uncaught, String investigationId) throws CoreException {
+        if (exceptionName == null || !exceptionName.matches(
+                "[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)+")) {
+            throw new IllegalArgumentException("Provide a fully qualified exception type");
+        }
+        if (!caught && !uncaught) throw new IllegalArgumentException("Enable caught and/or uncaught");
+        for (IBreakpoint bp : DebugPlugin.getDefault().getBreakpointManager().getBreakpoints()) {
+            if (bp instanceof IJavaExceptionBreakpoint javaBp
+                    && exceptionName.equals(javaBp.getTypeName())) {
+                return new ExceptionBreakpointResult(exceptionName, false,
+                        "agent".equals(bp.getMarker().getAttribute(OWNER_ATTRIBUTE, "user"))
+                                ? "agent" : "user");
+            }
+        }
+        Map<String,Object> attrs = new HashMap<>();
+        attrs.put(OWNER_ATTRIBUTE, "agent");
+        if (investigationId != null) attrs.put(INVESTIGATION_ATTRIBUTE, investigationId);
+        JDIDebugModel.createExceptionBreakpoint(ResourcesPlugin.getWorkspace().getRoot(),
+                exceptionName, caught, uncaught, false, true, attrs);
+        return new ExceptionBreakpointResult(exceptionName, true, "agent");
+    }
+
+    public boolean removeInvestigationException(String exceptionName, String investigationId)
+            throws CoreException {
+        boolean removed = false;
+        for (IBreakpoint bp : DebugPlugin.getDefault().getBreakpointManager().getBreakpoints()) {
+            if (bp instanceof IJavaExceptionBreakpoint exception && bp.getMarker() != null
+                    && bp.getMarker().exists() && exceptionName.equals(exception.getTypeName())
+                    && "agent".equals(bp.getMarker().getAttribute(OWNER_ATTRIBUTE, "user"))
+                    && investigationId.equals(bp.getMarker().getAttribute(INVESTIGATION_ATTRIBUTE, ""))) {
+                bp.delete();
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    public record ExceptionBreakpointInfo(String typeName, boolean caught, boolean uncaught, String owner) {}
+
+    public List<ExceptionBreakpointInfo> listExceptionBreakpoints() throws CoreException {
+        List<ExceptionBreakpointInfo> result = new ArrayList<>();
+        for (IBreakpoint bp : DebugPlugin.getDefault().getBreakpointManager().getBreakpoints()) {
+            if (!(bp instanceof IJavaExceptionBreakpoint exception) || bp.getMarker() == null
+                    || !bp.getMarker().exists()) continue;
+            result.add(new ExceptionBreakpointInfo(exception.getTypeName(), exception.isCaught(),
+                    exception.isUncaught(), "agent".equals(bp.getMarker().getAttribute(OWNER_ATTRIBUTE,"user"))
+                            ? "agent" : "user"));
+        }
+        return result;
+    }
+
+    public boolean removeAgentExceptionBreakpoint(String typeName) throws CoreException {
+        boolean removed = false;
+        for (IBreakpoint bp : DebugPlugin.getDefault().getBreakpointManager().getBreakpoints()) {
+            if (bp instanceof IJavaExceptionBreakpoint exception && bp.getMarker() != null
+                    && bp.getMarker().exists() && typeName.equals(exception.getTypeName())
+                    && "agent".equals(bp.getMarker().getAttribute(OWNER_ATTRIBUTE,"user"))) {
+                bp.delete();
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
     public record BreakpointInfo(String typeName, int lineNumber,
                                  String projectName, boolean enabled,
-                                 String owner) {}
+                                 String owner, String condition, boolean tracepoint) {}
 
     public List<BreakpointInfo> listBreakpoints() throws CoreException {
         List<BreakpointInfo> result = new ArrayList<>();
@@ -55,7 +127,9 @@ public class EclipseBreakpointService {
                 result.add(new BreakpointInfo(
                         javaBreakpoint.getTypeName(), javaBreakpoint.getLineNumber(),
                         resource.getProject().getName(), javaBreakpoint.isEnabled(),
-                        getOwner(javaBreakpoint)));
+                        getOwner(javaBreakpoint), javaBreakpoint.isConditionEnabled()
+                                ? javaBreakpoint.getCondition() : null,
+                        marker.getAttribute(TRACEPOINT_ATTRIBUTE, false)));
             } catch (CoreException staleBreakpoint) {
                 // Another thread may remove the marker during enumeration.
                 System.err.println("[Eclipse Agentic Debugger] Skipped stale breakpoint: "
@@ -109,12 +183,24 @@ public class EclipseBreakpointService {
 
     public BreakpointResult setBreakpoint(String qualifiedTypeName, int lineNumber)
             throws CoreException {
-        return setBreakpoint(qualifiedTypeName, lineNumber, null);
+        return setBreakpoint(qualifiedTypeName, lineNumber, null, null, false);
     }
 
     /** Associate newly created markers with an investigation for safe cleanup. */
     public BreakpointResult setBreakpoint(String qualifiedTypeName, int lineNumber,
                                           String investigationId) throws CoreException {
+        return setBreakpoint(qualifiedTypeName, lineNumber, investigationId, null, false);
+    }
+
+    /** Configures a condition or trace expression only on a newly owned breakpoint. */
+    public BreakpointResult setBreakpoint(String qualifiedTypeName, int lineNumber,
+            String investigationId, String condition, boolean tracepoint) throws CoreException {
+        if (tracepoint && (condition == null || condition.isBlank())) {
+            throw new IllegalArgumentException("Trace expression required");
+        }
+        if (condition != null && (condition.isBlank() || condition.length() > 500)) {
+            throw new IllegalArgumentException("Condition must be 1-500 characters");
+        }
         if (qualifiedTypeName == null ||
                 !qualifiedTypeName.matches("[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)+")) {
             throw new IllegalArgumentException("Provide a fully qualified Java type name");
@@ -164,8 +250,22 @@ public class EclipseBreakpointService {
         Map<String, Object> attributes = new HashMap<>();
         attributes.put(OWNER_ATTRIBUTE, "agent");
         if (investigationId != null) attributes.put(INVESTIGATION_ATTRIBUTE, investigationId);
-        JDIDebugModel.createLineBreakpoint(resource, qualifiedTypeName,
+        if (tracepoint) attributes.put(TRACEPOINT_ATTRIBUTE, true);
+        IJavaLineBreakpoint created = JDIDebugModel.createLineBreakpoint(resource, qualifiedTypeName,
                 lineNumber, -1, -1, 0, true, attributes);
+        try {
+            if (condition != null) {
+                // Eclipse supports multi-statement conditions for non-suspending tracepoints.
+                created.setCondition(tracepoint
+                        ? "System.out.println(" + condition + "); return false;"
+                        : condition);
+                created.setConditionEnabled(true);
+                created.setConditionSuspendOnTrue(true);
+            }
+        } catch (CoreException | RuntimeException failure) {
+            created.delete();
+            throw failure;
+        }
 
         return new BreakpointResult(qualifiedTypeName, lineNumber,
                 resource.getProject().getName(), true, "agent");

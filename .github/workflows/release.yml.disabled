@@ -19,18 +19,7 @@ jobs:
       - name: Package release
         run: mvn -B -ntp clean package
       - name: Validate p2 ZIP
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          from zipfile import ZipFile
-          files = list(Path('eclipse-update-site/target').glob('*.zip'))
-          assert len(files) == 1, f'Expected one update-site ZIP, got {files}'
-          with ZipFile(files[0]) as z:
-              names = z.namelist()
-              assert any('features/' in n for n in names)
-              assert any('plugins/' in n for n in names)
-          print(files[0])
-          PY
+        run: java scripts/VerifyUpdateSite.java
       - name: Publish artifact to GitHub Releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

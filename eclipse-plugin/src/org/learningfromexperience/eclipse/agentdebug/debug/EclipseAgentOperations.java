@@ -65,6 +65,16 @@ public final class EclipseAgentOperations {
                 case "BEGIN_INVESTIGATION" -> beginInvestigation(p);
                 case "FINISH_INVESTIGATION" -> finishInvestigation(p);
                 case "SET_BREAKPOINT" -> setBreakpoint(p);
+                case "SET_CONDITIONAL_BREAKPOINT" -> setConditionalBreakpoint(p, false);
+                case "SET_TRACEPOINT" -> setConditionalBreakpoint(p, true);
+                case "SET_EXCEPTION_BREAKPOINT" -> setExceptionBreakpoint(p);
+                case "LIST_EXCEPTION_BREAKPOINTS" -> listExceptionBreakpoints();
+                case "REMOVE_EXCEPTION_BREAKPOINT" -> removeExceptionBreakpoint(p);
+                case "LIST_JUNIT_TESTS" -> listJUnitTests();
+                case "START_JUNIT_TEST" -> startJUnitTest(p);
+                case "EXPAND_VARIABLE" -> expandVariable(p);
+                case "RESTART_DEBUG" -> restartDebug(p);
+                case "SET_STEP_FILTERS" -> setStepFilters(p);
                 case "REMOVE_BREAKPOINT" -> removeBreakpoint(p);
                 case "LIST_RUN_CONFIGURATIONS" -> listRunConfigurations();
                 case "LIST_JAVA_APPLICATIONS" -> listJavaApplications();
@@ -187,6 +197,9 @@ public final class EclipseAgentOperations {
             for (var bp : investigation.breakpoints()) {
                 breakpoints.removeInvestigationBreakpoint(bp.typeName(), bp.lineNumber(), id);
             }
+            for (var exception : investigation.exceptions()) {
+                breakpoints.removeInvestigationException(exception, id);
+            }
         }
         investigations.finish(id);
         return ok(",\"investigationId\":" + q(id)
@@ -202,7 +215,8 @@ public final class EclipseAgentOperations {
         List<String> items = new ArrayList<>();
         for (var bp : all) items.add("{\"typeName\":" + q(bp.typeName())
                 + ",\"lineNumber\":" + bp.lineNumber() + ",\"projectName\":" + q(bp.projectName())
-                + ",\"enabled\":" + bp.enabled() + ",\"owner\":" + q(bp.owner()) + "}");
+                + ",\"enabled\":" + bp.enabled() + ",\"owner\":" + q(bp.owner())
+                + ",\"condition\":" + q(bp.condition()) + ",\"tracepoint\":" + bp.tracepoint() + "}");
         return ok(",\"breakpoints\":[" + String.join(",", items) + "]");
     }
 
@@ -216,6 +230,208 @@ public final class EclipseAgentOperations {
         return ok(",\"typeName\":" + q(bp.typeName()) + ",\"lineNumber\":" + bp.lineNumber()
                 + ",\"projectName\":" + q(bp.projectName()) + ",\"created\":" + bp.created()
                 + ",\"owner\":" + q(bp.owner()));
+    }
+
+    private String setConditionalBreakpoint(String[] p, boolean tracepoint) throws CoreException {
+        String type = require(p, 1);
+        int line = number(p, 2);
+        String expression = require(p, 3);
+        String id = optionalInvestigation(p, 4);
+        var investigation = id == null ? null : investigations.require(id);
+        if (tracepoint && expression.length() > 200) {
+            throw new IllegalArgumentException("Trace expression must be at most 200 characters");
+        }
+        var bp = breakpoints.setBreakpoint(type, line, id, expression, tracepoint);
+        if (investigation != null && bp.created()) investigation.recordBreakpoint(bp.typeName(), bp.lineNumber());
+        if (!bp.created()) {
+            return error("Breakpoint already exists at this location (" + bp.owner()
+                    + "); existing breakpoints are never modified");
+        }
+        return ok(",\"typeName\":" + q(type) + ",\"lineNumber\":" + line
+                + ",\"expression\":" + q(expression) + ",\"tracepoint\":" + tracepoint
+                + ",\"created\":true,\"owner\":\"agent\"");
+    }
+
+    private String setExceptionBreakpoint(String[] p) throws CoreException {
+        String type = require(p, 1);
+        boolean caught = Boolean.parseBoolean(require(p, 2));
+        boolean uncaught = Boolean.parseBoolean(require(p, 3));
+        String id = optionalInvestigation(p, 4);
+        var investigation = id == null ? null : investigations.require(id);
+        var result = breakpoints.setExceptionBreakpoint(type, caught, uncaught, id);
+        if (investigation != null && result.created()) investigation.recordException(type);
+        if (!result.created()) {
+            return error("An exception breakpoint already exists for " + type
+                    + "; existing markers are never modified");
+        }
+        return ok(",\"exceptionName\":" + q(type) + ",\"caught\":" + caught
+                + ",\"uncaught\":" + uncaught + ",\"created\":true");
+    }
+
+    private String listExceptionBreakpoints() throws CoreException {
+        List<String> items = new ArrayList<>();
+        for (var item : breakpoints.listExceptionBreakpoints()) {
+            items.add("{\"exceptionName\":" + q(item.typeName())
+                    + ",\"caught\":" + item.caught()
+                    + ",\"uncaught\":" + item.uncaught()
+                    + ",\"owner\":" + q(item.owner()) + "}");
+        }
+        return ok(",\"breakpoints\":[" + String.join(",", items) + "]");
+    }
+
+    private String removeExceptionBreakpoint(String[] p) throws CoreException {
+        return ok(",\"removed\":" + breakpoints.removeAgentExceptionBreakpoint(require(p, 1)));
+    }
+
+    /** Discover JUnit 4/5 method candidates without requiring test execution. */
+    private String listJUnitTests() throws CoreException {
+        List<String> result = new ArrayList<>();
+        for (IProject project : ResourcesPlugin.getWorkspace().getRoot().getProjects()) {
+            if (!project.isOpen() || !project.hasNature(JavaCore.NATURE_ID)) continue;
+            var jp = JavaCore.create(project);
+            for (var root : jp.getPackageFragments()) {
+                if (root.getKind() != IPackageFragmentRoot.K_SOURCE) continue;
+                for (var unit : root.getCompilationUnits()) {
+                    for (var type : unit.getAllTypes()) {
+                        if (!type.isClass()) continue;
+                        for (var method : type.getMethods()) {
+                            for (var annotation : method.getAnnotations()) {
+                                if (!"Test".equals(annotation.getElementName())
+                                        && !"ParameterizedTest".equals(annotation.getElementName())
+                                        && !"RepeatedTest".equals(annotation.getElementName())) continue;
+                                result.add("{\"projectName\":" + q(project.getName())
+                                        + ",\"typeName\":" + q(type.getFullyQualifiedName())
+                                        + ",\"methodName\":" + q(method.getElementName()) + "}");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return ok(",\"tests\":[" + String.join(",", result) + "]");
+    }
+
+    /** Use Eclipse's JUnit launch delegate, without coupling the plugin to JUnit internals. */
+    private String startJUnitTest(String[] p) throws CoreException {
+        String projectName = require(p, 1);
+        String typeName = require(p, 2);
+        String methodName = p.length > 3 ? decoded(p[3]) : "";
+        String id = optionalInvestigation(p, 4);
+        var investigation = id == null ? null : investigations.require(id);
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (!project.isOpen() || !project.hasNature(JavaCore.NATURE_ID)) {
+            throw new IllegalArgumentException("Open Java test project not found: " + projectName);
+        }
+        IType type = JavaCore.create(project).findType(typeName);
+        if (type == null || !type.exists()) throw new IllegalArgumentException("Test class not found");
+        if (!methodName.isBlank()) {
+            boolean found = false;
+            for (var method : type.getMethods()) if (methodName.equals(method.getElementName())) found = true;
+            if (!found) throw new IllegalArgumentException("JUnit test method not found");
+        }
+        var configType = manager().getLaunchConfigurationType("org.eclipse.jdt.junit.launchconfig");
+        if (configType == null) throw new IllegalArgumentException("Eclipse JUnit launch support is unavailable");
+        String suggestedName = "Agentic JUnit - " + projectName + " - " + type.getElementName()
+                + (methodName.isBlank() ? "" : "." + methodName);
+        var workingCopy = configType.newInstance(null, manager().generateLaunchConfigurationName(suggestedName));
+        workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, projectName);
+        workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, typeName);
+        if (!methodName.isBlank()) workingCopy.setAttribute("org.eclipse.jdt.junit.TESTNAME", methodName);
+        // Select the runner supported by the test source; JUnit attributes are Eclipse internals.
+        String testSource = type.getCompilationUnit() == null ? "" : type.getCompilationUnit().getSource();
+        workingCopy.setAttribute("org.eclipse.jdt.junit.TEST_KIND",
+                testSource.contains("org.junit.jupiter")
+                        ? "org.eclipse.jdt.junit.loader.junit5"
+                        : "org.eclipse.jdt.junit.loader.junit4");
+        var config = workingCopy.doSave();
+        if (investigation != null) investigation.verifyLaunchTarget(config.getName());
+        ILaunch launched;
+        try { launched = config.launch(ILaunchManager.DEBUG_MODE, null); }
+        catch (CoreException failure) { config.delete(); throw failure; }
+        if (investigation != null) investigation.recordLaunch(config.getName(), launched, true);
+        ui.follow(launched);
+        return ok(",\"launchName\":" + q(config.getName())
+                + ",\"projectName\":" + q(projectName)
+                + ",\"typeName\":" + q(typeName) + ",\"methodName\":" + q(methodName));
+    }
+
+    /** Restart only a session created and still owned by this investigation. */
+    private String restartDebug(String[] p) throws CoreException {
+        String name = require(p, 1);
+        var investigation = investigations.require(require(p, 2));
+        ILaunch old = launch(name);
+        if (investigation.ownedLaunch() != old) {
+            throw new IllegalArgumentException("Restart requires the investigation-owned launch");
+        }
+        var configuration = old.getLaunchConfiguration();
+        if (configuration == null) throw new IllegalArgumentException("Launch configuration unavailable");
+        old.terminate();
+        ILaunch replacement = configuration.launch(ILaunchManager.DEBUG_MODE, null);
+        investigation.replaceOwnedLaunch(name, old, replacement);
+        ui.follow(replacement);
+        return ok(",\"launchName\":" + q(name) + ",\"restarted\":true");
+    }
+
+    private String setStepFilters(String[] p) throws CoreException {
+        String name = require(p, 1);
+        boolean enabled = Boolean.parseBoolean(require(p, 2));
+        String raw = p.length > 3 ? decoded(p[3]) : "";
+        IJavaDebugTarget javaTarget = (IJavaDebugTarget) target(launch(name));
+        if (!javaTarget.supportsStepFilters()) throw new IllegalArgumentException("Step filters not supported");
+        String[] patterns = raw.isBlank() ? new String[0] : raw.split(",");
+        if (patterns.length > 30) throw new IllegalArgumentException("Too many step filters");
+        for (String pattern : patterns) {
+            if (!pattern.matches("[A-Za-z0-9_.$*]+")) {
+                throw new IllegalArgumentException("Invalid Java step-filter pattern: " + pattern);
+            }
+        }
+        javaTarget.setStepFilters(patterns);
+        javaTarget.setStepFiltersEnabled(enabled);
+        return ok(",\"enabled\":" + javaTarget.isStepFiltersEnabled()
+                + ",\"filters\":" + q(String.join(",", javaTarget.getStepFilters())));
+    }
+
+    /** Read-only, bounded child navigation using Eclipse variable APIs; no Java code evaluated. */
+    private String expandVariable(String[] p) throws CoreException {
+        var selected = frame(thread(launch(require(p, 1)), number(p, 2)), number(p, 3));
+        String path = require(p, 4);
+        int offset = number(p, 5);
+        int limit = number(p, 6);
+        if (limit < 1 || limit > 50 || offset < 0 || offset > 10000
+                || !path.matches("[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*|\\[[0-9]{1,5}\\]){0,8}")) {
+            throw new IllegalArgumentException("Invalid path, offset, or limit");
+        }
+        String[] elements = path.replace("[", ".[").split("\\.");
+        IVariable current = variableByName(selected.getVariables(), elements[0]);
+        for (int i = 1; i < elements.length; i++) {
+            IValue value = current.getValue();
+            if (value == null || !value.hasVariables()) throw new IllegalArgumentException("Variable has no children: " + elements[i]);
+            current = variableByName(value.getVariables(), elements[i]);
+        }
+        IValue value = current.getValue();
+        if (value == null) return ok(",\"path\":" + q(path) + ",\"children\":[],\"total\":0");
+        IVariable[] children = value.getVariables();
+        List<String> items = new ArrayList<>();
+        for (int i = offset; i < Math.min(children.length, offset + limit); i++) {
+            IVariable child = children[i];
+            IValue item = child.getValue();
+            items.add("{\"name\":" + q(child.getName()) + ",\"type\":"
+                    + q(child.getReferenceTypeName()) + ",\"value\":"
+                    + q(item == null ? null : clipped(item.getValueString(), 200))
+                    + ",\"hasChildren\":" + (item != null && item.hasVariables()) + "}");
+        }
+        return ok(",\"path\":" + q(path) + ",\"total\":" + children.length
+                + ",\"offset\":" + offset + ",\"children\":[" + String.join(",", items) + "]");
+    }
+
+    private static IVariable variableByName(IVariable[] candidates, String name) throws CoreException {
+        for (IVariable candidate : candidates) {
+            if (name.equals(candidate.getName()) || (name.startsWith("[")
+                    && (name.equals(candidate.getName()) || name.substring(1, name.length() - 1).equals(candidate.getName()))))
+                return candidate;
+        }
+        throw new IllegalArgumentException("Variable or field not found: " + name);
     }
 
     private String removeBreakpoint(String[] p) throws CoreException {

@@ -2,6 +2,18 @@
 
 Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
+## Contents
+
+- [1. Install and use (end users)](#1-install-and-use-end-users)
+- [2. Develop and test (contributors)](#2-develop-and-test-contributors)
+- [3. Local Windows deployment (developers)](#3-local-windows-deployment-developers)
+- [Eclipse installation and validation guide](docs/eclipse-installation-and-validation.md)
+- [4. CI/CD (prepared; inactive)](#4-cicd-prepared-inactive)
+- [5. Debugging modes and safety](#5-debugging-modes-and-safety)
+- [6. Current verification boundary](#6-current-verification-boundary)
+- [Phase 1 candidate — advanced core-Java debugging](#phase-1-candidate--advanced-core-java-debugging)
+- [Documentation](#documentation)
+
 ## 1. Install and use (end users)
 
 **Prerequisites:** Eclipse IDE with Java Development Tools (JDT), Java 21+, and an installed Claude Code CLI. Maven is needed **only if building from source**.
@@ -66,6 +78,8 @@ The test compares installed debugger class bytes with the freshly built distribu
 
 ## 3. Local Windows deployment (developers)
 
+**Complete Eclipse walkthrough:** [Eclipse Installation, Deployment, and Phase 1 Verification](docs/eclipse-installation-and-validation.md) covers installed Eclipse vs PDE Runtime Eclipse, the Windows scripts, manual p2 installation, Java fixture import, all seven test scenarios, reports, and troubleshooting.
+
 Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the currently installed Agentic Debugger feature, install the newest local p2 build, verify, and optionally start Eclipse**. This changes the configured Eclipse installation; use it only for a development/test Eclipse.
 
 1. Edit the **first two paths** in `scripts/windows/deploy-eclipse-plugin.bat`:
@@ -89,6 +103,20 @@ Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the curren
    mvn verify -Pinstalled-e2e
    ```
 
+**Phase 1 feature verification (Java only):** After the new Eclipse starts, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
+
+```cmd
+scripts\windows\verify-phase1-eclipse.bat
+```
+
+To check one capability independently:
+
+```cmd
+scripts\windows\verify-phase1-eclipse.bat conditional
+```
+
+This invokes `mvn verify -Pphase1-bridge` and writes `evaluation/reports/phase1-live.json`. It does **not** invoke Claude. The seven valid scenarios and their Claude prompts are documented in [Phase 1 Java verification](docs/phase1-java-test-runner.md) and [Phase 1 Claude scenarios](docs/phase1-claude-scenarios.md). The existing deployment batch file remains the installer; `verify-phase1-eclipse.bat` is the separate feature tester.
+
 The script does not edit Claude Code's `.claude.json` and does not uninstall other Eclipse features. The entire script has **not yet been executed on Windows**; validate the first deployment against a disposable Eclipse installation.
 
 ## 4. CI/CD (prepared; inactive)
@@ -106,3 +134,27 @@ The script does not edit Claude Code's `.claude.json` and does not uninstall oth
 ## 6. Current verification boundary
 
 Previous source revisions passed the Maven/Claude installed-plugin test in a Windows Eclipse setup. **The new investigation lifecycle has not yet been tested in a live Eclipse installation.** Validate those changes before publishing a release.
+
+## Phase 1 candidate — advanced core-Java debugging
+
+The **1.5.0 source candidate** adds tools for conditional breakpoints, exception breakpoints, individual JUnit test debugging, bounded nested-object inspection, tracepoints, investigation-owned restart, and per-target step filters. The source exists, but **must pass a Maven/Tycho build and live installed-Eclipse testing before being described as released**. All original MCP operations and Normal/Controlled modes remain present; the optional debugging skill is *not* a prerequisite.
+
+For an end-to-end check on a Windows test installation, follow [Phase 1 implementation status](docs/phase1-implementation-status.md) and [feature-specific Claude prompts](docs/phase1-claude-scenarios.md). The direct bridge verifier is `mvn verify -Pphase1-bridge` and requires the `phase-one-debugging` Maven fixture imported in Eclipse. Each scenario exercises real debugger state and owns its cleanup.
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [Implemented Capabilities and Verification](docs/capabilities.md) | Existing core-Java features, evidence boundaries, and regression requirements |
+| [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) | Pending, explored, feasible/unknown, deferred, rejected and planned features with stable IDs |
+| [External Research and Feature Mapping](docs/research-sources.md) | What IntelliJ, DebugMCP, Microsoft Java Debug Agent, Debug2Fix and other sources offer, and what applies here |
+| [Regression and Skill Evaluation Plan](docs/evaluation-plan.md) | Deterministic tests, repeatable A/B experiments, scoring and release gates |
+| [Architecture Decisions and Documentation Rules](docs/decisions.md) | Replaceable-skill boundary and maintenance rules |
+| [Eclipse Installation and Phase 1 Validation](docs/eclipse-installation-and-validation.md) | Eclipse setup, batch deployment, project import, seven Java checks, agent prompts, evidence, troubleshooting |
+| [Phase 1 Java-only Verification](docs/phase1-java-test-runner.md) | Java test runner, all seven acceptance checks, commands and reporting |
+| [Phase 1 Implementation Status](docs/phase1-implementation-status.md) | Exact new tools, confidence level, caveats, and release checklist |
+| [Phase 1 Claude Prompt Scenarios](docs/phase1-claude-scenarios.md) | Explicit/implicit agent prompts, direct test fixtures and quantitative/qualitative criteria |
+
+These documents separate **what is implemented**, **what a source suggests**, **what may be feasible**, and **what has actually been verified**. The debugging skill and A/B evaluation runner are proposals, not installed product features.
+
+For Java-only verification prerequisites, scenario selection, and report format, see [Phase 1 Java verification](docs/phase1-java-test-runner.md).

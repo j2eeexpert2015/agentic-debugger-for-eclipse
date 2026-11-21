@@ -238,6 +238,76 @@ public class DebugMcpServer {
         allTools.add(bridgeTool("remove_breakpoint", "Remove only agent-owned line breakpoints.",
                 Map.of("typeName",str(),"lineNumber",integer()), List.of("typeName","lineNumber"),
                 a -> "REMOVE_BREAKPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")));
+        // Phase 1: optional capabilities; legacy tool names and schemas remain unchanged.
+        allTools.add(bridgeTool("set_conditional_breakpoint",
+                "Set a new Java conditional line breakpoint. Eclipse suspends only when the Java condition is true. "
+                + "Existing user/agent breakpoints at that line are never modified. Prefer for record-specific defects.",
+                Map.of("typeName",str(), "lineNumber",integer(), "condition",str(), "investigationId",str()),
+                List.of("typeName", "lineNumber", "condition"),
+                a -> "SET_CONDITIONAL_BREAKPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")
+                        + " " + enc(arg(a,"condition")) + optionalId(a)));
+        allTools.add(bridgeTool("set_exception_breakpoint",
+                "Create an Eclipse Java exception breakpoint for a fully-qualified exception type. "
+                + "Caught and/or uncaught must be true. Existing exception breakpoints are never modified.",
+                Map.of("exceptionName",str(),"caught",bool(),"uncaught",bool(),"investigationId",str()),
+                List.of("exceptionName","caught","uncaught"),
+                a -> "SET_EXCEPTION_BREAKPOINT " + enc(arg(a,"exceptionName")) + " "
+                        + enc(boolArg(a,"caught")) + " " + enc(boolArg(a,"uncaught")) + optionalId(a)));
+        allTools.add(bridgeTool("list_exception_breakpoints",
+                "List existing Java exception breakpoints and ownership without modifying them.",
+                Map.of(), List.of(), a -> "LIST_EXCEPTION_BREAKPOINTS"));
+        allTools.add(bridgeTool("remove_exception_breakpoint",
+                "Remove only agent-created Java exception breakpoints with a matching exception type.",
+                Map.of("exceptionName",str()), List.of("exceptionName"),
+                a -> "REMOVE_EXCEPTION_BREAKPOINT " + enc(arg(a,"exceptionName"))));
+        allTools.add(bridgeTool("set_tracepoint",
+                "Log a Java expression at a line without suspending execution. Uses Eclipse's conditional "
+                + "breakpoint evaluation and System.out.println; evaluation may execute methods/side effects. "
+                + "Requires explicit user consent and allowSideEffects=true. Does not modify existing breakpoints.",
+                Map.of("typeName",str(), "lineNumber",integer(),"expression",str(),
+                        "allowSideEffects",bool(),"investigationId",str()),
+                List.of("typeName","lineNumber","expression","allowSideEffects"),
+                a -> {
+                    if (!Boolean.TRUE.equals(a.get("allowSideEffects")))
+                        throw new IllegalArgumentException("Explicit consent required for tracepoint evaluation");
+                    return "SET_TRACEPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")
+                            + " " + enc(arg(a,"expression")) + optionalId(a);
+                }));
+        allTools.add(bridgeTool("list_junit_tests",
+                "Discover source test methods annotated with @Test, @ParameterizedTest or @RepeatedTest "
+                + "in open Java projects. Method candidates are not proof that a JUnit runner is installed.",
+                Map.of(),List.of(), a -> "LIST_JUNIT_TESTS"));
+        allTools.add(bridgeTool("start_junit_test",
+                "Launch an Eclipse JUnit test class or method in debug mode. "
+                + "Requires Eclipse JUnit launch integration; methodName may be empty for class launch. "
+                + "Returns launchName and does not overwrite user launch configurations.",
+                Map.of("projectName",str(), "typeName",str(),"methodName",str(),"investigationId",str()),
+                List.of("projectName","typeName","methodName"),
+                a -> "START_JUNIT_TEST " + enc(arg(a,"projectName")) + " " + enc(arg(a,"typeName"))
+                        + " " + enc(stringAllowEmpty(a,"methodName")) + optionalId(a)));
+        allTools.add(bridgeTool("expand_frame_variable",
+                "Read a selected local/field/array element and its immediate children with pagination. "
+                + "Read-only; requires suspended frame. path example: order.customer.address or items[0].",
+                Map.of("launchName",str(), "threadIndex",integer(),"frameIndex",integer(),
+                        "path",str(),"offset",integer(),"limit",integer()),
+                List.of("launchName","threadIndex","frameIndex","path","offset","limit"),
+                a -> "EXPAND_VARIABLE " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
+                        + " " + intArg(a,"frameIndex") + " " + enc(arg(a,"path")) + " "
+                        + intArg(a,"offset") + " " + intArg(a,"limit")));
+        allTools.add(bridgeTool("restart_debug_session",
+                "Restart ONLY a debug launch created and still owned by the supplied investigationId. "
+                + "User-owned/reused sessions cannot be restarted through this tool.",
+                Map.of("launchName",str(),"investigationId",str()),
+                List.of("launchName","investigationId"),
+                a -> "RESTART_DEBUG " + enc(arg(a,"launchName")) + " " + enc(arg(a,"investigationId"))));
+        allTools.add(bridgeTool("configure_step_filters",
+                "Set the current Java debug target's step-filter patterns and enabled state. "
+                + "Changes target execution behavior, not global Eclipse preferences. "
+                + "Examples: java.*, javax.*, sun.*. Explicit patterns replace this target's active list.",
+                Map.of("launchName",str(),"enabled",bool(),"patterns",str()),
+                List.of("launchName","enabled","patterns"),
+                a -> "SET_STEP_FILTERS " + enc(arg(a,"launchName")) + " "
+                        + enc(boolArg(a,"enabled")) + " " + enc(stringAllowEmpty(a,"patterns"))));
         allTools.add(bridgeTool("list_run_configurations", "List saved debug-capable Eclipse launch configurations.",
                 Map.of(), List.of(), a -> "LIST_RUN_CONFIGURATIONS"));
         allTools.add(bridgeTool("list_java_applications",
@@ -371,6 +441,15 @@ public class DebugMcpServer {
     }
 
     private static Map<String,Object> str() { return Map.of("type","string"); }
+    private static Map<String,Object> bool() { return Map.of("type","boolean"); }
+    private static String boolArg(Map<String,Object> args, String key) {
+        if (!(args.get(key) instanceof Boolean value)) throw new IllegalArgumentException("Invalid " + key);
+        return Boolean.toString(value);
+    }
+    private static String stringAllowEmpty(Map<String,Object> args, String key) {
+        if (!(args.get(key) instanceof String s)) throw new IllegalArgumentException("Invalid " + key);
+        return s;
+    }
 
     private static Map<String,Object> integer() { return Map.of("type","integer","minimum",0); }
 

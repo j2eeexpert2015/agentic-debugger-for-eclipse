@@ -3,15 +3,28 @@
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>org.learningfromexperience</groupId><artifactId>agentic-debugger-distribution</artifactId><version>1.0.0-SNAPSHOT</version></parent>
   <artifactId>e2e-runner</artifactId><packaging>jar</packaging>
-  <properties><maven.compiler.release>21</maven.compiler.release></properties>
+  <properties><maven.compiler.release>21</maven.compiler.release><agentdebug.phase1.scenario>all</agentdebug.phase1.scenario><agentdebug.phase1.project>phase-one-debugging</agentdebug.phase1.project></properties>
   <build><plugins>
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.14.1</version></plugin>
     <plugin><groupId>org.codehaus.mojo</groupId><artifactId>exec-maven-plugin</artifactId><version>3.5.1</version>
       <executions><execution><id>claude-e2e</id><phase>verify</phase><goals><goal>java</goal></goals><configuration>
+        <skip>${agentdebug.phase1}</skip>
         <mainClass>org.learningfromexperience.agentdebug.e2e.ClaudeE2ERunner</mainClass>
         <arguments><argument>${maven.multiModuleProjectDirectory}</argument></arguments>
         <systemProperties><systemProperty><key>agentdebug.test.installed</key><value>${agentdebug.test.installed}</value></systemProperty></systemProperties>
       </configuration></execution></executions>
     </plugin>
   </plugins></build>
+  <profiles>
+    <profile><id>phase1-bridge</id><activation><property><name>agentdebug.phase1</name><value>true</value></property></activation>
+      <build><plugins><plugin><groupId>org.codehaus.mojo</groupId><artifactId>exec-maven-plugin</artifactId>
+        <executions><execution><id>phase1-java-bridge</id><phase>verify</phase><goals><goal>java</goal></goals>
+          <configuration><mainClass>org.learningfromexperience.agentdebug.e2e.PhaseOneBridgeVerifier</mainClass>
+            <arguments><argument>--root</argument><argument>${maven.multiModuleProjectDirectory}</argument>
+              <argument>--scenario</argument><argument>${agentdebug.phase1.scenario}</argument>
+              <argument>--project</argument><argument>${agentdebug.phase1.project}</argument></arguments>
+          </configuration></execution></executions>
+      </plugin></plugins></build>
+    </profile>
+  </profiles>
 </project>

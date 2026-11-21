@@ -14,11 +14,23 @@ public final class DebugInvestigationPolicyTest {
         require(controlled.mode() == DebugInvestigationPolicy.Mode.CONTROLLED, "explicit CONTROLLED");
         var launch1 = new Object();
         normal.recordBreakpoint("example.Calculator", 10);
+        normal.recordException("java.lang.IllegalStateException");
+        require(normal.exceptions().contains("java.lang.IllegalStateException"), "owned exception tracked");
+        require(controlled.exceptions().isEmpty(), "exception ownership isolated");
         normal.recordLaunch("Calculator", launch1, true);
         controlled.recordLaunch("Pricing", new Object(), false);
         require(normal.breakpoints().size() == 1, "tracked own breakpoint");
         require(controlled.breakpoints().isEmpty(), "separate breakpoint ownership");
         require(normal.ownedLaunch() == launch1, "owned launch recorded");
+        Object launch2 = new Object();
+        normal.replaceOwnedLaunch("Calculator", launch1, launch2);
+        require(normal.ownedLaunch() == launch2, "owned restart transitions safely");
+        try {
+            normal.replaceOwnedLaunch("Calculator", launch1, new Object());
+            throw new AssertionError("stale session restart accepted");
+        } catch (IllegalStateException expected) {
+            // The old launch cannot be reused after restart.
+        }
         require(controlled.ownedLaunch() == null, "reused launch not owned");
         try {
             normal.verifyLaunchTarget("Different");
