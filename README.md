@@ -2,13 +2,16 @@
 
 Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
-**Project status · 22 November 2026.** Phase 1 features passed installed-Windows candidate verification; publication is pending. [Full test results](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
+**Project status · 22 November 2026.** Core Java debugging and the seven Phase 1 capabilities passed installed Windows candidate verification; publication remains pending. **Next planned phase: essential Spring Boot + Spring Boot/JUnit debugging**, followed by the optional unified skill and its A/B evaluation. [Verification evidence](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
 
 ## Contents
 
 - [Project roadmap — Phases 0–5](#project-roadmap--phases-05)
 - [Development roadmap (phase-level)](docs/development-roadmap.md)
 - [Feature roadmap and tracker (feature-level)](docs/feature-roadmap.md)
+- [Spring Boot and JUnit scenarios (Phase 2)](docs/spring-boot-debugging-scenarios.md)
+- [Agent behavior and skill evaluation plan](docs/evaluation-plan.md)
+- [Codex implementation backlog](docs/codex-implementation-backlog.md)
 
 - [1. Install and use (end users)](#1-install-and-use-end-users)
 - [2. Develop and test (contributors)](#2-develop-and-test-contributors)
@@ -22,18 +25,20 @@ Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect loc
 
 ## Project roadmap — Phases 0–5
 
-The phase-level [Development Roadmap](docs/development-roadmap.md) defines sequencing, dependencies, deliverables and acceptance gates. The [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) records each capability's benefit, status, feasibility, test evidence and outstanding work. **They complement each other; neither replaces the implementation/test evidence.**
+The [Development Roadmap](docs/development-roadmap.md) defines phase order and exit gates. The [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) records capability IDs, user benefits, evidence and feasibility. The [Spring Boot/JUnit Scenario Catalog](docs/spring-boot-debugging-scenarios.md) defines exact Phase 2 prompts and acceptance cases; the [Codex Backlog](docs/codex-implementation-backlog.md) makes unfinished work actionable.
 
 | Phase | Scope | Status | Detailed plan |
 |---|---|---|---|
-| **0** | Core Eclipse ↔ Java MCP debugger, launch, stepping, variables, ownership | Implemented and core regression tested | [Phase 0](docs/development-roadmap.md#phase-0--core-eclipse-mcp-debugger) |
-| **1** | Seven advanced Java features | 7/7 direct + explicit Claude tests on installed candidate; **unpublished** | [Phase 1](docs/development-roadmap.md#phase-1--advanced-core-java-debugging) |
-| **2** | Optional replaceable agentic debugging skill | Not implemented | [Phase 2](docs/development-roadmap.md#phase-2--optional-agentic-debugging-skill) |
-| **3** | Skill A/B testing and quantitative/qualitative evaluation | Framework planned; repeatable runner pending | [Phase 3](docs/development-roadmap.md#phase-3--skill-evaluation-and-refinement) |
-| **4** | Advanced Java: attach, watchpoints, run-to-line, HCR, mutation | Deferred / feasibility TBD | [Phase 4](docs/development-roadmap.md#phase-4--advanced-java-debugging) |
-| **5** | Spring Boot application discovery, launch, readiness, HTTP debugging | Deferred / not implemented | [Phase 5](docs/development-roadmap.md#phase-5--spring-boot-debugging) |
+| **0** | Core Eclipse MCP debugger: Java launch, breakpoints, stepping, variables, lifecycle and ownership | Implemented; core installed regression tested | [Phase 0](docs/development-roadmap.md#phase-0--core-eclipse-mcp-debugger) |
+| **1** | Seven advanced Java features **including individual JUnit 5 debugging** | 7/7 direct and 7/7 explicit Claude tests passed on Windows candidate; **unpublished** | [Phase 1](docs/development-roadmap.md#phase-1--advanced-core-java-debugging) |
+| **2** | **Essential Spring Boot and Spring Boot/JUnit:** discovery, safe launch/config, readiness, HTTP reproduction, controller/service tracing, context tests | **Next; planned and not verified** | [Phase 2](docs/development-roadmap.md#phase-2--essential-spring-boot-and-junit-debugging) · [Scenarios](docs/spring-boot-debugging-scenarios.md) |
+| **3** | Optional, independently replaceable **Java + JUnit + Spring Boot** debugging skill | Research/requirements exist; skill not implemented | [Phase 3](docs/development-roadmap.md#phase-3--unified-agentic-debugging-skill) |
+| **4** | Repeatable no-skill / stable / candidate **skill A/B evaluation** | Baseline observations exist; runner and replicated comparisons pending | [Phase 4](docs/development-roadmap.md#phase-4--skill-evaluation-and-optimization) |
+| **5** | Advanced Java + Boot: remote attach, watchpoints, run-to-line, HCR, mutation, JPA/transactions | Deferred; individual feasibility required | [Phase 5](docs/development-roadmap.md#phase-5--advanced-java-and-spring-boot-capabilities) |
 
-**Next:** Finalize the Phase 1 source-to-tested-artifact release record, then establish a repeatable no-skill baseline before developing the optional skill. Core debugging must always work with the skill absent.
+**Current evidence boundary:** On installed candidate `1.5.0.20261121184224374`, the repo records 7/7 direct Java feature checks, 7/7 explicit Claude runs and 32/32 ownership checks. In **seven single-run, symptom-only sessions with relevant fixture source supplied**, Claude selected the intended mechanism in 6/7 and provided complete answers in 5/7. Trace output completeness and choosing a restart were the two partial cases; this is a skill-evaluation baseline, **not** evidence that the Phase 1 tools failed. [Details](docs/phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
+
+**Implementation order:** Finalize the Phase 1 source/artifact release record → verify a minimal Spring Boot + Spring-context JUnit debugging vertical slice using existing tools first → establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
 
 ## 1. Install and use (end users)
 
@@ -127,7 +132,7 @@ Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the curren
    mvn verify -Pinstalled-e2e
    ```
 
-**Phase 1 feature verification (Java only).** The default `dev.bat` workflow imports `examples/phase-one-debugging` and runs the direct checks automatically. If you prepared the Eclipse workspace yourself and the fixture is missing, import it with **File → Import → Maven → Existing Maven Projects** and confirm it builds. To run the direct checks separately in either workspace, use this command from the repository root:
+**Phase 1 feature verification (Java only):** After the new Eclipse starts, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
 
 ```cmd
 scripts\windows\verify-phase1-eclipse.bat
@@ -173,7 +178,7 @@ Use [Phase 1 status](docs/phase1-implementation-status.md), [Java verification](
 | [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) | Feature-level status, developer benefit, feasibility, test evidence and decisions |
 | [Implemented Capabilities and Verification](docs/capabilities.md) | Existing core-Java features, evidence boundaries, and regression requirements |
 | [External Research and Feature Mapping](docs/research-sources.md) | What IntelliJ, DebugMCP, Microsoft Java Debug Agent, Debug2Fix and other sources offer, and what applies here |
-| [Regression and Skill Evaluation Plan](docs/evaluation-plan.md) | Deterministic tests, repeatable A/B experiments, scoring and release gates |
+| [Regression and Skill Evaluation Plan](docs/evaluation-plan.md) | Java/JUnit/Boot scenarios EV-01–EV-16, no-skill baseline, repeatable A/B design and safety gates |
 | [Architecture Decisions and Documentation Rules](docs/decisions.md) | Replaceable-skill boundary and maintenance rules |
 | [Eclipse Installation and Phase 1 Validation](docs/eclipse-installation-and-validation.md) | Eclipse setup, batch deployment, project import, seven Java checks, agent prompts, evidence, troubleshooting |
 | [Phase 1 Java-only Verification](docs/phase1-java-test-runner.md) | Java test runner, all seven acceptance checks, commands and reporting |

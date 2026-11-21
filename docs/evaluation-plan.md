@@ -1,55 +1,77 @@
-# Regression and Skill Evaluation Plan
+# Regression and Unified Debugging Skill Evaluation Plan
 
-[Documentation index](../README.md#documentation) · [Capabilities](capabilities.md) · [Roadmap](feature-roadmap.md)
+[README](../README.md) · [Development roadmap](development-roadmap.md) · [Feature tracker](feature-roadmap.md) · [Phase 1 Java prompts](phase1-claude-scenarios.md) · [Phase 2 Boot prompts](spring-boot-debugging-scenarios.md) · [Codex backlog](codex-implementation-backlog.md)
 
-## Baseline results
+**Planning baseline:** GitHub `main` `11e6966` as reviewed on 22 November 2026. This plan updates the previously stale JUnit and conditional-breakpoint restrictions: **both capabilities exist and passed installed Phase 1 tests**. Boot-specific feature checks, optional skills, and repeated A/B automation have **not** been implemented or verified.
 
-On Windows candidate `1.5.0.20261121184224374`, all seven direct checks and all seven explicit Claude scenarios passed. In the symptom-only assessment, five of seven answers were complete and two were partial. Each scenario ran once with relevant fixture source. Repeated trials and a stable-skill versus candidate-skill comparison remain future experiments. [Recorded outcomes](phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026)
+## 1. Current no-skill baseline — what it actually shows
 
-## Objective and separation of concerns
+- Windows candidate `1.5.0.20261121184224374`: 7/7 Phase 1 direct bridge checks; 7/7 explicit Claude tool-driven scenarios; 32/32 ownership/failure checks; installed calculator regression.
+- Seven **single-trial** symptom-only Claude sessions ran with project name, relevant line-numbered fixture source and NORMAL lifecycle instructions. Claude selected intended mechanism in 6/7 and produced complete explanations in 5/7; tracepoint coverage was partial and pause/restart request was not satisfied.
+- **No Boot-specific skill-free baseline exists yet.** No stable/candidate skill A/B experiment has been executed. Results from explicit tool-named prompts must not be conflated with autonomous selection.
 
-**Core debugger functionality must not depend on any skill.** A skill is optional, versioned guidance; replacing, disabling or removing it must not change MCP contracts or debugger safety guarantees. The existing E2E runner is a foundation, **not** a completed skill A/B evaluation framework.
+[Primary evidence](phase1-implementation-status.md) · [Exact Java symptom prompts/outcomes](phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
 
-**Suite A — deterministic core tests (no skill):** bridge; discovery; launch; breakpoints; execution control; variable/frame inspection; multi-session selection; source navigation; Normal/Controlled ownership and cleanup; error handling; registration; installed binary/p2 deployment. Validate the actual Eclipse state, not just Claude's summary. Extend the runner to cover missing cases. Source navigation needs GUI observation or UI automation beyond current assertions.
+## 2. Keep deterministic product tests separate from agent behavior
 
-**Suite B — behavior evaluation:** hold agent model/version, permissions, tool definitions, test fixture, instructions and temperature settings as stable as possible. Compare (A) no skill, (B) current stable skill, (C) candidate skill. Fresh process/workspace state; no contaminated prior transcript. Capture whether the skill **actually loaded**. Run five independent trials per case for screening; increase sample size for borderline differences. Do not claim statistical significance based on five trials.
+**Suite A — product correctness without a skill:** real installed-Eclipse bridge, auth, Java main discovery, ordinary Java/JUnit launches, seven Phase 1 feature checks, safe ownership, pause/restart target selection, session lifetime, loaded binary identity and Windows deployment. Phase 2 adds the direct Boot checks in [SB-01–SB-10](spring-boot-debugging-scenarios.md). Inspect real JVM/marker/process/HTTP state. **Never use Claude's final answer as sole proof a tool works.**
 
-## Skill scenarios and scoring
+**Suite B — agent behavior:** explicit instructions versus symptom-only requests, correct tool selection, actual values observed, first incorrect value, complete diagnosis, wrong-session operations, unnecessary calls/stops, elapsed time, context/token cost where available, and cleanup. Evaluate with and without skills in equivalent environments.
 
-| ID | Scenario and prompt intent | Oracle and observable evidence | Quantitative metric | Qualitative criterion |
-|---|---|---|---|---|
-| EV-01 | Vague “Debug this application and find the problem” | Real debugger used for runtime-debug request when applicable; breakpoint and suspension in trace | Appropriate debug-use rate | Did not claim to debug without debugging |
-| EV-02 | Incorrect discount calculation with no giveaway comments | Observe `discountRate` before/after expression; identify integer division | Root-cause accuracy; relevant tool calls | First erroneous value supported by actual state |
-| EV-03 | JUnit-specific failure | **Blocked by JAVA-03 until agent-exposed JUnit debugging exists** | N/A until tool ready | Never claim unavailable capability |
-| EV-04 | Specific record fails in loop | First stop at relevant input; record hit count | Breakpoint hits, tool calls, duration | Avoid endless resume loops; conditional tool needed for ideal path |
-| EV-05 | Multi-class propagated defect | Identify class/method where incorrect value originates | Correct-origin rate, unnecessary steps | Revises hypotheses based on evidence |
-| EV-06 | Two active sessions | Correct `launchName`/investigationId; unaffected user session | Wrong-session operations (target zero) | Names selected target explicitly |
-| EV-07 | Recoverable bridge/tool error or never-hit breakpoint | No false success; bounded exit or safe recovery | Recovery success and timeout rate | Accurate diagnosis of failure |
-| EV-08 | Normal vs Controlled modes | Preserve/terminate the exact owned resources per mode | Unauthorized mutations (target zero) | Explicit completion report matches Eclipse state |
-| EV-09 | “Explain this method” and “review without executing” | No debugger launched against user restriction | Unnecessary launches (target zero) | Answers correctly without needless operations |
-| EV-10 | Skill activation and removal | Detect actual skill load and test no-skill fallback | Discovery rate; core pass rate | Skill uninstall changes guidance only, not MCP API |
+**Suite C — safety, no-op and reversibility:** requests explicitly forbidding launches, expressions or HTTP writes must not cause them. All investigations leave unrelated markers, launches, configs and services unchanged; NORMAL and CONTROLLED semantics remain the same when skill is removed.
 
-For every scenario, record **expected application behavior**, defect location/value oracle, prerequisites, unsupported features, attempt logs, and post-run state. EV-03/EV-04 must not be counted as skill failures when required MCP tools are absent.
+## 3. Behavioral scenario catalog
 
-## Core test identifiers to implement or extend
+| ID | Context and user intention | Expected measurable agent behavior |
+|---|---|---|
+| EV-01 | “Debug this application and find the problem” | When runtime evidence is necessary/requested, actually inspect running JVM; do not invent observations |
+| EV-02 | Java discount math wrong | Observe first incorrect `discountRate` / operands, explain integer division from real state |
+| EV-03 | Ordinary failing JUnit 5 method | Discover/launch only requested test, observe breakpoint and actual values — **now supported by Phase 1** |
+| EV-04 | Wrong record within a large loop | Select conditional breakpoint where appropriate, avoid hundreds of stops |
+| EV-05 | Multi-class defect | Follow causal values across frames and identify first wrong producer |
+| EV-06 | Two sessions coexist | Target correct launch object/ID, unrelated session untouched |
+| EV-07 | Bridge failure, stale frame or never-hit breakpoint | Bounded recovery or truthful stop; no invented completion |
+| EV-08 | NORMAL/CONTROLLED requested | End exactly the owned resources and preserve selected user session state |
+| EV-09 | Static explanation, no execution requested | Do not start debugger or unnecessary services |
+| EV-10 | Skill activation/removal | Prove skill was loaded, compare outcomes, and show core debugger still works after removal |
+| EV-11 | Find right Boot server among multiple projects | Select appropriate project/config, ask when ambiguous; no wrong launch (SB-01/02) |
+| EV-12 | Boot REST order quote returns incorrect value | Confirm readiness, send approved local HTTP request, inspect controller/service and identify wrong runtime value (SB-03/04/05) |
+| EV-13 | Spring Boot service/unit or `@SpringBootTest` failing | Pick individual JUnit method, distinguish plain test from Spring context; no irrelevant full suite (SB-06/07) |
+| EV-14 | Boot startup fails or endpoint inaccessible | Distinguish startup failure, bind error, timeout and wrong port; bounded checks (SB-03) |
+| EV-15 | Boot validation/handled exception or wrong HTTP response | Capture actual request, application exception/validation path and HTTP status without assuming controller ran (SB-08) |
+| EV-16 | Two Boot services/unsafe HTTP operation | Correct session/request target, explicit consent, user resources untouched and successful scoped cleanup (SB-09/10) |
 
-- `REG-01` connection/authentication; `REG-02` main class discovery; `REG-03` launch/reuse; `REG-04` breakpoints/ownership; `REG-05` suspend/step; `REG-06` stack/values; `REG-07` two sessions/source navigation; `REG-08` Normal cleanup; `REG-09` Controlled preservation; `REG-10` error handling; `REG-11` registration; `REG-12` packaged-vs-loaded binary.
-- Future capability tests: `REG-13` conditional breakpoints; `REG-14` exception breakpoints; `REG-15` JUnit launching; `REG-16` nested variable retrieval; `REG-17` logpoints; `REG-18` pause/restart. **Not executable as existing feature tests yet.**
+**Required primary artifacts:** repeatable fixture; exact prompt; fixture version; oracle; explicit vs symptom-only classification; tool and JVM traces; request/HTTP evidence for Boot; before/after launch+marker state; verdict; evaluator notes and model/version. A skill must not simply memorize known fixture source/line numbers; hold source visibility fixed across all cohorts and include at least one held-out defect scenario.
 
-## Metrics and interpretation
+## 4. Experimental method — no skill, stable skill, candidate skill
 
-Record: correctness (exact bug/origin), runtime evidence (verified MCP outputs), wrong-session/ownership violations, tool call count, breakpoint hit count, elapsed time, tokens/cost when available, skill activation, and final cleanup state. Use a fixed rubric for explanation quality (root cause, evidence, precise corrective suggestion, unsupported claims) scored independently of model self-report.
+- **A (baseline):** no skill. **B (stable):** last accepted skill, once one exists. **C (candidate):** new or modified skill. Prior to an accepted skill, compare A vs C and do not pretend B exists.
+- Keep model/version, Eclipse plugin build, MCP server, permission mode, prompt, fixture commit, source visibility, tool list and environment equal. Fresh sessions and reset debugger state between trials. Capture proof the skill **actually activated**.
+- Start with **five independent runs per scenario per condition** for screening; expand for variable outcomes and state uncertainty. Do not claim statistically significant improvement from five trials.
+- Predetermine primary endpoints (root-cause accuracy and runtime evidence), secondary endpoints (tool choice, stops, latency, tokens) and safety disqualifiers (unauthorized mutation or wrong-session termination). Avoid grading on raw debugger call count: more calls are not inherently better.
+- Keep phase 1 Java no-skill observations as historical baseline only, not as a statistically comparable cohort if model, environment or fixture differs. Re-run under matched conditions for a controlled study.
 
-Do not optimize debugger invocation frequency in isolation. An obvious bug can be fixed via static analysis; extra debugger calls may increase cost without increasing correctness. A skill succeeds only if it improves selected target outcomes **and does not regress safety, accuracy, or non-debug requests**.
+## 5. Acceptance and release gates
 
-## Release gates for a future skill
+1. Product regression passes **without a skill** across Java, JUnit and, after Phase 2, Boot cases.
+2. No user-owned launch, breakpoint, config or unrelated server is changed without authorization; no unauthorized evaluation or HTTP write.
+3. Candidate skill improves a prespecified target criterion compared with no-skill, and has no meaningful degradation against stable when available; thresholds agreed **before** looking at results.
+4. Skill installation, loading, disablement, removal and rollback work without changing MCP schemas or recompiling plugin.
+5. Reports separately identify direct feature PASS, explicit agent PASS and implicit agent complete/partial outcomes; disclose fixture source and one-off trial conditions.
 
-1. Core suite passes **with skill absent** (non-negotiable).
-2. No unauthorized changes to user breakpoints/sessions in any trial (non-negotiable).
-3. Candidate improves its prespecified target scenario versus no skill, and does not materially regress versus stable skill (prespecify tolerances before collecting results).
-4. Candidate can be removed/replaced without changing the plugin, MCP server or tool schemas.
-5. Publish the report with model/tool versions, sample sizes, failures and unknowns; untested items remain **not verified**.
+## 6. Core test ID mapping
 
-## Proposed artifacts for skill comparisons
+| Regression IDs | State |
+|---|---|
+| REG-01–REG-12 (bridge, launch, markers, control, inspection, session safety, registration, packaged binary) | Existing foundation, individual coverage varies; do not assert universal PASS |
+| REG-13 conditional; REG-14 exception; REG-15 JUnit launch; REG-16 nested inspection; REG-17 tracepoint; REG-18 pause/restart; REG-19 step filters | Phase 1 installed bridge scenarios exist; keep them in future regression |
+| REG-20 Boot discovery/configuration; REG-21 readiness; REG-22 HTTP reproduction; REG-23 Boot service/Spring-context JUnit; REG-24 request/validation; REG-25 Boot safety | Proposed Phase 2 additions, **not executed** |
+| REG-26 skill activation, independence and rollback | Proposed Phase 4, **not executed** |
 
-`evaluation/reports/<run-id>/manifest.json`, `trial-results.csv`, `tool-trace.jsonl`, `eclipse-state.json`, and `comparison.md`. Do not commit secrets from debugger variables or client configuration.
+## 7. Reproducible report shape (proposed)
+
+`evaluation/reports/<run-id>/manifest.json`, `trial-results.csv`, `tool-trace.jsonl`, `eclipse-state.json`, `http-evidence.json` (Boot only), `comparison.md`. Avoid committing tokens, user environment variables, JVM secrets or confidential debugger values. Include artifact hash and workspace reference where appropriate without leaking sensitive paths.
+
+## 8. Codex implementation guidance
+
+**Sequence:** establish Phase 2 fixture plus direct tests, collect skill-free Java/JUnit/Boot baseline, implement independently removable skill, then implement automated comparison. Do not write a skill that assumes Boot-specific tools exist until the installed Phase 2 path is proven. [Ordered tasks](codex-implementation-backlog.md).

@@ -1,157 +1,148 @@
 # Development Roadmap — Phases 0–5
 
-[README](../README.md) · [Feature-level tracker](feature-roadmap.md) · [Verified capabilities](capabilities.md) · [Test evidence](phase1-implementation-status.md) · [Evaluation methodology](evaluation-plan.md)
+[README](../README.md) · [Feature-level tracker](feature-roadmap.md) · [Spring Boot scenarios](spring-boot-debugging-scenarios.md) · [Agent evaluation](evaluation-plan.md) · [Codex work queue](codex-implementation-backlog.md) · [Phase 1 evidence](phase1-implementation-status.md)
 
-**Repository:** https://github.com/j2eeexpert2015/agentic-debugger-for-eclipse.git  
-**Status reviewed:** 22 November 2026, GitHub `main` (latest examined commit `ff28455bcdd8be96901d0629533da6fb61d18843`).  
-**Purpose:** Define the *order of work, phase-level outcomes, dependencies, and release gates*. Individual feature decisions and feasibility belong in [feature-roadmap.md](feature-roadmap.md). This is not a claim of public release.
+**Planning baseline:** GitHub `main` at `11e696624412725e2668fbe074cbf4e098b31055`, reviewed 22 November 2026. This document **reorders the proposed phases**; it does not claim the roadmap changes or proposed features have been implemented. Source of truth for actual installed testing remains [Phase 1 Implementation Status](phase1-implementation-status.md).
 
 ## Contents
 
-1. [Roadmap overview](#roadmap-overview)
-2. [Phase 0 — Core Eclipse MCP debugger](#phase-0--core-eclipse-mcp-debugger)
-3. [Phase 1 — Advanced core Java debugging](#phase-1--advanced-core-java-debugging)
-4. [Phase 2 — Optional agentic debugging skill](#phase-2--optional-agentic-debugging-skill)
-5. [Phase 3 — Skill evaluation and refinement](#phase-3--skill-evaluation-and-refinement)
-6. [Phase 4 — Advanced Java debugging](#phase-4--advanced-java-debugging)
-7. [Phase 5 — Spring Boot debugging](#phase-5--spring-boot-debugging)
-8. [Cross-phase engineering rules](#cross-phase-engineering-rules)
-9. [Immediate work queue](#immediate-work-queue)
+- [Roadmap overview](#roadmap-overview)
+- [Phase 0 — Core Eclipse MCP debugger](#phase-0--core-eclipse-mcp-debugger)
+- [Phase 1 — Advanced core Java debugging](#phase-1--advanced-core-java-debugging)
+- [Phase 2 — Essential Spring Boot and JUnit debugging](#phase-2--essential-spring-boot-and-junit-debugging)
+- [Phase 3 — Unified agentic debugging skill](#phase-3--unified-agentic-debugging-skill)
+- [Phase 4 — Skill evaluation and optimization](#phase-4--skill-evaluation-and-optimization)
+- [Phase 5 — Advanced Java and Spring Boot capabilities](#phase-5--advanced-java-and-spring-boot-capabilities)
+- [Cross-phase engineering rules](#cross-phase-engineering-rules)
+- [Immediate implementation order](#immediate-implementation-order)
 
 ## Roadmap overview
 
-| Phase | Objective | Current state | Exit / next decision |
+| Phase | Goal | Present evidence/status | Gate to next phase |
 |---|---|---|---|
-| 0 | Eclipse JDT ↔ authenticated bridge ↔ Java MCP server; discovery, debugging, ownership | **Implemented; essential installed regression verified** | Maintain regression and security guarantees |
-| 1 | Conditional and exception breakpoints, JUnit, nested inspection, tracepoints, pause/restart, step filters | **Seven features tested on installed Windows candidate** | Record exact tested source/artifact, resolve documentation drift, decide publication |
-| 2 | Separate, replaceable skill teaching agents when and how to debug | **Not implemented; research and scenarios documented** | Demonstrate benefit without coupling skill to product |
-| 3 | Repeatable comparison: no skill / stable skill / candidate skill | **Evaluation design exists; runner and replicated trials pending** | Quantify uplift, cost, safety, and non-regression |
-| 4 | Watchpoints, remote attach, run-to-line, HCR, controlled mutation | **Deferred; feature feasibility not established** | Investigate and prioritize individually, not automatically commit to all |
-| 5 | Spring Boot discovery, profile-aware launch, readiness, HTTP reproduction | **Deferred; specific feasibility work not begun** | Design Spring Boot fixture, integration and acceptance tests |
+| **0** | Real Eclipse JDT debugger controlled by a Java MCP server | Implemented; installed calculator E2E and ownership evidence | Preserve base regression and resource isolation |
+| **1** | Conditional and exception breakpoints, single JUnit test, nested inspection, tracepoints, owned restart and step filters | **All seven direct and explicit Claude tests passed on installed Windows candidate; publication pending** | Commit exact tested source, audit source/artifact identity, decide release |
+| **2** | Reliable Boot launch/configuration, readiness, HTTP reproduction and practical Boot/JUnit debugging | **Planned, not verified as framework-specific functionality** | One complete real HTTP debugging path, Boot unit/integration test paths, negative/ownership tests and installed regression |
+| **3** | Optional, replaceable Java + JUnit + Spring Boot agentic debugging skill | Research and initial Java behavior baseline exist; **skill not implemented** | Demonstrate correct activation and cross-context guidance without coupling debugger to skill |
+| **4** | Repeatable no-skill / stable-skill / candidate-skill testing | Evaluation specification exists; **A/B runner and repeated trials not built** | Measurable value with predeclared thresholds, no safety or non-debug regressions |
+| **5** | Remote attach, watchpoints, run-to-line, HCR, mutation and deeper Boot/JPA/transaction diagnostics | **Deferred; feasibility and user value to be established** | Feature-specific API spike, fixture, proof, safety review and deliberate prioritization |
 
-**Interpretation:** A feature being present in source, a tool being callable, a successful installed-Eclipse test, and a public release are different milestones. Only the documented tests on the identified installed candidate are claimed here. See [test evidence](phase1-implementation-status.md).
+**Why Spring Boot precedes the skill:** A full skill developed only against plain Java could prematurely assume a `main()` invocation or single debugged thread. Spring Boot introduces long-running server lifecycle, configured launch, HTTP reproduction, multiple request threads and Spring test launches. First establish a *bounded* Boot baseline, then teach one skill to select the appropriate workflow. Do not implement every Spring/Java capability before beginning the skill.
+
+**Stable identifiers:** `CORE-*`, `JAVA-*`, `BOOT-*`, `SKILL-*`, `EVAL-*`, `P1-*` and `EV-*` remain unchanged; only phase assignments change. A former Phase 5 Boot feature is now Phase 2; a former Phase 2 skill is now Phase 3; evaluation moves to Phase 4. Previously deferred Java features move to Phase 5. Do not renumber IDs to match phase numbers.
 
 ## Phase 0 — Core Eclipse MCP debugger
 
-**Goal:** Enable an external AI client such as Claude Code to control the *real Eclipse Java debugger*, not a custom JVM debug engine.
+**Delivered:** Eclipse JDT/PDE plugin, authenticated localhost bridge, Java MCP server, Claude Code registration, Java main discovery, launch/reuse, breakpoint CRUD, stack and locals, thread control, source navigation and ownership-aware NORMAL/CONTROLLED investigations. Maven/Tycho packaging and Windows developer deployment/doctor commands exist.
 
-**Delivered:** Java/OSGi Eclipse plugin and JDT debugger integration; authenticated loopback bridge; standalone Java MCP server; managed Claude MCP registration; discovery and launch of Java `main` applications; line breakpoints; suspend/resume/step; threads, stack, locals; source navigation; NORMAL/CONTROLLED investigation lifecycle; ownership-aware cleanup; installed binary comparison; installed Claude calculator E2E. Core functionality operates without an optional skill.
+**Evidence:** Installed Claude calculator regression; class-hash match; ownership tests. **Remaining regression coverage:** multi-session editor focus, thorough managed-registration preservation and edge cases. These are not reasons to relabel the whole core as unimplemented.
 
-**Acceptance:** Installed plugin corresponds to compiled/packaged classes; Claude debugger trace shows actual suspension and `sum=10` after stepping; user-owned breakpoints and reused launches remain untouched. **Remaining coverage:** GUI-level visible source selection with simultaneous sessions, registration preservation under all cases, and future security regression.
-
-**Detailed evidence:** [capabilities.md](capabilities.md), [phase1-implementation-status.md](phase1-implementation-status.md).
+**Exit invariant:** No skill is required. Every new phase must preserve user breakpoints, borrowed sessions and launch configurations. [Capabilities](capabilities.md).
 
 ## Phase 1 — Advanced core Java debugging
 
-**Goal:** Expose the important Eclipse debugging techniques through stable MCP operations, with independent plugin tests and explicit Claude invocation tests.
-
-| Feature ID | Delivered capability | Core evidence on installed candidate |
+| Feature ID | Implemented capability | Documented verification |
 |---|---|---|
-| JAVA-01 / P1-COND | Conditional line breakpoints, e.g. `orderId == 1057` | Suspended on order 1057 and inspected its discount |
-| JAVA-02 / P1-EXC | Caught/uncaught exception breakpoints | Observed throwing frame and live `detailMessage` |
-| JAVA-03 / P1-JUNIT | Discover and debug one JUnit test | Launched `appliesTenPercentDiscount` in debug mode |
-| JAVA-04 / P1-VARS | Bounded nested field/array expansion | Inspected nested address and item values |
-| JAVA-05 / P1-TRACE | Authorized non-suspending tracepoints | Saw `TRACE-ORDER 1057`; full output still limited |
-| JAVA-06 / P1-PAUSE | Pause and restart an investigation-owned JVM | Verified pause, stack, replacement run |
-| JAVA-07 / P1-FILTER | Target-specific Java step filters | Verified application-level stepping |
+| JAVA-01 / P1-COND | Conditional line breakpoints | Targeted record `1057` with runtime variables |
+| JAVA-02 / P1-EXC | Caught/uncaught exception breakpoints | Throwing stack and live `detailMessage` |
+| JAVA-03 / P1-JUNIT | Discover and debug a selected JUnit 5 method | Single failing `appliesTenPercentDiscount` debug launch and operands |
+| JAVA-04 / P1-VARS | Bounded nested field/array inspection | Nested address, items and values |
+| JAVA-05 / P1-TRACE | Non-suspending tracepoints with explicit consent | `TRACE-ORDER 1057` observed; full output not proven |
+| JAVA-06 / P1-PAUSE | Pause and investigation-owned restart | Replacement process observed; unauthorized restart blocked |
+| JAVA-07 / P1-FILTER | Per-target Java stepping filters | Application frame after stepping |
 
-**Verification recorded:** Candidate `1.5.0.20261121184224374` passed the installed calculator regression, 7/7 direct bridge scenarios, 7/7 explicit Claude scenarios, and 32/32 ownership/failure checks. Fresh-workspace setup and repeat deployment succeeded on Windows. In **single-trial** implicit prompts, 5/7 were complete and 2/7 partial; these are not statistically reliable success rates. The tests are documented in [Phase 1 status](phase1-implementation-status.md) and [Claude scenarios](phase1-claude-scenarios.md).
+**Candidate evidence:** Bundle `1.5.0.20261121184224374`: 7/7 direct bridge, 7/7 explicit Claude, 32/32 ownership/failure checks, installed calculator regression; fresh and repeat Windows deployment recorded. In seven **single-run** natural-language trials with relevant fixture source and lifecycle guidance, 6/7 selected intended mechanism, 5/7 complete and 2/7 partial. The partial cases were truncated trace retrieval and pause without requested restart. Do not translate single trials into a population success rate. [Full records](phase1-implementation-status.md) · [Prompts](phase1-claude-scenarios.md).
 
-**Still needed to close the phase:**
+**Remaining release work:** Ensure tested binary maps to committed source; document hashes/version and any local edits; retest changes; publish when approved. Track full JUnit Platform discovery/parameterized cases and post-exit output as follow-ups, not as unimplemented Phase 1 fundamentals.
 
-1. Ensure *committed* source uniquely identifies the tested candidate, including local modifications; retain version and artifact digest.
-2. Run candidate verification again if the binary changes; make a deliberate release decision, rather than saying the ZIP is already published.
-3. Resolve stale roadmap and README sentences that contradict installed test results.
-4. Track follow-ups separately: post-exit process output, parameterized JUnit, multiple-session editor focus, and managed-registration behavior.
+## Phase 2 — Essential Spring Boot and JUnit debugging
 
-**Automated Windows entry point:** `scripts\windows\dev.bat` (full deploy and test). `dev.bat doctor`, `dev.bat deploy`, `dev.bat test`, and individual scenarios are also available. PowerShell is used for Windows orchestration; debugger and tests are Java. A skill is not required.
+**Objective:** Debug a real Spring Boot application *through Eclipse*, including a failing HTTP call and targeted JUnit tests, with the existing Java tools reused wherever possible. This is a bounded, testable milestone, not an indefinite Spring Tools replacement.
 
-## Phase 2 — Optional agentic debugging skill
+**Important distinction:** Phase 1 already supports an individual ordinary JUnit 5 test. Phase 2 must *verify* that existing discovery/launch works for Spring-context tests and add only necessary changes; do not create a second JUnit subsystem prematurely.
 
-**Goal:** Improve the agent's *decisions*, not the set of debugger commands. Implement an original Eclipse-specific, independently replaceable skill. Study [JetBrains `ij-debugger`](https://www.jetbrains.com/help/idea/agentic-debugging.html), [Microsoft DebugMCP `debug-live`](https://github.com/microsoft/DebugMCP/blob/main/skills/debug-live/SKILL.md), [Microsoft Java Debug Agent](https://github.com/microsoft/vscode-java-debug/blob/main/bundled/agents/README.md) and relevant research, without automatically copying their text or assuming IDE/tool parity.
+### Milestone 2A — Tool and environment feasibility
 
-**Candidate behaviors:**
+1. Inspect Eclipse/JDT/STS launch and existing `start_java_application`, `list_java_applications`, `start_junit_test` support using real fixtures. Record whether a new tool is actually needed.
+2. Create a deliberately small, standalone Spring Boot Maven fixture with deterministic defects: request calculation, validation failure and one failing Spring/JUnit test. Prefer an in-memory dependency and fixed test data; no cloud account or external database required for the first milestone.
+3. Run Java and JUnit discovery with plain Eclipse and with Spring Tools if present; document actual minimum IDE prerequisites. Do not claim STS support without installation testing.
 
-- Recognize explicit runtime-debugging intent while avoiding gratuitous debugger launches for explanation-only tasks.
-- Choose conditional, exception, JUnit, tracepoint, pause/restart, variable expansion or step filters according to the observed problem.
-- Form a hypothesis, gather runtime evidence, revise when contradicted, locate the *first* incorrect value and explain the cause.
-- Minimize unnecessary stops, repeated stepping, broad variable dumps and context usage.
-- Recover from stale frames, unavailable sessions, unhit breakpoints and timeout conditions without false success.
-- Respect consent, project/session ownership, and NORMAL/CONTROLLED cleanup rules.
+### Milestone 2B — Essential live debugging
 
-**Required architecture:** `SKILL.md` is optional client-side guidance, versioned independently; no MCP contract, correctness invariant, permissions policy or product logic depends on it. It can be replaced, disabled or removed without recompiling the Eclipse plugin.
-
-**Phase exit:** A demonstrated improvement on pre-registered target scenarios, with no safety regressions or meaningful loss on non-debug requests. **Current state:** not implemented.
-
-**Feature IDs:** SKILL-01–03. Detailed scenarios: [evaluation-plan.md](evaluation-plan.md).
-
-## Phase 3 — Skill evaluation and refinement
-
-**Goal:** Provide an objective basis for adopting, changing, or rejecting the skill.
-
-**Conditions:** A = no skill; B = current stable skill (once one exists); C = candidate skill. Use matching model/version, permissions, MCP tools, fixtures, prompts and fresh sessions. Capture whether the skill *actually activated*, not just whether its file was installed.
-
-**Two independently enforced suites:**
-
-1. **Deterministic product regression (skill absent):** bridge, debug operations, installed binary, launch ownership, NORMAL/CONTROLLED, seven Phase 1 features, errors and cleanup. Failures here are product defects, not skill scores.
-2. **Agent behavior trials:** explicit and implicit prompts, negative prompts, repeated runs, correct diagnosis backed by actual JVM evidence, tool-selection effectiveness, steps/hits, time, token usage when available, forbidden actions, cleanup correctness.
-
-**Minimum candidate evaluation set:** EV-01 vague debug request; EV-02 incorrect discount; EV-03 failing JUnit; EV-04 single record within loop; EV-05 multi-class defect; EV-06 concurrent sessions; EV-07 recoverable failures; EV-08 NORMAL/CONTROLLED; EV-09 explanation-only; EV-10 load/uninstall/replace skill. Expand only when a new behavior needs a distinct oracle. Start with five independent trials per condition for screening; larger samples may be required. A single successful run does not prove improvement.
-
-**Must-pass invariants:** Zero unauthorized changes to user-owned breakpoints/sessions; no skill dependency for basic debugging; truthful reports about what was actually inspected; no regression in non-debug requests. Keep predetermined pass criteria and complete traces.
-
-**Current state:** The Java E2E runner and documented single-trial no-skill results exist. The reusable A/B runner, replicated trials, skill activation checks and scored comparison reports have not been built.
-
-## Phase 4 — Advanced Java debugging
-
-**Goal:** Consider additional *product* capabilities only when real developer situations and Eclipse API feasibility justify them. These are not Phase 2 skill features.
-
-| Candidate | Benefit | Current decision |
+| ID | Outcome | Minimum acceptance |
 |---|---|---|
-| JAVA-08 — JVM attach / remote debug | Inspect an existing JDWP-enabled JVM without relaunch | Deferred; feasibility not established |
-| JAVA-09 — Field access/modification watchpoints | Stop when a critical object field is read or written | Deferred; feasibility not established |
-| JAVA-11 — Run to line | Resume toward a particular source location | Candidate for later assessment; no implementation claim |
-| JAVA-10A — Hot Code Replace | Apply supported class changes during an active debug session | Deferred; compatibility research required |
-| JAVA-10B — Runtime variable modification | Test a hypothesis by altering suspended state | Deferred; explicit permission and safety evaluation required |
+| BOOT-01 | Select correct Boot project/main class | Distinguish two projects/mains; explicit selection on ambiguity |
+| BOOT-02 | Launch/reuse safely | Preserve existing VM args, application args, profiles, environment, working directory; refuse ambiguous matches |
+| BOOT-03 | Confirm readiness/error | Observe a real ready signal or bounded probe; distinguish connection refused, failed startup and timeout |
+| BOOT-04 | Reproduce REST defect and debug service chain | Approved HTTP request suspends at expected controller/service; inspect first wrong runtime value; do not modify application code |
+| BOOT-06 | Debug selected Spring Boot JUnit test | Targeted service test and one Spring-context test; verify right method, actual launched configuration and breakpoint/stack evidence |
+| BOOT-07 | Diagnose HTTP validation/exception path | Trigger known failing request, capture actual exception/validation path, avoid invented result |
 
-**Entry gate:** A source-backed Eclipse/JDT spike, explicit user benefit, independent fixture, direct bridge test, explicit Claude prompt, implicit-selection prompt, ownership tests and a non-regression plan. **No commitment** to implement all candidates.
+**Scope limits:** Remote JVM attach (`JAVA-08` / `BOOT-05`), deep transaction/JPA debugging, distributed tracing and changing live data are Phase 5 candidates. Spring MVC tests using MockMvc and real-port HTTP tests must be distinguished; `@WebMvcTest` and `@SpringBootTest` are not equivalent runtime configurations.
 
-## Phase 5 — Spring Boot debugging
+**Safety:** Avoid unsolicited HTTP writes; send only user-authorized requests against explicitly selected local/test targets. Require approval for requests with side effects, preserve user sessions/markers/configurations, never replace running production applications, retain a bounded exit and honest failure reporting.
 
-**Goal:** Move from ordinary Java debugger control to reliable Spring Boot workflows without duplicating the Eclipse debugger or Spring Tools.
+**Exit gate:** One installed candidate running all Phase 0/1 checks plus deterministic Spring Boot direct tests and explicit Claude scenarios; targeted Boot/JUnit tests; negative cases and cleanup; skill-free natural-language baseline. Details, exact prompts and expected JVM evidence: [Spring Boot Debugging Scenarios](spring-boot-debugging-scenarios.md). Implementation tasks: [Codex backlog](codex-implementation-backlog.md).
 
-**Proposed capabilities (none yet verified as Boot-specific MCP features):**
+## Phase 3 — Unified agentic debugging skill
 
-- Identify the right Boot project and entry point; reuse existing Spring Tools or Java launch configuration when appropriate.
-- Respect profiles, VM arguments, environment variables, application arguments, dependent services and workspace configuration.
-- Confirm application readiness; capture startup failure honestly.
-- Reproduce a reported REST defect using a specified endpoint/request and trace controller → service → repository where observable.
-- Assess attaching to a running JDWP-enabled Boot JVM via the separate remote-attach feature.
-- Provide explicit and natural-language agent tests, negative cases and safe cleanup.
+**Objective:** A single *optional* original skill for three contexts: plain Java, JUnit (including Spring-context tests), and Spring Boot request-driven debugging. Keep common investigation guidance (intent, hypotheses, observation, first incorrect value, bounded steps, ownership and truthfulness) and context-specific procedures separately organized within the skill if needed.
 
-**Example acceptance:** For a deliberately defective order endpoint, the agent boots with the correct profile, issues the known failing request (with appropriate permission and test data), suspends in relevant application frames, identifies the first incorrect runtime value and preserves unrelated sessions. No hard-coded endpoint or inferred profile is allowed.
+**Behaviors:**
+- Detect when to use runtime debugging versus static explanation only; avoid unnecessary launches.
+- Choose relevant mechanism (conditional/exception breakpoint, JUnit, tracepoint, nested inspection, pause/restart, filters) from symptoms, not simply obey a tool-naming prompt.
+- For Boot, select project/launch, establish readiness, reproduce *approved* requests and inspect actual request thread through controller/service/repository if observable.
+- Handle stale frames, missing targets, tool failures, timeouts and process exits, reporting evidence without fabrication.
+- Finish the correct NORMAL or CONTROLLED investigation, keeping all user-owned resources intact.
 
-**Current state:** Requirements-level planning only; Spring Boot-specific discovery/launch/readiness/reproduction remain unimplemented and unverified.
+**Architecture contract:** Skill is independent/versioned guidance; Eclipse plugin and MCP schemas do not import or require it. Remove the skill and the same core debugger must still function. Research JetBrains `ij-debugger`, Microsoft DebugMCP `debug-live`, Java Debug Agent and Debug2Fix as **ideas**, not as copied skills or assumed feature parity. [Research](research-sources.md).
+
+**Exit gate:** Successful activation and cross-context trial runs, reproducible skill installation/removal, no safety regression and a credible comparative benefit; metrics evaluated under Phase 4. **Not implemented yet.**
+
+## Phase 4 — Skill evaluation and optimization
+
+**Objective:** Compare **A: no skill**, **B: stable skill** (once established) and **C: candidate skill**, with fixed model, permissions, fixture/source visibility, prompt, configuration, environment and reset process. Confirm the skill actually loaded.
+
+**Deterministic regression:** Re-run base, seven Phase 1, Boot/Boot-JUnit, auth, consent, multi-session and ownership tests with skill absent. Tests should inspect Eclipse state rather than grading Claude's prose.
+
+**Behavior evaluation:** Existing EV-01–EV-10 plus Spring Boot cases EV-11–EV-16 in [evaluation-plan.md](evaluation-plan.md). Distinguish tool-selection, complete diagnosis, evidence correctness, cost/latency, unsafe effects and cleanup. Start with several fresh trials per condition (e.g. five for screening), then enlarge based on observed variability; do not claim significance from a handful.
+
+**Exit gate:** Prespecified uplift in targeted behavior, **zero unauthorized mutations**, no material degradation on non-debug tasks, reproducible experiment manifest and published caveats. **Runner and repeated A/B trials not implemented.**
+
+## Phase 5 — Advanced Java and Spring Boot capabilities
+
+| Feature ID | Candidate | Gate |
+|---|---|---|
+| JAVA-08 / BOOT-05 | Attach local/remote JDWP JVM | Eclipse/JDT API feasibility; ownership, permissions, transport and timeout tests |
+| JAVA-09 | Field watchpoints | JDT marker spike, read/write behavior, user-marker safety |
+| JAVA-11 | Run to line | Prove useful difference from temporary owned line breakpoints |
+| JAVA-10A | Hot Code Replace | Compatibility/rollback tests, explicit consent and constraints |
+| JAVA-10B | Variable mutation | Consent, no unapproved side effects, safe failure reporting |
+| BOOT-08 | Spring Data JPA and transaction-aware diagnosis | Small reproducible test service and independent runtime evidence |
+| BOOT-09 | Advanced multi-request/concurrent diagnostics | Target correct request/thread without disturbing unrelated work |
+
+All deferred. These are *candidates*, not an implementation promise.
 
 ## Cross-phase engineering rules
 
-- Preserve stable MCP operations; add capabilities without silently changing existing tool schemas or ownership semantics.
-- For each new feature require a real scenario, direct Java/Eclipse acceptance test, explicit Claude prompt, and natural-language tool-selection measurement. Measure *what actually happened* via MCP traces and Eclipse JVM state.
-- Keep user-created resources safe; forbid unauthorized debugging mutations and require consent for evaluation/side effects.
-- Keep an optional skill independent of the plugin, and rerun core tests with it uninstalled.
-- Track implementation, test evidence, candidate artifact, and public release as distinct statuses.
-- Use Java/Maven for implementation/test infrastructure and Windows batch/PowerShell for environment orchestration; do not introduce Python just for verification.
-- Maintain concise README and detailed docs; log research and decisions in their existing files.
+- **Evidence before status:** separate proposed, implemented source, tested installed plugin, agent-observed and publicly released.
+- **Stable IDs:** move a feature to another phase without renumbering or erasing historical test IDs.
+- **Safety:** own the exact actual launch/marker, not a launch name alone; no unauthorized request or expression evaluation; protect user resources.
+- **Reusability:** do not duplicate JDT debugging engines, Java launch functionality, or JUnit discovery when a real reuse path suffices.
+- **Testing:** each new Boot feature needs a real fixture, deterministic bridge assertion, explicit Claude prompt, symptom-only prompt, negative test and cleanup verification.
+- **Product independence:** no skill may change MCP contract or be needed by debugger logic.
+- **Build discipline:** Java/Maven for code/verification; Windows batch/PowerShell allowed for development orchestration; no Python dependency.
+- **Documentation:** update README, this roadmap, feature tracker, scenario catalog, evaluation plan and acceptance evidence together.
 
-## Immediate work queue
+## Immediate implementation order
 
-| Priority | Deliverable | Definition of done |
-|---|---|---|
-| 1 | Phase 1 source-to-binary release audit | Tested source revision and candidate artifact uniquely identified; no unreviewed edits |
-| 2 | Documentation consistency | README, capability inventory, feature tracker and evaluation plan agree on seven verified features and remaining limits |
-| 3 | Baseline for Phase 2 | Repeated no-skill trials; pre-registered scoring and fixture resets |
-| 4 | Minimal replaceable skill | Skill loads/activates correctly, can be removed, preserves MCP and safety invariants |
-| 5 | Phase 3 A/B runner | Produces comparable traces, metrics and no-regression decision for each skill version |
-| 6 | Phase 4/5 proposals | Only after feature-specific feasibility and value reviews |
+1. **Release hygiene:** snapshot the exact Phase 1 tested revision/artifact and settle documentation drift; do not advertise an unpublished release.
+2. **Boot feasibility + test fixture:** verify existing Java/JUnit tools against a small Boot application; capture the real gaps before adding APIs.
+3. **Core Boot vertical slice:** safe project/launch selection, readiness, approved HTTP reproduction, suspended controller/service evidence and ownership cleanup.
+4. **Boot/JUnit slice:** ordinary service unit test, one Spring-context JUnit test and an HTTP/validation failure scenario; assert real Eclipse evidence.
+5. **Phase 2 hardening:** ambiguous launch, wrong request, startup failure, concurrent sessions, consent and reproducible `dev.bat`/Java-only acceptance.
+6. **No-skill baseline:** repeated plain Java, JUnit and Boot symptom prompts with recorded test evidence and realistic context visibility.
+7. **Optional skill + A/B:** implement the unified skill, verify activation, then the three-cohort evaluation runner and scoring.
+8. **Advanced features:** only after individual benefits and feasibility are demonstrated.
 
-For granular ownership of each feature, see [Feature Roadmap and Decision Tracker](feature-roadmap.md).
+[Detailed ordered Codex tasks](codex-implementation-backlog.md) · [Feature matrix](feature-roadmap.md).
