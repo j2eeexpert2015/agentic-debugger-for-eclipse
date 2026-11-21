@@ -18,7 +18,21 @@ public final class DebugInvestigationPolicyTest {
         require(normal.exceptions().contains("java.lang.IllegalStateException"), "owned exception tracked");
         require(controlled.exceptions().isEmpty(), "exception ownership isolated");
         normal.recordLaunch("Calculator", launch1, true);
-        controlled.recordLaunch("Pricing", new Object(), false);
+        Object reused = new Object();
+        controlled.recordLaunch("Pricing", reused, false);
+        controlled.verifySession(reused);
+        try {
+            controlled.verifySession(new Object());
+            throw new AssertionError("Same-name replacement accepted");
+        } catch (IllegalStateException expected) {
+            // A launch configuration name can outlive the JVM.
+        }
+        try {
+            controlled.verifyNewLaunch("Pricing");
+            throw new AssertionError("A replacement launch could be started with a stale ID");
+        } catch (IllegalStateException expected) {
+            // Fail before Eclipse creates the new launch.
+        }
         require(normal.breakpoints().size() == 1, "tracked own breakpoint");
         require(controlled.breakpoints().isEmpty(), "separate breakpoint ownership");
         require(normal.ownedLaunch() == launch1, "owned launch recorded");

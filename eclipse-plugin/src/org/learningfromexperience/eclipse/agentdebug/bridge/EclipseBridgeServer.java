@@ -30,7 +30,7 @@ import org.learningfromexperience.eclipse.agentdebug.debug.EclipseAgentOperation
  */
 public class EclipseBridgeServer implements AutoCloseable {
 
-    private static final int PORT = 8765;
+    private static final int PORT = Integer.parseInt(System.getenv().getOrDefault("AGENTDEBUG_PORT", "8765"));
 
     private static final String HOST = "127.0.0.1";
 
@@ -69,20 +69,16 @@ public class EclipseBridgeServer implements AutoCloseable {
 
         Files.createDirectories(tokenDirectory);
 
-        Path tokenFile = tokenDirectory.resolve("bridge.token");
+        Path tokenFile = tokenDirectory.resolve(PORT == 8765 ? "bridge.token" : "bridge-" + PORT + ".token");
 
-        Files.writeString(
-                tokenFile,
-                authenticationToken,
-                StandardCharsets.UTF_8
-        );
-
-        // Listen only on the local IPv4 loopback interface.
-        serverSocket = new ServerSocket(
-                PORT,
-                10,
-                InetAddress.getByName(HOST)
-        );
+        // Claim the port before publishing credentials for this instance.
+        serverSocket = new ServerSocket(PORT, 10, InetAddress.getByName(HOST));
+        try {
+            Files.writeString(tokenFile, authenticationToken, StandardCharsets.UTF_8);
+        } catch (IOException failure) {
+            serverSocket.close();
+            throw failure;
+        }
 
         serverThread = new Thread(
                 this::acceptConnections,

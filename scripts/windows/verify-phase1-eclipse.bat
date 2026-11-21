@@ -53,7 +53,7 @@ set "TEST_RESULT=%ERRORLEVEL%"
 popd
 if not "%TEST_RESULT%"=="0" (
   echo.
-  echo [FAILED] Phase 1 bridge verification failed. See the Maven error and report (if generated):
+  echo [FAILED] Phase 1 bridge verification failed. See the Maven error and report if generated:
   echo          "%PROJECT_DIR%\evaluation\reports\phase1-live.json"
   exit /b %TEST_RESULT%
 )

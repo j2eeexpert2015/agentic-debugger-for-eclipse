@@ -37,12 +37,12 @@ public class DebugMcpServer {
 
     private static final String ECLIPSE_HOST = "127.0.0.1";
 
-    private static final int ECLIPSE_PORT = 8765;
+    private static final int ECLIPSE_PORT = Integer.parseInt(System.getenv().getOrDefault("AGENTDEBUG_PORT", "8765"));
 
     private static final Path TOKEN_FILE = Path.of(
             System.getProperty("user.home"),
             ".eclipse-agentdebug",
-            "bridge.token"
+            ECLIPSE_PORT == 8765 ? "bridge.token" : "bridge-" + ECLIPSE_PORT + ".token"
     );
 
     public static void main(String[] args) throws InterruptedException {

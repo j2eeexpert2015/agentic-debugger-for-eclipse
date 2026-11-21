@@ -2,7 +2,32 @@
 
 [README](../README.md#documentation) · [Phase 1 status](phase1-implementation-status.md) · [Java test runner](phase1-java-test-runner.md) · [Claude scenarios](phase1-claude-scenarios.md)
 
-This guide is for **the Eclipse IDE side** of Agentic Debugger for Eclipse IDE. It distinguishes (1) a normal **installed Eclipse IDE**, (2) a **PDE-launched Runtime Eclipse**, and (3) Claude Code. The Phase 1 candidate is **source-implemented, not yet certified on a running Eclipse**. An installation command succeeding does not prove debugger behavior is correct.
+The installed Windows build passed all seven direct bridge scenarios. See the Phase 1 status page for build-specific Claude results.
+
+## Developer commands
+
+From the checkout, use these commands with the installed Eclipse workspace open.
+
+| Command | Behavior |
+|---|---|
+| `scripts\windows\dev.bat doctor` | Shows the toolchain paths and Git status, authenticates to the bridge, compares two loaded debugger class hashes with the compiled classes, and checks fixture discovery. |
+| `scripts\windows\dev.bat test` | Runs doctor, the installed Claude calculator regression, and all seven Phase 1 bridge scenarios. Requires a signed-in Claude CLI. |
+| `scripts\windows\dev.bat exception` | Runs doctor and the exception scenario. Other selectors are conditional, junit, variables, trace, pause-restart, and filters. |
+| `scripts\windows\dev.bat deploy` | Packages the current checkout, installs the debugger through p2, opens the selected workspace, imports the Maven fixture, and checks readiness. |
+| `scripts\windows\dev.bat` | Runs deployment followed by the installed Claude calculator regression and all seven bridge scenarios. |
+
+Deployment defaults to `C:\All_Softwares\eclipse`, the workspace `%LOCALAPPDATA%\AgenticDebugger\dev-workspace`, and loopback port 8765. Close the selected installation before deploying. For a separate test installation, set these variables in the command window before running the wrapper.
+
+```cmd
+set "AGENTDEBUG_ECLIPSE_DIR=C:\path\to\test-eclipse"
+set "AGENTDEBUG_WORKSPACE=C:\path\to\test-workspace"
+set "AGENTDEBUG_PORT=18765"
+scripts\windows\dev.bat
+```
+
+Use an Eclipse Java installation with m2e and JUnit support. On first deployment the plugin copies the checkout's fixture POM and sources into the selected workspace and imports them through m2e. An existing fixture from the same checkout is refreshed. A conflicting project or directory stops setup. The developer run uses its own MCP configuration for Claude. An alternate port has a separate authentication token.
+
+Reports are written to `e2e-runner/target/e2e-report/result.txt` and `evaluation/reports/phase1-live.json`. The calculator regression leaves its CONTROLLED session suspended for inspection.
 
 ## Contents
 
@@ -25,7 +50,7 @@ This guide is for **the Eclipse IDE side** of Agentic Debugger for Eclipse IDE. 
 | **PDE Runtime Eclipse** launched from Eclipse RCP (`C:\All_Softwares\eclipse-rcp`) | Developer testing of workspace plugin before packaging | No p2 installation into Runtime Eclipse; launch workspace plugin via **Run → Eclipse Application** | `-Pe2e` |
 | **Claude Code in Eclipse terminal or external terminal** | Agent-level evaluation, **after** plugin/bridge tests pass | None; connects to `eclipse-debugger` MCP registration | Use prompts in `phase1-claude-scenarios.md` |
 
-**Only one Eclipse process may own `127.0.0.1:8765`.** Do not leave PDE Runtime Eclipse open when testing the installed normal Eclipse, or vice versa. A terminal and Claude Code are clients, not replacements for a running Eclipse IDE.
+**Only one Eclipse process may own `127.0.0.1:8765`.** The isolated developer workflow supports a second instance on a different `AGENTDEBUG_PORT` with its own token. A terminal and Claude Code are clients, not replacements for a running Eclipse IDE.
 
 ## 2. Prerequisites and project paths
 
@@ -46,7 +71,7 @@ Edit the two assignments in `scripts\windows\deploy-eclipse-plugin.bat` when pat
 
 The Windows script builds and installs the updated feature **into the Eclipse installation specified by `ECLIPSE_DIR`**; this is not a per-workspace installation.
 
-1. Save any work and **fully close the target Eclipse IDE**. Also close PDE Runtime Eclipse so it cannot occupy the bridge port.
+1. Save any work and **fully close the target Eclipse IDE**. Confirm that the selected bridge port is available.
 2. Open **Command Prompt** in the repository root and run:
 
    ```cmd
@@ -57,7 +82,7 @@ The Windows script builds and installs the updated feature **into the Eclipse in
 4. The script performs `mvn clean package`, checks the currently installed feature, removes **our existing feature** if present, installs the freshly built local p2 repository using `eclipsec.exe`, verifies installation, and normally starts Eclipse (`START_ECLIPSE=YES`). Logs are written under `deploy-logs/`.
 5. In the launched Eclipse, wait for startup and workspace compilation. Check **Help → About Eclipse IDE → Installation Details → Installed Software** for Agentic Debugger. Verify the expected feature version rather than assuming that a Maven build updates the installed binary.
 
-**Important:** An uninstall followed by a failed reinstall can leave the plugin absent; use the deployment log to diagnose this before using the debugger. Use a test installation rather than an IDE containing valuable unrelated customizations. The script has not been executed in the current execution environment; treat its Windows behavior as a verification step.
+**Important:** An uninstall followed by a failed reinstall can leave the plugin absent; use the deployment log to diagnose this before using the debugger. Use a test installation rather than an IDE containing valuable unrelated customizations. The verified fresh-workspace and repeat-deployment runs used `dev.bat` and `dev.bat deploy`.
 
 ## 4. Manual Eclipse installation from an update-site ZIP
 
@@ -95,7 +120,7 @@ For **Java-only feature verification** you do not need to launch Claude. The bri
 4. Verify the project appears in **Package Explorer** and that source packages are recognized as Java, not ordinary text files. Do not silently rename the project: the verification runner expects the project identity documented in `phase1-java-test-runner.md` (or override it via `-Dagentdebug.phase1.project=...`).
 5. The JUnit fixture includes a deliberate failing test; that is **expected when executed**, but project configuration/classpath errors are not. Do not remove the bug or annotate it with the root cause.
 
-The fixture is **not** the older automatically provisioned `AgenticDebuggerCalculatorE2E` project. The installed baseline E2E runner creates its own sample; Phase 1 tests require the additional fixture import above.
+The fixture is **not** the older automatically provisioned `AgenticDebuggerCalculatorE2E` project. The installed baseline E2E runner creates its own sample; The developer wrapper prepares the Phase 1 fixture automatically. The manual import above applies to independently installed workspaces.
 
 ## 7. Run installed-plugin regression and all seven feature checks
 
@@ -176,4 +201,8 @@ To uninstall the feature manually use **Help → About Eclipse IDE → Installat
 
 ## Verification boundary
 
-This guide documents the intended workflow and the actual repository scripts. The scripts and Phase 1 additions have **not** been run against the user's Windows Eclipse installation in this environment. Report all live results explicitly; never infer them from source inspection alone.
+The packaged Windows candidate passed installed binary verification, the Claude calculator regression, seven direct checks, seven explicit Claude prompts and 32 ownership and failure checks. The developer workflow also passed from an empty workspace and after redeployment. [Build identity and remaining coverage](phase1-implementation-status.md)
+
+### Common Phase 1 verifier failures
+
+If the console reports `NumberFormatException` with an encoded string such as `NQ`, update to the corrected **Java verifier** in this repository; the original verifier incorrectly encoded line numbers. If `phase-one-debugging` is not found, import the Maven fixture into the running, installed Eclipse IDE (not the development IDE) and verify that Eclipse recognizes it as an open Java project. JUnit discovery depends on that import and its test-source configuration. A Windows `: was unexpected at this time.` error from the verification batch file is corrected in this repository. See [Java runner troubleshooting](phase1-java-test-runner.md#windows-troubleshooting-november-21-2026-verifier-corrections).

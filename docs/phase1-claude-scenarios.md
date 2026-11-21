@@ -15,9 +15,9 @@ Every feature has **three different assessments**:
 ## Prerequisites and reproducibility
 
 - Build a 1.5.0 feature using `mvn clean package` in the repository root, install the generated update-site ZIP into a disposable Eclipse, and run `mvn verify -Pinstalled-e2e` first.
-- Import [`examples/phase-one-debugging`](../examples/phase-one-debugging) with **File → Import → Maven → Existing Maven Projects** into the same running Eclipse workbench. Wait for Maven classpath resolution and successful Java build.
+- `dev.bat deploy` imports the fixture automatically. For a manual setup, import [`examples/phase-one-debugging`](../examples/phase-one-debugging) with **File → Import → Maven → Existing Maven Projects** into the same running Eclipse workbench. Wait for Maven classpath resolution and successful Java build.
 - This fixture's **JUnit test is intentionally failing**. For packaging it without executing tests use `mvn -DskipTests package` inside its folder. Don't modify or reveal the defect in test prompts.
-- Close any second Eclipse process listening on port 8765. Verify `eclipse_ping` and `list_java_applications` in Claude.
+- Confirm the intended Eclipse owns the selected bridge port (default 8765). Verify `eclipse_ping` and `list_java_applications` in Claude.
 - Run the direct bridge checks on this same Windows environment: `mvn verify -Pphase1-bridge`. Reports are saved under `evaluation/reports/` (ignored by Git). If one scenario fails, capture the trace and label the feature unverified.
 - Run explicit prompts in **fresh Claude sessions**; reset investigation-owned debugger state between runs. Use the same model and configuration for comparison. Never remove user-owned breakpoints.
 
@@ -117,4 +117,20 @@ For each prompt preserve: prompt, model/version, skill configuration, fixture co
 
 ## Current verification status
 
-As authored, the direct bridge runner and Claude prompt catalog are **implemented in the source package but have not run against a Windows Eclipse instance**. Do not mark these scenarios passed until a real installed-plugin run supplies evidence.
+Seven fresh Claude Sonnet 5.5 sessions ran the explicit prompts on installed build `1.5.0.20261121184224374`. All seven met their requested observations, and all seven returned completed NORMAL cleanup. The tracepoint prompt verified recorded output for order 1057. The console response was truncated. [Per-feature release record](phase1-implementation-status.md#same-build-explicit-claude-verification)
+
+## Symptom-prompt results, 22 November 2026
+
+One fresh Claude Sonnet 5.5 session per documented implicit prompt ran against installed build 1.5.0.20261121184224374. Each received the project name, numbered relevant fixture source, and NORMAL lifecycle instructions. No prompt named an MCP tool. Only the Eclipse MCP tools were available. All seven investigations returned completed cleanup.
+
+| Scenario | Observed strategy and evidence | Outcome |
+|---|---|---|
+| Conditional | Broke on order 1057 and observed discountRate become 0.0 after stepping | Complete |
+| Exception | Stopped on the caught exception and identified processOrder:15 and main:9 | Complete |
+| JUnit | Launched the individual failing test and observed 10 percent become a rate of 0.0 | Complete |
+| Variables | Expanded two items and read the accumulated total of 70.0. A consent-denied evaluation attempt was followed by a successful read-only inspection. | Complete |
+| Trace | Used a tracepoint and read IDs 1000 through 1283. Remaining IDs were outside the observed output. | Partial coverage |
+| Pause/restart | Two pauses in one launch showed the loop counter advancing from 20,600,000 to 31,600,000. Claude did not repeat the run. | Partial |
+| Step filters | Applied launch-specific filters and traced main into sum, observing total 30 | Complete |
+
+Six sessions selected the scenario-specific mechanism, counting restart as required for the pause/restart scenario. These are single-run observations with fixture source supplied.

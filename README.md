@@ -2,6 +2,8 @@
 
 Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
+**Project status · 22 November 2026.** Phase 1 is implemented and verified on an installed Windows Eclipse candidate. The candidate is unpublished. [Results and remaining work](docs/phase1-implementation-status.md)
+
 ## Contents
 
 - [1. Install and use (end users)](#1-install-and-use-end-users)
@@ -80,6 +82,8 @@ The test compares installed debugger class bytes with the freshly built distribu
 
 **Complete Eclipse walkthrough:** [Eclipse Installation, Deployment, and Phase 1 Verification](docs/eclipse-installation-and-validation.md) covers installed Eclipse vs PDE Runtime Eclipse, the Windows scripts, manual p2 installation, Java fixture import, all seven test scenarios, reports, and troubleshooting.
 
+For a fresh Windows development workspace, run `scripts\windows\dev.bat` from the checkout. It packages and installs the current plugin, imports the Maven fixture, and runs the installed Claude and Phase 1 checks. Use `dev.bat deploy` for setup only. [Workspace, Eclipse installation, and bridge port settings](docs/eclipse-installation-and-validation.md#developer-commands)
+
 Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the currently installed Agentic Debugger feature, install the newest local p2 build, verify, and optionally start Eclipse**. This changes the configured Eclipse installation; use it only for a development/test Eclipse.
 
 1. Edit the **first two paths** in `scripts/windows/deploy-eclipse-plugin.bat`:
@@ -103,7 +107,7 @@ Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the curren
    mvn verify -Pinstalled-e2e
    ```
 
-**Phase 1 feature verification (Java only):** After the new Eclipse starts, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
+**Phase 1 feature verification (Java only):** The developer wrapper imports the fixture automatically. For a manually prepared workspace, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
 
 ```cmd
 scripts\windows\verify-phase1-eclipse.bat
@@ -115,7 +119,7 @@ To check one capability independently:
 scripts\windows\verify-phase1-eclipse.bat conditional
 ```
 
-This invokes `mvn verify -Pphase1-bridge` and writes `evaluation/reports/phase1-live.json`. It does **not** invoke Claude. The seven valid scenarios and their Claude prompts are documented in [Phase 1 Java verification](docs/phase1-java-test-runner.md) and [Phase 1 Claude scenarios](docs/phase1-claude-scenarios.md). The existing deployment batch file remains the installer; `verify-phase1-eclipse.bat` is the separate feature tester.
+This invokes `mvn verify -Pphase1-bridge` and writes `evaluation/reports/phase1-live.json`. It does **not** invoke Claude. The seven valid scenarios and their Claude prompts are documented in [Phase 1 Java verification](docs/phase1-java-test-runner.md) and [Phase 1 Claude scenarios](docs/phase1-claude-scenarios.md). Use `dev.bat` for the complete developer workflow or `verify-phase1-eclipse.bat` for the direct suite alone.
 
 The script does not edit Claude Code's `.claude.json` and does not uninstall other Eclipse features. The entire script has **not yet been executed on Windows**; validate the first deployment against a disposable Eclipse installation.
 
@@ -133,11 +137,11 @@ The script does not edit Claude Code's `.claude.json` and does not uninstall oth
 
 ## 6. Current verification boundary
 
-Previous source revisions passed the Maven/Claude installed-plugin test in a Windows Eclipse setup. **The new investigation lifecycle has not yet been tested in a live Eclipse installation.** Validate those changes before publishing a release.
+Build `1.5.0.20261121184224374` passed the installed Claude calculator regression, all seven direct bridge scenarios, 32 ownership and failure checks, and all seven explicit Claude feature scenarios. Fresh-workspace setup and repeat deployment also passed on Windows. The separate symptom-only assessment produced five complete and two partial answers across seven single trials. [Candidate record and pending work](docs/phase1-implementation-status.md)
 
 ## Phase 1 candidate — advanced core-Java debugging
 
-The **1.5.0 source candidate** adds tools for conditional breakpoints, exception breakpoints, individual JUnit test debugging, bounded nested-object inspection, tracepoints, investigation-owned restart, and per-target step filters. The source exists, but **must pass a Maven/Tycho build and live installed-Eclipse testing before being described as released**. All original MCP operations and Normal/Controlled modes remain present; the optional debugging skill is *not* a prerequisite.
+The seven verified capabilities are conditional breakpoints, exception breakpoints, individual JUnit launches, bounded nested-variable inspection, tracepoints, investigation-owned restart, and per-target step filters. The core debugger works without a debugging skill.
 
 For an end-to-end check on a Windows test installation, follow [Phase 1 implementation status](docs/phase1-implementation-status.md) and [feature-specific Claude prompts](docs/phase1-claude-scenarios.md). The direct bridge verifier is `mvn verify -Pphase1-bridge` and requires the `phase-one-debugging` Maven fixture imported in Eclipse. Each scenario exercises real debugger state and owns its cleanup.
 

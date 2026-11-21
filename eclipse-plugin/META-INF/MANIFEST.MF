@@ -12,7 +12,10 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.core.resources,
  org.eclipse.jdt.core,
  org.eclipse.jdt.launching,
- org.eclipse.debug.ui
+ org.eclipse.debug.ui,
+ org.eclipse.ui.console,
+ org.eclipse.text,
+ org.eclipse.m2e.core;resolution:=optional
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Automatic-Module-Name: org.learningfromexperience.eclipse.agentdebug
 Bundle-ActivationPolicy: lazy

@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
  * @author Ayan Dutta
  */
 public final class PhaseOneBridgeVerifier {
+    private static final int BRIDGE_PORT = Integer.parseInt(System.getenv().getOrDefault("AGENTDEBUG_PORT", "8765"));
     private static final String PKG = "org.learningfromexperience.debugfixtures";
     private static final List<String> ALL = List.of("conditional", "exception", "junit", "variables", "trace", "pause-restart", "filters");
     private final Path root;
@@ -62,7 +63,7 @@ public final class PhaseOneBridgeVerifier {
                     default -> throw new IllegalArgumentException(scenario);
                 }
                 result.put("status", "PASS");
-            } catch (Exception ex) {
+            } catch (Exception | AssertionError ex) {
                 result.put("status", "FAIL");
                 result.put("error", ex.toString());
             } finally {
@@ -102,14 +103,17 @@ public final class PhaseOneBridgeVerifier {
         return found;
     }
 
-    private int waitSuspended(String launch, Duration timeout) throws Exception {
+    private int waitSuspended(String launch, Duration timeout, String expectedClass) throws Exception {
         long end = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < end) {
             Map<String, Object> response = bridge.call("GET_THREADS", true, launch);
             if ("success".equals(response.get("status")))
                 for (Object value : arr(response.get("threads"))) {
                     Map<String, Object> thread = obj(value);
-                    if (Boolean.TRUE.equals(thread.get("suspended"))) return number(thread.get("index"));
+                    if (!Boolean.TRUE.equals(thread.get("suspended"))) continue;
+                    int index = number(thread.get("index"));
+                    List<Object> frames = arr(bridge.call("GET_STACK", true, launch, index).get("frames"));
+                    if (!frames.isEmpty() && (PKG + "." + expectedClass).equals(obj(frames.get(0)).get("className"))) return index;
                 }
             Thread.sleep(200);
         }
@@ -120,13 +124,38 @@ public final class PhaseOneBridgeVerifier {
         return str(bridge.call("START_JAVA_APPLICATION", false, project, PKG + "." + main, investigation).get("launchName"));
     }
 
+    private int waitForConditionalOrder(String launch, String type, String method, int line) throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
+        while (System.nanoTime() < deadline) {
+            Map<String, Object> threads = bridge.call("GET_THREADS", true, launch);
+            for (Object entry : arr(threads.get("threads"))) {
+                Map<String, Object> thread = obj(entry);
+                if (!Boolean.TRUE.equals(thread.get("suspended"))) continue;
+                int index = number(thread.get("index"));
+                Map<String, Object> stack = bridge.call("GET_STACK", true, launch, index);
+                List<Object> frames = arr(stack.get("frames"));
+                if (frames.isEmpty()) continue;
+                Map<String, Object> top = obj(frames.get(0));
+                if (type.equals(top.get("className")) && method.equals(top.get("methodName"))
+                        && number(top.get("index")) == 0 && number(top.get("lineNumber")) == line) {
+                    Map<String, Object> locals = bridge.call("GET_VARIABLES", true, launch, index, 0);
+                    boolean matched = arr(locals.get("variables")).stream().map(PhaseOneBridgeVerifier::obj)
+                            .anyMatch(v -> "orderId".equals(v.get("name")) && "1057".equals(v.get("value")));
+                    if (matched) return index;
+                }
+            }
+            Thread.sleep(200);
+        }
+        throw new AssertionError("No suspension at " + type + "." + method + " line " + line + " in " + launch);
+    }
+
     private void assertLocal(String launch, int thread, String name, String value) throws IOException {
         Map<String, Object> response = bridge.call("GET_VARIABLES", false, launch, thread, 0);
         for (Object entry : arr(response.get("variables"))) {
             Map<String, Object> variable = obj(entry);
-            if (name.equals(variable.get("name")) && str(variable.get("value")).contains(value)) return;
+            if (name.equals(variable.get("name")) && value.equals(str(variable.get("value")))) return;
         }
-        throw new AssertionError("Missing local " + name + " containing " + value + ": " + response);
+        throw new AssertionError("Missing local " + name + " equal to " + value + ": " + response);
     }
 
     private void conditional(String investigation) throws Exception {
@@ -136,16 +165,25 @@ public final class PhaseOneBridgeVerifier {
         require(Boolean.TRUE.equals(set.get("created")) && Boolean.FALSE.equals(set.get("tracepoint")), "Conditional breakpoint not created: " + set);
         require("error".equals(bridge.call("SET_CONDITIONAL_BREAKPOINT", true, type, line, "orderId == 1000", investigation).get("status")), "Existing condition unexpectedly overwritten");
         String launch = start("OrderBatchApplication", investigation);
-        int index = waitSuspended(launch, Duration.ofSeconds(20));
+        int index = waitForConditionalOrder(launch, type, "calculate", line);
         assertLocal(launch, index, "orderId", "1057");
         assertLocal(launch, index, "discountPercent", "10");
         boolean listed = arr(bridge.call("LIST_BREAKPOINTS", false).get("breakpoints")).stream().map(PhaseOneBridgeVerifier::obj)
                 .anyMatch(x -> type.equals(x.get("typeName")) && number(x.get("lineNumber")) == line && "orderId == 1057".equals(x.get("condition")));
         require(listed, "Conditional breakpoint absent from listing");
         bridge.call("CONTROL_DEBUG", false, launch, index, "RESUME", investigation);
-        Thread.sleep(500);
-        Map<String, Object> threads = bridge.call("GET_THREADS", true, launch);
-        for (Object t : arr(threads.get("threads"))) require(!Boolean.TRUE.equals(obj(t).get("suspended")), "Unexpected suspension after matching order: " + threads);
+        waitForOrderBatchExit(launch);
+    }
+
+    private void waitForOrderBatchExit(String launch) throws Exception {
+        long deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
+        while (System.nanoTime() < deadline) {
+            Map<String, Object> state = bridge.call("GET_DEBUG_STATE", true, launch);
+            if (Boolean.TRUE.equals(state.get("terminated"))
+                    || ("IllegalArgumentException: Active debug launch not found: " + launch).equals(state.get("message"))) return;
+            Thread.sleep(200);
+        }
+        throw new AssertionError("Order batch did not finish: " + launch);
     }
 
     private void exception(String investigation) throws Exception {
@@ -156,9 +194,17 @@ public final class PhaseOneBridgeVerifier {
         require(arr(bridge.call("LIST_EXCEPTION_BREAKPOINTS", false).get("breakpoints")).stream().map(PhaseOneBridgeVerifier::obj)
                 .anyMatch(x -> type.equals(x.get("exceptionName")) && "agent".equals(x.get("owner"))), "Agent-owned exception breakpoint missing");
         String launch = start("ExceptionApplication", investigation);
-        int index = waitSuspended(launch, Duration.ofSeconds(20));
+        int index = waitSuspended(launch, Duration.ofSeconds(20), "ExceptionApplication");
         require(arr(bridge.call("GET_STACK", false, launch, index).get("frames")).stream().map(PhaseOneBridgeVerifier::obj)
                 .anyMatch(x -> str(x.get("className")).contains(PKG + ".ExceptionApplication")), "Wrong exception suspension stack");
+        List<Object> locals = arr(bridge.call("GET_VARIABLES", false, launch, index, 0).get("variables"));
+        String thrown = locals.stream().map(PhaseOneBridgeVerifier::obj)
+                .filter(v -> type.equals(v.get("type"))).map(v -> str(v.get("name"))).findFirst()
+                .orElseThrow(() -> new AssertionError("Thrown exception missing in suspended frame"));
+        List<Object> fields = arr(bridge.call("EXPAND_VARIABLE", false, launch, index, 0, thrown, 0, 50).get("children"));
+        require(fields.stream().map(PhaseOneBridgeVerifier::obj)
+                .anyMatch(v -> "detailMessage".equals(v.get("name")) && str(v.get("value")).contains("Quantity must be positive")),
+                "Exception detailMessage missing from live fields: " + fields);
     }
 
     private void junit(String investigation) throws Exception {
@@ -167,7 +213,7 @@ public final class PhaseOneBridgeVerifier {
                 .anyMatch(x -> type.equals(x.get("typeName")) && "appliesTenPercentDiscount".equals(x.get("methodName"))), "JUnit test not discovered");
         bridge.call("SET_BREAKPOINT", false, PKG + ".OrderCalculator", line("OrderCalculator", "double discountRate ="), investigation);
         String launch = str(bridge.call("START_JUNIT_TEST", false, project, type, "appliesTenPercentDiscount", investigation).get("launchName"));
-        int index = waitSuspended(launch, Duration.ofSeconds(30));
+        int index = waitSuspended(launch, Duration.ofSeconds(30), "OrderCalculator");
         List<Object> frames = arr(bridge.call("GET_STACK", false, launch, index).get("frames"));
         require(!frames.isEmpty() && (PKG + ".OrderCalculator").equals(obj(frames.get(0)).get("className")), "JUnit stopped in unexpected frame: " + frames);
     }
@@ -175,7 +221,7 @@ public final class PhaseOneBridgeVerifier {
     private void variables(String investigation) throws Exception {
         bridge.call("SET_BREAKPOINT", false, PKG + ".NestedObjectApplication", line("NestedObjectApplication", "double total = sum(order);"), investigation);
         String launch = start("NestedObjectApplication", investigation);
-        int index = waitSuspended(launch, Duration.ofSeconds(20));
+        int index = waitSuspended(launch, Duration.ofSeconds(20), "NestedObjectApplication");
         require("error".equals(bridge.call("EXPAND_VARIABLE", true, launch, index, 0, "order.customer", 0, 0).get("status")), "Invalid page size accepted");
         require(arr(bridge.call("EXPAND_VARIABLE", false, launch, index, 0, "order.customer", 0, 20).get("children")).stream().map(PhaseOneBridgeVerifier::obj)
                 .anyMatch(x -> str(x.get("name")).contains("address")), "Customer address not expandable");
@@ -191,27 +237,41 @@ public final class PhaseOneBridgeVerifier {
         long end = System.nanoTime() + Duration.ofSeconds(8).toNanos();
         while (System.nanoTime() < end) {
             Map<String, Object> output = bridge.call("GET_PROCESS_OUTPUT", true, launch);
-            if (Json.stringify(output).contains("TRACE-ORDER 1057")) return;
+            for (Object entry : arr(output.get("processes"))) {
+                Map<String, Object> process = obj(entry);
+                if (str(process.get("stdout")).lines().anyMatch("TRACE-ORDER 1057"::equals)
+                        || str(process.get("console")).lines().anyMatch("TRACE-ORDER 1057"::equals)) {
+                    waitForOrderBatchExit(launch);
+                    return;
+                }
+            }
             Thread.sleep(300);
         }
-        throw new AssertionError("Trace output not observable in process stdout (may be Eclipse evaluation console)");
+        throw new AssertionError("Expected trace line missing from process stdout and console");
     }
 
     private void pauseRestart(String investigation) throws Exception {
         String launch = start("LongRunningApplication", investigation);
-        int index = 0;
-        long end = System.nanoTime() + Duration.ofSeconds(5).toNanos();
-        while (System.nanoTime() < end) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        int index = -1;
+        while (index < 0 && System.nanoTime() < deadline) {
             List<Object> threads = arr(bridge.call("GET_THREADS", true, launch).get("threads"));
-            if (!threads.isEmpty()) {
-                index = threads.stream().map(PhaseOneBridgeVerifier::obj)
-                        .filter(t -> "main".equals(t.get("name"))).map(t -> number(t.get("index"))).findFirst().orElse(0);
-                break;
-            }
-            Thread.sleep(200);
+            index = threads.stream().map(PhaseOneBridgeVerifier::obj)
+                    .filter(t -> "main".equals(t.get("name")) && Boolean.FALSE.equals(t.get("suspended")))
+                    .map(t -> number(t.get("index"))).findFirst().orElse(-1);
+            if (index < 0) Thread.sleep(100);
         }
+        require(index >= 0, "No running main thread available to pause");
         bridge.call("CONTROL_DEBUG", false, launch, index, "PAUSE", investigation);
-        require(Boolean.TRUE.equals(bridge.call("GET_DEBUG_STATE", false, launch).get("suspended")), "Pause did not suspend the application");
+        boolean paused = false;
+        deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
+        while (!paused && System.nanoTime() < deadline) {
+            List<Object> threads = arr(bridge.call("GET_THREADS", false, launch).get("threads"));
+            paused = threads.stream().map(PhaseOneBridgeVerifier::obj)
+                    .anyMatch(t -> "main".equals(t.get("name")) && Boolean.TRUE.equals(t.get("suspended")));
+            if (!paused) Thread.sleep(100);
+        }
+        require(paused, "Pause did not suspend the main thread");
         require("error".equals(bridge.call("RESTART_DEBUG", true, launch, "some-other-investigation-id").get("status")), "Unauthorized restart allowed");
         require(Boolean.TRUE.equals(bridge.call("RESTART_DEBUG", false, launch, investigation).get("restarted")), "Restart failed");
         require(!Boolean.TRUE.equals(bridge.call("GET_DEBUG_STATE", false, launch).get("terminated")), "Restarted app terminated");
@@ -220,12 +280,12 @@ public final class PhaseOneBridgeVerifier {
     private void filters(String investigation) throws Exception {
         bridge.call("SET_BREAKPOINT", false, PKG + ".StepFilterApplication", line("StepFilterApplication", "values.add(10);"), investigation);
         String launch = start("StepFilterApplication", investigation);
-        int index = waitSuspended(launch, Duration.ofSeconds(20));
+        int index = waitSuspended(launch, Duration.ofSeconds(20), "StepFilterApplication");
         Map<String, Object> response = bridge.call("SET_STEP_FILTERS", false, launch, true, "java.*,javax.*,sun.*");
         require(Boolean.TRUE.equals(response.get("enabled")) && str(response.get("filters")).contains("java.*"), "Step filters not applied: " + response);
         require("error".equals(bridge.call("SET_STEP_FILTERS", true, launch, true, "bad-prefix!").get("status")), "Invalid filter accepted");
         bridge.call("CONTROL_DEBUG", false, launch, index, "STEP_INTO", investigation);
-        index = waitSuspended(launch, Duration.ofSeconds(20));
+        index = waitSuspended(launch, Duration.ofSeconds(20), "StepFilterApplication");
         List<Object> frames = arr(bridge.call("GET_STACK", false, launch, index).get("frames"));
         require(!frames.isEmpty() && str(obj(frames.get(0)).get("className")).startsWith(PKG), "Stepped into framework code: " + frames);
     }
@@ -236,20 +296,27 @@ public final class PhaseOneBridgeVerifier {
     @SuppressWarnings("unchecked") private static Map<String, Object> obj(Object o) { return (Map<String, Object>) o; }
     @SuppressWarnings("unchecked") private static List<Object> arr(Object o) { return o instanceof List<?> l ? (List<Object>) l : List.of(); }
 
-    private static final class Bridge {
+    static final class Bridge {
         private final String token;
         private final List<Map<String, Object>> traces = new ArrayList<>();
-        private Bridge() throws IOException {
-            token = Files.readString(Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "bridge.token"), StandardCharsets.UTF_8).trim();
+        Bridge() throws IOException {
+            token = Files.readString(Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", BRIDGE_PORT == 8765 ? "bridge.token" : "bridge-" + BRIDGE_PORT + ".token"), StandardCharsets.UTF_8).trim();
             if (token.isEmpty()) throw new IOException("Empty Eclipse bridge authentication token");
         }
-        private Map<String, Object> call(String command, boolean tolerateError, Object... args) throws IOException {
+        Map<String, Object> call(String command, boolean tolerateError, Object... args) throws IOException {
             StringBuilder request = new StringBuilder("AUTH ").append(token).append(' ').append(command);
-            for (Object value : args) request.append(' ').append(Base64.getUrlEncoder().withoutPadding()
-                    .encodeToString(str(value).getBytes(StandardCharsets.UTF_8)));
+            // The bridge protocol sends numeric parameters as decimal text.
+            // String parameters (including booleans and investigation IDs) are URL-safe Base64.
+            // Encoding line numbers caused NumberFormatException, e.g. 5 -> "NQ".
+            for (Object value : args) {
+                request.append(' ').append(value instanceof Number
+                        ? value.toString()
+                        : Base64.getUrlEncoder().withoutPadding()
+                            .encodeToString(str(value).getBytes(StandardCharsets.UTF_8)));
+            }
             String json;
             try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress("127.0.0.1", 8765), 5000);
+                socket.connect(new InetSocketAddress("127.0.0.1", BRIDGE_PORT), 5000);
                 socket.setSoTimeout(30000);
                 try (OutputStream out = socket.getOutputStream(); BufferedReader in = new BufferedReader(
                         new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {

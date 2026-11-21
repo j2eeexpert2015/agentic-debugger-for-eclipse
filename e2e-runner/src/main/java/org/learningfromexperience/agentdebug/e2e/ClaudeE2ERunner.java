@@ -18,6 +18,7 @@ import java.util.HexFormat;
  * @author Ayan Dutta
  */
 public final class ClaudeE2ERunner {
+    private static final int BRIDGE_PORT = Integer.parseInt(System.getenv().getOrDefault("AGENTDEBUG_PORT", "8765"));
     private static final String TEST_LAUNCH = "AverageCalculatorApplication";
     private static final boolean INSTALLED_MODE = Boolean.getBoolean("agentdebug.test.installed");
     private static final String PREFIX = "mcp__eclipse-debugger__";
@@ -406,12 +407,12 @@ public final class ClaudeE2ERunner {
     static String bridge(String cmd, boolean authenticated) throws IOException {
         String request = cmd;
         if (authenticated) {
-            Path token = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "bridge.token");
+            Path token = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", BRIDGE_PORT == 8765 ? "bridge.token" : "bridge-" + BRIDGE_PORT + ".token");
             if (!Files.isRegularFile(token)) throw new IOException("Missing bridge token. Start Eclipse with the plugin.");
             request = "AUTH " + Files.readString(token).trim() + " " + cmd;
         }
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("127.0.0.1", 8765), 2500);
+            socket.connect(new InetSocketAddress("127.0.0.1", BRIDGE_PORT), 2500);
             socket.setSoTimeout(30000);
             try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
                  BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {

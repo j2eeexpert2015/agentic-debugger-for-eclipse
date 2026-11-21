@@ -109,6 +109,8 @@ public final class EclipseAgentOperations {
         // Bundle location reliably distinguishes p2-installed JARs from PDE workspace bundles.
         if (bundle != null && bundle.getLocation() != null) loadedFrom = bundle.getLocation();
         return ok(",\"fixtureProtocol\":\"calculator-v2\",\"bundleVersion\":" + q(bundleVersion)
+                + ",\"workspace\":" + q(ResourcesPlugin.getWorkspace().getRoot().getLocation().toOSString())
+                + ",\"installDirectory\":" + q(org.eclipse.core.runtime.Platform.getInstallLocation().getURL().toExternalForm())
                 + ",\"loadedFrom\":" + q(loadedFrom)
                 + ",\"operationsSha256\":" + q(classSha256(EclipseAgentOperations.class))
                 + ",\"breakpointSha256\":" + q(classSha256(EclipseBreakpointService.class)));
@@ -177,6 +179,7 @@ public final class EclipseAgentOperations {
         if (investigation.mode() == DebugInvestigationPolicy.Mode.CONTROLLED
                 && investigation.launchName() != null) {
             ILaunch active = launch(investigation.launchName());
+            investigation.verifySession(active);
             boolean suspended = false;
             for (var debugTarget : active.getDebugTargets()) {
                 if (debugTarget.isTerminated()) continue;
@@ -344,8 +347,8 @@ public final class EclipseAgentOperations {
                 testSource.contains("org.junit.jupiter")
                         ? "org.eclipse.jdt.junit.loader.junit5"
                         : "org.eclipse.jdt.junit.loader.junit4");
+        if (investigation != null) investigation.verifyNewLaunch(workingCopy.getName());
         var config = workingCopy.doSave();
-        if (investigation != null) investigation.verifyLaunchTarget(config.getName());
         ILaunch launched;
         try { launched = config.launch(ILaunchManager.DEBUG_MODE, null); }
         catch (CoreException failure) { config.delete(); throw failure; }
@@ -398,16 +401,29 @@ public final class EclipseAgentOperations {
         String path = require(p, 4);
         int offset = number(p, 5);
         int limit = number(p, 6);
-        if (limit < 1 || limit > 50 || offset < 0 || offset > 10000
-                || !path.matches("[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*|\\[[0-9]{1,5}\\]){0,8}")) {
-            throw new IllegalArgumentException("Invalid path, offset, or limit");
+        if (limit < 1 || limit > 50 || offset < 0 || offset > 10000) {
+            throw new IllegalArgumentException("Invalid offset or limit");
         }
-        String[] elements = path.replace("[", ".[").split("\\.");
-        IVariable current = variableByName(selected.getVariables(), elements[0]);
-        for (int i = 1; i < elements.length; i++) {
-            IValue value = current.getValue();
-            if (value == null || !value.hasVariables()) throw new IllegalArgumentException("Variable has no children: " + elements[i]);
-            current = variableByName(value.getVariables(), elements[i]);
+        IVariable[] roots = selected.getVariables();
+        IVariable current = null;
+        // JDT uses display names such as "processOrder() is throwing" for synthetic locals.
+        for (IVariable root : roots) {
+            if (path.equals(root.getName())) {
+                current = root;
+                break;
+            }
+        }
+        if (current == null) {
+            if (!path.matches("[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*|\\[[0-9]{1,5}\\]){0,8}")) {
+                throw new IllegalArgumentException("Invalid variable path");
+            }
+            String[] elements = path.replace("[", ".[").split("\\.");
+            current = variableByName(roots, elements[0]);
+            for (int i = 1; i < elements.length; i++) {
+                IValue parent = current.getValue();
+                if (parent == null || !parent.hasVariables()) throw new IllegalArgumentException("Variable has no children: " + elements[i]);
+                current = variableByName(parent.getVariables(), elements[i]);
+            }
         }
         IValue value = current.getValue();
         if (value == null) return ok(",\"path\":" + q(path) + ",\"children\":[],\"total\":0");
@@ -518,22 +534,21 @@ public final class EclipseAgentOperations {
             var workingCopy = configType.newInstance(null, manager().generateLaunchConfigurationName(suggestedName));
             workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, projectName);
             workingCopy.setAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, mainType);
+            if (investigation != null) investigation.verifyNewLaunch(workingCopy.getName());
             config = workingCopy.doSave();
         } else {
             config = matching.get(0);
         }
         String name = config.getName();
         if (investigation != null) investigation.verifyLaunchTarget(name);
-        // Preserve an active session, including its suspended state, rather than restarting it.
-        for (var launch : manager().getLaunches()) {
-            if (!launch.isTerminated() && ILaunchManager.DEBUG_MODE.equals(launch.getLaunchMode())
-                    && config.equals(launch.getLaunchConfiguration())) {
-                if (investigation != null) investigation.recordLaunch(name, launch, false);
-                ui.follow(launch);
-                return ok(",\"launchName\":" + q(name)
-                        + ",\"createdConfiguration\":" + created + ",\"reusedSession\":true");
-            }
+        ILaunch existing = activeLaunch(name);
+        if (existing != null) {
+            if (investigation != null) investigation.recordLaunch(name, existing, false);
+            ui.follow(existing);
+            return ok(",\"launchName\":" + q(name)
+                    + ",\"createdConfiguration\":" + created + ",\"reusedSession\":true");
         }
+        if (investigation != null) investigation.verifyNewLaunch(name);
         ILaunch started = config.launch(ILaunchManager.DEBUG_MODE, null);
         if (investigation != null) investigation.recordLaunch(name, started, true);
         ui.follow(started);
@@ -556,23 +571,20 @@ public final class EclipseAgentOperations {
         }
         if (found == null) throw new IllegalArgumentException("Debug-capable launch configuration not found");
         if (investigation != null) investigation.verifyLaunchTarget(name);
-        // Reuse the existing active launch for this configuration by name.
-        for (var launch : manager().getLaunches()) {
-            if (launch.getLaunchConfiguration() != null
-                    && launch.getLaunchConfiguration().equals(found) && !launch.isTerminated()
-                    && ILaunchManager.DEBUG_MODE.equals(launch.getLaunchMode())) {
-                if (investigation != null) investigation.recordLaunch(name, launch, false);
-                ui.follow(launch);
-                return ok(",\"reused\":true,\"launchName\":" + q(name));
-            }
+        ILaunch existing = activeLaunch(name);
+        if (existing != null) {
+            if (investigation != null) investigation.recordLaunch(name, existing, false);
+            ui.follow(existing);
+            return ok(",\"reused\":true,\"launchName\":" + q(name));
         }
+        if (investigation != null) investigation.verifyNewLaunch(name);
         ILaunch started = found.launch(ILaunchManager.DEBUG_MODE, null);
         if (investigation != null) investigation.recordLaunch(name, started, true);
         ui.follow(started);
         return ok(",\"reused\":false,\"launchName\":" + q(name));
     }
 
-    private static ILaunch launch(String name) {
+    private static ILaunch activeLaunch(String name) {
         ILaunch match = null;
         for (var current : manager().getLaunches()) {
             if (current.isTerminated() || !ILaunchManager.DEBUG_MODE.equals(current.getLaunchMode())) continue;
@@ -582,6 +594,11 @@ public final class EclipseAgentOperations {
                 match = current;
             }
         }
+        return match;
+    }
+
+    private static ILaunch launch(String name) {
+        ILaunch match = activeLaunch(name);
         if (match == null) throw new IllegalArgumentException("Active debug launch not found: " + name);
         return match;
     }
@@ -715,19 +732,17 @@ public final class EclipseAgentOperations {
 
     private String control(String[] p) throws CoreException {
         ILaunch l = launch(require(p, 1));
-        ui.follow(l);
+
         String action = require(p, 3);
         String investigationId = optionalInvestigation(p, 4);
         if (investigationId != null) {
             var investigation = investigations.require(investigationId);
-            if (investigation.launchName() == null ||
-                    !investigation.launchName().equals(require(p, 1))) {
-                throw new IllegalArgumentException("Session is not associated with this investigation");
-            }
+            investigation.verifySession(l);
             if ("STOP".equals(action) && investigation.ownedLaunch() != l) {
                 throw new IllegalStateException("Cannot terminate a reused/user-owned session");
             }
         }
+        ui.follow(l);
         if ("STOP".equals(action)) {
             target(l).terminate();
         } else {
@@ -750,12 +765,27 @@ public final class EclipseAgentOperations {
         List<String> items = new ArrayList<>();
         for (IProcess process : l.getProcesses()) {
             IStreamsProxy streams = process.getStreamsProxy();
-            if (streams == null) continue;
-            items.add("{\"label\":" + q(process.getLabel())
-                    + ",\"stdout\":" + q(streams.getOutputStreamMonitor() == null ? null
-                            : clipped(streams.getOutputStreamMonitor().getContents(), 4000))
-                    + ",\"stderr\":" + q(streams.getErrorStreamMonitor() == null ? null
-                            : clipped(streams.getErrorStreamMonitor().getContents(), 4000)) + "}");
+            String stdout = streams == null || streams.getOutputStreamMonitor() == null ? null
+                    : streams.getOutputStreamMonitor().getContents();
+            String stderr = streams == null || streams.getErrorStreamMonitor() == null ? null
+                    : streams.getErrorStreamMonitor().getContents();
+            String consoleText = null;
+            var console = org.eclipse.debug.ui.DebugUITools.getConsole(process);
+            if (console instanceof org.eclipse.debug.ui.console.IConsole processConsole) {
+                var document = processConsole.getDocument();
+                if (document != null) {
+                    Object lock = document instanceof org.eclipse.jface.text.ISynchronizable sync ? sync.getLockObject() : null;
+                    synchronized (lock == null ? document : lock) {
+                        try {
+                            consoleText = document.get(0, Math.min(document.getLength(), 4000));
+                        } catch (org.eclipse.jface.text.BadLocationException ignored) {
+                            // The console may be trimmed while its output is read.
+                        }
+                    }
+                }
+            }
+            items.add("{\"label\":" + q(process.getLabel()) + ",\"stdout\":" + q(clipped(stdout, 4000))
+                    + ",\"stderr\":" + q(clipped(stderr, 4000)) + ",\"console\":" + q(consoleText) + "}");
         }
         return ok(",\"processes\":[" + String.join(",", items) + "]");
     }

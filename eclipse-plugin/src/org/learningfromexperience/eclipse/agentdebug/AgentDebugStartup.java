@@ -96,7 +96,8 @@ public class AgentDebugStartup implements IStartup {
                 );
 
                 // Refresh an already-configured MCP runtime only when its contents have changed.
-                try { new ClaudeIntegration().refreshBundledRuntime(); }
+                String fixture = System.getenv("AGENTDEBUG_FIXTURE_SOURCE");
+                try { if (fixture == null) new ClaudeIntegration().refreshBundledRuntime(); }
                 catch (Exception error) {
                     System.err.println("[Eclipse Agentic Debugger] MCP runtime refresh failed: " + error.getMessage());
                 }
@@ -104,6 +105,7 @@ public class AgentDebugStartup implements IStartup {
                 // Start communication bridge.
                 try {
 
+                    if (fixture != null) DevelopmentFixture.prepare(java.nio.file.Path.of(fixture), monitor);
                     EclipseBridgeServer bridgeServer =
                             new EclipseBridgeServer();
 
@@ -123,7 +125,7 @@ public class AgentDebugStartup implements IStartup {
                 }
 
                 // Offer first-run setup; never change Claude configuration without explicit approval.
-                offerFirstRunConfiguration();
+                if (fixture == null) offerFirstRunConfiguration();
                 return Status.OK_STATUS;
             }
         };

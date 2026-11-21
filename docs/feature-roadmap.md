@@ -16,13 +16,13 @@ Possible alternative decisions: `Deferred`, `Not planned`, `Rejected`. **Feasibi
 | SKILL-02 | Hypothesis-guided investigation: select breakpoints and identify first incorrect value; reduce wasted stepping | Candidate | Plausible with current tools for basic cases | EV-02, EV-05 | RS-01, RS-02, RS-04 |
 | SKILL-03 | Error recovery and timeout guidance: avoid endless waits or mistaken success | Candidate | Partial; may need additional MCP error detail | EV-07 | RS-01, RS-07 |
 | SKILL-04 | Repeatable skill A/B suite: measure no skill vs stable vs candidate without changing core functionality | Planned documentation; runner implementation pending | Feasible in principle; runner integration unverified | EV-01–EV-10 | RS-05, RS-06 |
-| JAVA-01 | Conditional breakpoints: stop only for targeted input | **Implemented in 1.5 candidate source; not E2E verified** | JDT condition API reviewed; live behavior pending | P1-COND | RS-01, RS-03 |
-| JAVA-02 | Exception breakpoints: stop at caught/uncaught throw sites | **Implemented in 1.5 candidate source; not E2E verified** | JDT exception API reviewed; runtime pending | P1-EXC | RS-02, RS-03 |
-| JAVA-03 | Debug JUnit test directly using test launch config | **Implemented in 1.5 candidate source; not E2E verified** | Eclipse JUnit launch API examined; runner compatibility pending | P1-JUNIT | RS-04 |
-| JAVA-04 | Bounded nested variable browsing and array navigation | **Implemented in 1.5 candidate source; not E2E verified** | Eclipse IValue traversal implemented; runtime pending | P1-VARS | RS-01, RS-02 |
-| JAVA-05 | Non-suspending tracepoints using JDT conditions | **Implemented in 1.5 candidate source; not E2E verified** | Official JDT tracing pattern used; console behavior pending | P1-TRACE | RS-02, RS-03 |
-| JAVA-06 | Pause and owned-session restart | **Implemented in 1.5 candidate source; not E2E verified** | Existing pause plus new ownership-checked restart | P1-PAUSE | RS-03 |
-| JAVA-07 | Per-target step filtering | **Implemented in 1.5 candidate source; not E2E verified** | Eclipse JDT target filtering API reviewed | P1-FILTER | RS-03 |
+| JAVA-01 | Conditional breakpoints: stop only for targeted input | Verified on installed candidate | Order 1057 and its discount inspected | P1-COND | RS-01, RS-03 |
+| JAVA-02 | Exception breakpoints: stop at caught/uncaught throw sites | Verified on installed candidate | Throwing stack and live exception message inspected | P1-EXC | RS-02, RS-03 |
+| JAVA-03 | Debug JUnit test directly using test launch config | Verified on installed candidate | Individual fixture test launched and operands inspected | P1-JUNIT | RS-04 |
+| JAVA-04 | Bounded nested variable browsing and array navigation | Verified on installed candidate | Bounded nested fields and array entries inspected | P1-VARS | RS-01, RS-02 |
+| JAVA-05 | Non-suspending tracepoints using JDT conditions | Verified on installed candidate | Authorized console output included order 1057 | P1-TRACE | RS-02, RS-03 |
+| JAVA-06 | Pause and owned-session restart | Verified on installed candidate | Replacement JVM verified running | P1-PAUSE | RS-03 |
+| JAVA-07 | Per-target step filtering | Verified on installed candidate | Step returned to an application frame | P1-FILTER | RS-03 |
 | JAVA-08 | JVM attach, remote debug | Deferred | Unknown; requires safe attach and launch settings | Design test when investigated | RS-03 |
 | JAVA-09 | Field watchpoints | Deferred | Unknown; JDT may have facilities, not verified for MCP | Design test when investigated | RS-03 |
 | JAVA-10 | Variable mutation and Hot Code Replace | Deferred; safety-sensitive | Unknown | Permission and rollback test first | RS-03 |
@@ -44,6 +44,6 @@ For each new candidate, add a subsection with: **ID; source; exact problem; deve
 A source suggestion does not make a feature planned. A planned feature does not become implemented until source changes and tests exist. A passed unit test does not establish an installed-plugin E2E result.
 
 
-## Phase 1 candidate (source implementation, awaiting live release checks)
+## Phase 1 release status
 
-The seven requested operations are present in the 1.5.0 candidate source package; they are **not marked released or installed-E2E verified**. Track the explicit feature acceptance tests and negative cases in [Phase 1 Claude scenarios](phase1-claude-scenarios.md), and the validation status in [Phase 1 implementation status](phase1-implementation-status.md). The debugging skill remains independently replaceable and has not been implemented in Phase 1.
+All seven direct and explicit Claude scenarios passed on Windows build `1.5.0.20261121184224374`. Publication is pending. The symptom-only assessment and optional skill experiments have separate outcomes and scope. [Candidate status](phase1-implementation-status.md) · [Symptom-prompt results](phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026)

@@ -2,6 +2,10 @@
 
 [Documentation index](../README.md#documentation) · [Capabilities](capabilities.md) · [Roadmap](feature-roadmap.md)
 
+## Baseline results
+
+On Windows candidate `1.5.0.20261121184224374`, all seven direct checks and all seven explicit Claude scenarios passed. In the symptom-only assessment, five of seven answers were complete and two were partial. Each scenario ran once with relevant fixture source. Repeated trials and a stable-skill versus candidate-skill comparison remain future experiments. [Recorded outcomes](phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026)
+
 ## Objective and separation of concerns
 
 **Core debugger functionality must not depend on any skill.** A skill is optional, versioned guidance; replacing, disabling or removing it must not change MCP contracts or debugger safety guarantees. The existing E2E runner is a foundation, **not** a completed skill A/B evaluation framework.
@@ -38,7 +42,7 @@ Record: correctness (exact bug/origin), runtime evidence (verified MCP outputs),
 
 Do not optimize debugger invocation frequency in isolation. An obvious bug can be fixed via static analysis; extra debugger calls may increase cost without increasing correctness. A skill succeeds only if it improves selected target outcomes **and does not regress safety, accuracy, or non-debug requests**.
 
-## Release gates
+## Release gates for a future skill
 
 1. Core suite passes **with skill absent** (non-negotiable).
 2. No unauthorized changes to user breakpoints/sessions in any trial (non-negotiable).
@@ -46,6 +50,6 @@ Do not optimize debugger invocation frequency in isolation. An obvious bug can b
 4. Candidate can be removed/replaced without changing the plugin, MCP server or tool schemas.
 5. Publish the report with model/tool versions, sample sizes, failures and unknowns; untested items remain **not verified**.
 
-## Proposed report artifacts (not yet generated)
+## Proposed artifacts for skill comparisons
 
 `evaluation/reports/<run-id>/manifest.json`, `trial-results.csv`, `tool-trace.jsonl`, `eclipse-state.json`, and `comparison.md`. Do not commit secrets from debugger variables or client configuration.

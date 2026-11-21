@@ -22,7 +22,8 @@ public final class DebugInvestigationPolicy {
         private final Mode mode;
         private final Set<Breakpoint> ownedBreakpoints = new LinkedHashSet<>();
         private final Set<String> ownedExceptions = new LinkedHashSet<>();
-        private Object ownedLaunch;
+        private Object associatedLaunch;
+        private boolean ownsLaunch;
         private String launchName;
         private boolean complete;
 
@@ -33,7 +34,17 @@ public final class DebugInvestigationPolicy {
         public String id() { return id; }
         public Mode mode() { return mode; }
         public synchronized String launchName() { return launchName; }
-        public synchronized Object ownedLaunch() { return ownedLaunch; }
+        public synchronized Object ownedLaunch() { return ownsLaunch ? associatedLaunch : null; }
+        public synchronized void verifySession(Object launch) {
+            ensureActive();
+            if (associatedLaunch == null || launch != associatedLaunch)
+                throw new IllegalStateException("Session is not associated with this investigation");
+        }
+        public synchronized void verifyNewLaunch(String name) {
+            verifyLaunchTarget(name);
+            if (associatedLaunch != null)
+                throw new IllegalStateException("Investigation is already bound to a debug session");
+        }
         public synchronized Set<Breakpoint> breakpoints() { return Set.copyOf(ownedBreakpoints); }
         public synchronized Set<String> exceptions() { return Set.copyOf(ownedExceptions); }
         public synchronized void recordException(String name) { ensureActive(); ownedExceptions.add(name); }
@@ -51,18 +62,19 @@ public final class DebugInvestigationPolicy {
         }
         public synchronized void replaceOwnedLaunch(String name, Object previous, Object replacement) {
             ensureActive();
-            if (!name.equals(launchName) || ownedLaunch != previous) {
+            if (!name.equals(launchName) || ownedLaunch() != previous) {
                 throw new IllegalStateException("Cannot restart a session this investigation does not own");
             }
-            ownedLaunch = replacement;
+            associatedLaunch = replacement;
         }
         public synchronized void recordLaunch(String name, Object launch, boolean createdByAgent) {
             verifyLaunchTarget(name);
-            if (ownedLaunch != null && ownedLaunch != launch) {
-                throw new IllegalStateException("Investigation already owns another debug session");
+            if (associatedLaunch != null && associatedLaunch != launch) {
+                throw new IllegalStateException("Investigation already targets another debug session");
             }
             launchName = name;
-            if (createdByAgent) ownedLaunch = launch;
+            associatedLaunch = launch;
+            ownsLaunch |= createdByAgent;
         }
         public synchronized void ensureActive() {
             if (complete) throw new IllegalStateException("Investigation already completed: " + id);
