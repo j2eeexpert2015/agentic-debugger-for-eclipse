@@ -26,7 +26,7 @@ This is the **feature-level authoritative tracker**, not a second phase narrativ
 
 Alternative states: **Deferred**, **Not planned**, **Rejected**, **Unknown**. “Feasibility verified” requires code or API evidence, not analogy with an IntelliJ/VS Code UI feature. “Tested on installed candidate” is not equivalent to published. “Agent observed the feature” is different from “agent chooses it reliably from symptoms”.
 
-**Tested candidate:** Eclipse bundle `1.5.0.20261121184224374`, per [record](phase1-implementation-status.md). Reported: 7/7 Phase 1 bridge tests, 7/7 explicit Claude prompts, 32/32 ownership tests and installed calculator regression. Separately, 5 complete and 2 partial symptom-only answers from one trial each. These outcomes are recorded evidence, not independently reproduced in this document. Publishing remains pending.
+**Tested candidate:** Eclipse bundle `1.5.0.20261121184224374`, per [record](phase1-implementation-status.md). Reported: 7/7 Phase 1 bridge tests, 7/7 explicit Claude prompts, 32/32 ownership tests and installed calculator regression. In separate trials with fixture source supplied, Claude selected the intended debugger mechanism in 6/7 trials and gave a complete answer in 5/7. Publication is pending.
 
 ## Core platform — Phase 0
 
@@ -79,7 +79,7 @@ Alternative states: **Deferred**, **Not planned**, **Rejected**, **Unknown**. �
 | EVAL-02 | Quantitative metrics, qualitative rubric and safety gates | **Designed; automated scoring pending** | Accuracy, evidence, stop count, calls, elapsed time, tokens if available, cleanup; no hidden test reruns |
 | EVAL-03 | Skill independence and rollback tests | **Planned** | Disable or replace skill, rerun old MCP schema and installed regression without product code changes |
 
-**Baseline:** Single-trial symptom-only runs had 5 complete / 2 partial. Tracepoint partial because output was truncated; pause/restart partial because agent did not restart. These are concrete improvement candidates, not proofs of the effectiveness of a future skill. Explicit MCP invocation passed all seven. See [evaluation plan](evaluation-plan.md).
+**Baseline without the skill.** Each of the seven scenarios ran once in a fresh Claude session. Each prompt described the symptom and supplied the project name, relevant fixture source with line numbers, and NORMAL investigation lifecycle instructions. The prompts left tool selection to Claude. Claude chose the intended debugger mechanism in **6/7 trials** and gave a complete answer in **5/7**. In the tracepoint trial, Claude chose the intended tool but retrieved only part of the output. In the pause/restart trial, Claude sampled the same JVM twice and missed the requested restart. [Trial conditions and results](phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026) · [Evaluation plan](evaluation-plan.md)
 
 ## Advanced Java candidates — Phase 4
 

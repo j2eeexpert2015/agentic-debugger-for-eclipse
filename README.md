@@ -127,7 +127,7 @@ Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the curren
    mvn verify -Pinstalled-e2e
    ```
 
-**Phase 1 feature verification (Java only):** After the new Eclipse starts, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
+**Phase 1 feature verification (Java only).** The default `dev.bat` workflow imports `examples/phase-one-debugging` and runs the direct checks automatically. If you prepared the Eclipse workspace yourself and the fixture is missing, import it with **File → Import → Maven → Existing Maven Projects** and confirm it builds. To run the direct checks separately in either workspace, use this command from the repository root:
 
 ```cmd
 scripts\windows\verify-phase1-eclipse.bat
