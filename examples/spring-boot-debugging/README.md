@@ -17,3 +17,13 @@ mvn "-DexcludedGroups=unused" "-Dtest=OrderServiceTest#calculatesDiscount,OrderA
 ```
 
 In Eclipse, debug either selected JUnit method and set a breakpoint on the subtotal calculation in `OrderService.quote`. The plain test calls the service directly. The Spring-context test sends a real HTTP request, so its service breakpoint occurs on a web-server thread.
+
+## Replaying the HTTP investigation on Windows
+
+Use a disposable Eclipse workspace with the fixture imported. Set breakpoints on the controller's call to `service.quote`, the repository's `return requestedPercent`, and the service's subtotal calculation. In a separate PowerShell 7 terminal at the debugger repository root, start the [fixture client](../../e2e-runner/boot-tests/Invoke-FixtureQuote.ps1) with the workspace path, debugger bridge port, exact launch name and a fresh receipt path. For example:
+
+```powershell
+.\e2e-runner\boot-tests\Invoke-FixtureQuote.ps1 -Workspace C:\test\boot-workspace -BridgePort 21765 -LaunchName 'Orders Test' -ApproveFixturePost -Receipt C:\test\quote-result.json
+```
+
+Start that saved launch in a NORMAL investigation. The client waits up to 120 seconds for readiness, checks that the loopback listener belongs to the JVM reported by that launch, then submits the fixed quote once. Inspect and resume the HTTP thread at each stop. After the final resume, read the receipt for the status and body and finish the investigation. The client disables proxies and redirects and gives the request 180 seconds to complete.

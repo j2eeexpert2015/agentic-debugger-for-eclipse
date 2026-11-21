@@ -35,9 +35,13 @@
 
 **Deliver:** safe and unambiguous BOOT-01/02 discovery/launch/config selection and BOOT-03 readiness/error determination, reusing existing operations if they pass. Verify profile/env/args and correct installed JDT launch. **Tests:** SB-01/02/03 with valid, wrong, ambiguous and start-failure cases. **Safety:** exact launch object ownership, bounded waits, no unauthorized configuration replacement.
 
+**P2-03 direct checks complete.** The installed checks covered explicit project and configuration selection, preservation of saved settings, readiness, two startup failures, timeout and ownership cleanup. P2-04 adds explicit Claude evidence for the HTTP investigation. [P2-03 results](spring-boot-tool-audit.md#p2-03-saved-configurations-and-readiness)
+
 ### P2-04 — Real HTTP investigation vertical slice
 
 **Deliver:** approved local/test HTTP request capability through a bounded, auditable mechanism (reuse existing allowed client/Java harness first), real breakpoint hit in controller/service and typed value inspection. **Tests:** SB-04/05 and negative permission/target cases. **Definition of done:** an installed-Eclipse direct test and one explicit Claude prompt show HTTP response, debug stack and first incorrect value; successful NORMAL cleanup. A plain unit test is insufficient.
+
+**P2-04 complete.** The direct and explicit Claude runs traced the real quote through three application layers, verified the HTTP response and completed NORMAL cleanup. The bounded fixture client and negative checks are documented in the [P2-04 evidence](spring-boot-tool-audit.md#p2-04-http-quote-investigation). P2-05 extends the earlier JUnit coverage to failure and selection cases.
 
 ### P2-05 — Spring-context and ordinary JUnit coverage
 
