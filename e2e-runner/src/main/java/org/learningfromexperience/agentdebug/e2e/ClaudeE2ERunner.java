@@ -24,7 +24,7 @@ public final class ClaudeE2ERunner {
     private static final List<String> REQUIRED_TOOLS = List.of(
         "eclipse_ping", "list_run_configurations", "list_breakpoints", "set_breakpoint",
         "start_debug_session", "wait_for_debug_pause", "get_debug_threads",
-        "get_stack_frames", "get_frame_variables", "control_debug_session");
+        "get_stack_frames", "get_frame_variables", "control_debug_session", "show_debug_location");
     private static final Pattern TOOL_NAME = Pattern.compile("\\\"name\\\"\\s*:\\s*\\\"mcp__eclipse-debugger__([a-z_]+)\\\"");
 
     public static void main(String[] args) throws Exception {
@@ -34,7 +34,7 @@ public final class ClaudeE2ERunner {
         Path report = reports.resolve("result.txt");
         try {
             run(root, reports);
-            Files.writeString(report, "PASS: Claude debugger tools executed without errors; one step-over, session suspended, calculator stack, sum=10 and defect explanation verified. See trace.jsonl and runtime-evidence.txt.\n");
+            Files.writeString(report, "PASS: Claude debugger tools executed without errors; one step-over, source-navigation request, session suspended, calculator stack, sum=10 and defect explanation verified. See trace.jsonl and runtime-evidence.txt.\n");
             System.out.println("E2E PASS. Report: " + report);
         } catch (Exception e) {
             Files.writeString(report, "FAIL: " + e.getMessage() + "\nTrace (if Claude started): trace.jsonl\n");
@@ -351,6 +351,8 @@ public final class ClaudeE2ERunner {
         // breakpoint, launch, inspection and stepping operations.
 
         String observed = evidenceText.toString();
+        if (!observed.contains("\\\"scheduled\\\":true"))
+            throw new IOException("Source navigation was not scheduled for the suspended session; see trace.jsonl");
         if (!observed.contains("\\\"name\\\":\\\"sum\\\"")
                 || !observed.contains("\\\"name\\\":\\\"number\\\""))
             throw new IOException("Claude did not observe sum and number in Eclipse variables; see trace.jsonl");

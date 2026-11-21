@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: Agentic Debugger for Eclipse IDE
 Bundle-SymbolicName: org.learningfromexperience.eclipse.agentdebug;singleton:=true
-Bundle-Version: 1.2.0.qualifier
+Bundle-Version: 1.4.0.qualifier
 Bundle-Activator: org.learningfromexperience.eclipse.agentdebug.Activator
 Bundle-Vendor: Ayan Dutta
 Require-Bundle: org.eclipse.core.runtime,
@@ -11,7 +11,8 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.jdt.debug;bundle-version="3.26.100",
  org.eclipse.core.resources,
  org.eclipse.jdt.core,
- org.eclipse.jdt.launching
+ org.eclipse.jdt.launching,
+ org.eclipse.debug.ui
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Automatic-Module-Name: org.learningfromexperience.eclipse.agentdebug
 Bundle-ActivationPolicy: lazy

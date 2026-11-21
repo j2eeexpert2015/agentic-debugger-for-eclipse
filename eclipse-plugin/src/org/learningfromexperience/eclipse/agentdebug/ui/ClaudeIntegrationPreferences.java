@@ -1,6 +1,7 @@
 package org.learningfromexperience.eclipse.agentdebug.ui;
 
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.jface.dialogs.MessageDialog;
@@ -33,6 +34,16 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
         status = new Label(root, SWT.WRAP);
         status.setText("Click Verify to check Claude Code registration.");
         status.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
+        Button automaticPerspective = new Button(root, SWT.CHECK);
+        automaticPerspective.setText("Automatically switch to Debug perspective for agent-controlled sessions");
+        var settings = InstanceScope.INSTANCE.getNode("org.learningfromexperience.eclipse.agentdebug");
+        automaticPerspective.setSelection(settings.getBoolean("autoDebugPerspective", true));
+        automaticPerspective.addListener(SWT.Selection, event -> {
+            settings.putBoolean("autoDebugPerspective", automaticPerspective.getSelection());
+            try { settings.flush(); } catch (Exception error) {
+                status.setText("Failed to save perspective preference: " + error.getMessage());
+            }
+        });
         button(root, "Configure Claude Code", "configure");
         button(root, "Verify registration", "verify");
         button(root, "Remove managed registration", "remove");

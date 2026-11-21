@@ -68,7 +68,8 @@ public class DebugMcpServer {
                 "properties", Map.of(
                         "typeName", Map.of("type", "string", "description",
                                 "Fully qualified Java class name"),
-                        "lineNumber", Map.of("type", "integer", "minimum", 1)
+                        "lineNumber", Map.of("type", "integer", "minimum", 1),
+                        "investigationId", Map.of("type", "string", "description", "Optional ID from begin_debug_investigation")
                 ),
                 "required", List.of("typeName", "lineNumber"),
                 "additionalProperties", false
@@ -205,7 +206,8 @@ public class DebugMcpServer {
                     }
                     try {
                         String response = sendToEclipse(
-                                "SET_BREAKPOINT " + enc(typeName) + " " + parsedLine, true);
+                                "SET_BREAKPOINT " + enc(typeName) + " " + parsedLine
+                                        + optionalId(arguments), true);
                         return bridgeResult(response);
                     } catch (IOException e) {
                         return failure("Failed to set breakpoint: " + e.getMessage());
@@ -217,6 +219,22 @@ public class DebugMcpServer {
                 pingTool, eclipsePingTool, listDebugSessionsTool,
                 listBreakpointsTool, setBreakpointTool));
 
+        // Investigation lifecycle: NORMAL by default; CONTROLLED preserves suspended state.
+        allTools.add(bridgeTool("begin_debug_investigation",
+                "Start a debugging investigation. Default mode NORMAL cleans up ONLY its own new session "
+                        + "and its own breakpoints when finish_debug_investigation is called. "
+                        + "Use CONTROLLED only when the user expressly requests a paused/step-by-step investigation. "
+                        + "Pass the returned investigationId to set_breakpoint and the launch tool. "
+                        + "Always finish the investigation when done.",
+                Map.of("mode", Map.of("type", "string", "enum", List.of("NORMAL", "CONTROLLED"))),
+                List.of(), a -> "BEGIN_INVESTIGATION " + enc(mode(a))));
+        allTools.add(bridgeTool("finish_debug_investigation",
+                "Finish the exact investigationId. NORMAL terminates only the session it started, "
+                        + "removes only its own newly created breakpoints, and leaves user sessions and breakpoints intact. "
+                        + "CONTROLLED preserves the debug session suspended and breakpoints for inspection. "
+                        + "Call once after reporting actual evidence, even if a debugger step fails.",
+                Map.of("investigationId", str()), List.of("investigationId"),
+                a -> "FINISH_INVESTIGATION " + enc(arg(a,"investigationId"))));
         allTools.add(bridgeTool("remove_breakpoint", "Remove only agent-owned line breakpoints.",
                 Map.of("typeName",str(),"lineNumber",integer()), List.of("typeName","lineNumber"),
                 a -> "REMOVE_BREAKPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")));
@@ -229,12 +247,17 @@ public class DebugMcpServer {
                 "Start a Java main class in debug mode without a preexisting launch configuration. "
                         + "Validates the open Java project and fully qualified main class, reuses an existing matching "
                         + "configuration or creates one when absent. Returns launchName for subsequent debugger tools.",
-                Map.of("projectName", str(), "mainType", str()), List.of("projectName", "mainType"),
+                Map.of("projectName", str(), "mainType", str(), "investigationId", str()),
+                List.of("projectName", "mainType"),
                 a -> "START_JAVA_APPLICATION " + enc(arg(a, "projectName")) + " "
-                        + enc(arg(a, "mainType"))));
+                        + enc(arg(a, "mainType")) + optionalId(a)));
         allTools.add(bridgeTool("start_debug_session", "Start or reuse a saved Eclipse debug launch configuration.",
+                Map.of("launchName",str(),"investigationId",str()), List.of("launchName"),
+                a -> "START_DEBUG " + enc(arg(a,"launchName")) + optionalId(a)));
+        allTools.add(bridgeTool("show_debug_location",
+                "Select the agent-controlled suspended session in Eclipse Debug view and open its source at the current line. Does not step or resume.",
                 Map.of("launchName",str()), List.of("launchName"),
-                a -> "START_DEBUG " + enc(arg(a,"launchName"))));
+                a -> "SHOW_DEBUG_LOCATION " + enc(arg(a,"launchName"))));
         allTools.add(bridgeTool("get_debug_status", "Get current debug target and suspension state.",
                 Map.of("launchName",str()), List.of("launchName"),
                 a -> "GET_DEBUG_STATE " + enc(arg(a,"launchName"))));
@@ -259,12 +282,15 @@ public class DebugMcpServer {
                     return "EVALUATE_EXPRESSION " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
                             + " " + intArg(a,"frameIndex") + " " + enc(arg(a,"expression"));
                 }));
-        allTools.add(bridgeTool("control_debug_session", "PAUSE, RESUME, STEP_INTO, STEP_OVER, STEP_RETURN or STOP execution on explicit request.",
+        allTools.add(bridgeTool("control_debug_session", "PAUSE, RESUME, STEP_INTO, STEP_OVER, STEP_RETURN or STOP execution. "
+                        + "For an investigation use finish_debug_investigation for safe completion; "
+                        + "do not STOP or resume unrelated/user-owned sessions.",
                 Map.of("launchName",str(),"threadIndex",integer(),"action",Map.of("type","string",
-                        "enum",List.of("PAUSE","RESUME","STEP_INTO","STEP_OVER","STEP_RETURN","STOP"))),
+                        "enum",List.of("PAUSE","RESUME","STEP_INTO","STEP_OVER","STEP_RETURN","STOP")),
+                        "investigationId",str()),
                 List.of("launchName","threadIndex","action"),
                 a -> "CONTROL_DEBUG " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
-                        + " " + enc(arg(a,"action"))));
+                        + " " + enc(arg(a,"action")) + optionalId(a)));
         allTools.add(bridgeTool("get_process_output", "Read captured stdout and stderr for a debug launch.",
                 Map.of("launchName",str()), List.of("launchName"),
                 a -> "GET_PROCESS_OUTPUT " + enc(arg(a,"launchName"))));
@@ -365,6 +391,21 @@ public class DebugMcpServer {
         if (!(value instanceof Number n) || n.intValue() != n.doubleValue() || n.intValue() < 0)
             throw new IllegalArgumentException("Invalid " + name);
         return n.intValue();
+    }
+
+    private static String mode(Map<String,Object> args) {
+        Object requested = args.get("mode");
+        if (requested == null) return "NORMAL";
+        if (!(requested instanceof String mode) ||
+                (!"NORMAL".equals(mode) && !"CONTROLLED".equals(mode))) {
+            throw new IllegalArgumentException("mode must be NORMAL or CONTROLLED");
+        }
+        return (String) requested;
+    }
+
+    private static String optionalId(Map<String,Object> args) {
+        Object id = args.get("investigationId");
+        return id == null ? "" : " " + enc(arg(args, "investigationId"));
     }
 
     private static String enc(String value) {

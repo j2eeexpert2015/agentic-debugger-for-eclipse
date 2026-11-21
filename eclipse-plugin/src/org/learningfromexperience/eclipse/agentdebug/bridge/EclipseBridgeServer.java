@@ -303,6 +303,7 @@ public class EclipseBridgeServer implements AutoCloseable {
 
     @Override
     public synchronized void close() {
+        operations.close();
 
         if (serverSocket != null) {
 

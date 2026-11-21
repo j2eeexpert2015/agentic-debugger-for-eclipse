@@ -1,12 +1,14 @@
 Use ONLY tools from the eclipse-debugger MCP server. This is an unattended integration test in a dedicated Eclipse Runtime workbench. The fixture project AgenticDebuggerCalculatorE2E and its Java Application launch configuration AverageCalculatorApplication have been prepared automatically.
 
 Perform IN ORDER, using real tool evidence:
+0. Call begin_debug_investigation with mode CONTROLLED. Save the returned investigationId. Supply that ID to set_breakpoint, start_debug_session and control_debug_session. At the end call finish_debug_investigation with the same ID; require mode CONTROLLED and action KEEP_SUSPENDED.
 1. eclipse_ping: require PONG. list_run_configurations: require exact launch AverageCalculatorApplication. list_breakpoints: inspect existing breakpoints.
 2. set_breakpoint at com.learningfromexperience.debugsample.service.AverageCalculator line 10; require success. Do not delete breakpoints.
 3. start_debug_session with launchName AverageCalculatorApplication; wait_for_debug_pause (timeoutSeconds 15).
 4. get_debug_threads, get_stack_frames and get_frame_variables: inspect suspended main thread and the AverageCalculator.calculateAverage frame, with AverageCalculatorApplication.main as its caller. Before line 10, confirm sum=0 and number=10.
 5. control_debug_session STEP_OVER exactly ONCE for that thread. wait_for_debug_pause and inspect frames and variables again. Confirm sum=10.
-6. Explain the deliberate bug using the Java source supplied at the end of this prompt AND the observed debugger values. The int sum divided by int numbers.length truncates 61 / 3 to 20 before being returned as double (20.0), instead of 20.333... . State clearly that the final sum of 61 is established by the supplied source inputs and arithmetic, NOT by running further debugger steps.
-7. Leave debugging suspended. Output concise PASS/FAIL with actual observations; never invent success.
+6. Call show_debug_location with launchName AverageCalculatorApplication. Require scheduled=true to confirm that the selected suspended frame can be navigated to in Eclipse. The visible editor and Debug view selection must still be checked manually during a GUI acceptance test.
+7. Explain the deliberate bug using the Java source supplied at the end of this prompt AND the observed debugger values. The int sum divided by int numbers.length truncates 61 / 3 to 20 before being returned as double (20.0), instead of 20.333... . State clearly that the final sum of 61 is established by the supplied source inputs and arithmetic, NOT by running further debugger steps.
+8. Finish the investigation in CONTROLLED mode and leave debugging suspended. Output concise PASS/FAIL with actual observations; never invent success.
 
 Do NOT call evaluate_expression: it requires separate explicit consent and is unnecessary for this test. Do not use shell, filesystem tools, source reading tools, or another MCP server. Do not change Java source, launch configurations, or existing breakpoints. Stop on failure and report the exact tool response.

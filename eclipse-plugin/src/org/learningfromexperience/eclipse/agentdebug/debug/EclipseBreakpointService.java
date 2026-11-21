@@ -24,6 +24,9 @@ import org.eclipse.jdt.debug.core.JDIDebugModel;
  */
 public class EclipseBreakpointService {
 
+    public static final String INVESTIGATION_ATTRIBUTE =
+            "org.learningfromexperience.eclipse.agentdebug.investigationId";
+
     public static final String OWNER_ATTRIBUTE =
             "org.learningfromexperience.eclipse.agentdebug.owner";
 
@@ -85,8 +88,33 @@ public class EclipseBreakpointService {
         return removed;
     }
 
+    /** Deletes only the marker created for this exact investigation. */
+    public boolean removeInvestigationBreakpoint(String typeName, int lineNumber,
+                                                 String investigationId) throws CoreException {
+        boolean removed = false;
+        for (IBreakpoint breakpoint : DebugPlugin.getDefault().getBreakpointManager().getBreakpoints()) {
+            if (!(breakpoint instanceof IJavaLineBreakpoint javaBreakpoint)) continue;
+            var marker = javaBreakpoint.getMarker();
+            if (marker == null || !marker.exists()) continue;
+            if (typeName.equals(javaBreakpoint.getTypeName())
+                    && lineNumber == javaBreakpoint.getLineNumber()
+                    && "agent".equals(marker.getAttribute(OWNER_ATTRIBUTE, "user"))
+                    && investigationId.equals(marker.getAttribute(INVESTIGATION_ATTRIBUTE, ""))) {
+                javaBreakpoint.delete();
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
     public BreakpointResult setBreakpoint(String qualifiedTypeName, int lineNumber)
             throws CoreException {
+        return setBreakpoint(qualifiedTypeName, lineNumber, null);
+    }
+
+    /** Associate newly created markers with an investigation for safe cleanup. */
+    public BreakpointResult setBreakpoint(String qualifiedTypeName, int lineNumber,
+                                          String investigationId) throws CoreException {
         if (qualifiedTypeName == null ||
                 !qualifiedTypeName.matches("[A-Za-z_$][\\w$]*(\\.[A-Za-z_$][\\w$]*)+")) {
             throw new IllegalArgumentException("Provide a fully qualified Java type name");
@@ -133,9 +161,11 @@ public class EclipseBreakpointService {
                     resource.getProject().getName(), false, getOwner(existing));
         }
 
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put(OWNER_ATTRIBUTE, "agent");
+        if (investigationId != null) attributes.put(INVESTIGATION_ATTRIBUTE, investigationId);
         JDIDebugModel.createLineBreakpoint(resource, qualifiedTypeName,
-                lineNumber, -1, -1, 0, true,
-                new HashMap<>(Map.of(OWNER_ATTRIBUTE, "agent")));
+                lineNumber, -1, -1, 0, true, attributes);
 
         return new BreakpointResult(qualifiedTypeName, lineNumber,
                 resource.getProject().getName(), true, "agent");

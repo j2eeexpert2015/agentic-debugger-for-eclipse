@@ -40,6 +40,7 @@ import org.eclipse.jdt.debug.core.IJavaStackFrame;
 import org.eclipse.jdt.debug.eval.EvaluationManager;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
+import org.learningfromexperience.eclipse.agentdebug.ui.AgentDebugUiCoordinator;
 
 /**
  * Exposes authenticated Eclipse Java debugging operations to the local MCP bridge.
@@ -48,6 +49,11 @@ import org.eclipse.jdt.debug.eval.IEvaluationResult;
  */
 public final class EclipseAgentOperations {
     private final EclipseBreakpointService breakpoints = new EclipseBreakpointService();
+    private final AgentDebugUiCoordinator ui = new AgentDebugUiCoordinator();
+    private final DebugInvestigationPolicy investigations = new DebugInvestigationPolicy();
+
+    /** Remove the UI event listener when the bridge shuts down. */
+    public void close() { ui.close(); }
 
     public String execute(String command) {
         try {
@@ -56,6 +62,8 @@ public final class EclipseAgentOperations {
                 case "GET_E2E_INFO" -> buildIdentity();
                 case "PREPARE_SMOKE_TEST" -> new SmokeTestProject().prepare();
                 case "LIST_BREAKPOINTS" -> listBreakpoints();
+                case "BEGIN_INVESTIGATION" -> beginInvestigation(p);
+                case "FINISH_INVESTIGATION" -> finishInvestigation(p);
                 case "SET_BREAKPOINT" -> setBreakpoint(p);
                 case "REMOVE_BREAKPOINT" -> removeBreakpoint(p);
                 case "LIST_RUN_CONFIGURATIONS" -> listRunConfigurations();
@@ -63,6 +71,8 @@ public final class EclipseAgentOperations {
                 case "START_JAVA_APPLICATION" -> startJavaApplication(p);
                 case "START_DEBUG" -> startDebug(p);
                 case "GET_DEBUG_STATE" -> getDebugState(p);
+                case "SHOW_DEBUG_LOCATION" -> showDebugLocation(p);
+                case "GET_UI_STATUS" -> ok(",\"navigation\":" + q(ui.status()));
                 case "GET_THREADS" -> getThreads(p);
                 case "GET_STACK" -> getStack(p);
                 case "GET_VARIABLES" -> getVariables(p);
@@ -72,7 +82,7 @@ public final class EclipseAgentOperations {
                 default -> error("Unknown command");
             };
         } catch (Exception e) {
-            return error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            return error(e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()));
         }
     }
 
@@ -135,6 +145,58 @@ public final class EclipseAgentOperations {
         return Integer.parseInt(p[index]);
     }
 
+    /** Optional investigation IDs preserve compatibility with existing MCP tools. */
+    private String optionalInvestigation(String[] parts, int index) {
+        return parts.length > index && !parts[index].isBlank() ? require(parts, index) : null;
+    }
+
+    private String beginInvestigation(String[] p) {
+        String mode = p.length > 1 ? require(p, 1) : "NORMAL";
+        var investigation = investigations.begin(mode);
+        return ok(",\"investigationId\":" + q(investigation.id())
+                + ",\"mode\":" + q(investigation.mode().name()));
+    }
+
+    /** Finalizes only work belonging to the explicitly identified investigation. */
+    private String finishInvestigation(String[] p) throws CoreException {
+        String id = require(p, 1);
+        var investigation = investigations.require(id);
+        String action = investigation.mode() == DebugInvestigationPolicy.Mode.NORMAL
+                ? "CLEANUP" : "KEEP_SUSPENDED";
+        // Ignore free-form client actions: mode is determined when investigation begins.
+        if (investigation.mode() == DebugInvestigationPolicy.Mode.CONTROLLED
+                && investigation.launchName() != null) {
+            ILaunch active = launch(investigation.launchName());
+            boolean suspended = false;
+            for (var debugTarget : active.getDebugTargets()) {
+                if (debugTarget.isTerminated()) continue;
+                for (var thread : debugTarget.getThreads()) {
+                    if (thread.isSuspended()) suspended = true;
+                }
+            }
+            if (!suspended) {
+                throw new IllegalStateException("CONTROLLED investigation is not suspended; "
+                        + "pause the owned session before finishing");
+            }
+        }
+        if (investigation.mode() == DebugInvestigationPolicy.Mode.NORMAL) {
+            Object owned = investigation.ownedLaunch();
+            if (owned instanceof ILaunch launch && !launch.isTerminated()) {
+                launch.terminate();
+            }
+            for (var bp : investigation.breakpoints()) {
+                breakpoints.removeInvestigationBreakpoint(bp.typeName(), bp.lineNumber(), id);
+            }
+        }
+        investigations.finish(id);
+        return ok(",\"investigationId\":" + q(id)
+                + ",\"mode\":" + q(investigation.mode().name())
+                + ",\"action\":" + q(action)
+                + ",\"launchName\":" + q(investigation.launchName())
+                + ",\"ownedSession\":" + (investigation.ownedLaunch() != null)
+                + ",\"completed\":true");
+    }
+
     private String listBreakpoints() throws CoreException {
         var all = breakpoints.listBreakpoints();
         List<String> items = new ArrayList<>();
@@ -145,7 +207,12 @@ public final class EclipseAgentOperations {
     }
 
     private String setBreakpoint(String[] p) throws CoreException {
-        var bp = breakpoints.setBreakpoint(require(p, 1), number(p, 2));
+        String investigationId = optionalInvestigation(p, 3);
+        var investigation = investigationId == null ? null : investigations.require(investigationId);
+        var bp = breakpoints.setBreakpoint(require(p, 1), number(p, 2), investigationId);
+        if (investigation != null && bp.created()) {
+            investigation.recordBreakpoint(bp.typeName(), bp.lineNumber());
+        }
         return ok(",\"typeName\":" + q(bp.typeName()) + ",\"lineNumber\":" + bp.lineNumber()
                 + ",\"projectName\":" + q(bp.projectName()) + ",\"created\":" + bp.created()
                 + ",\"owner\":" + q(bp.owner()));
@@ -195,6 +262,8 @@ public final class EclipseAgentOperations {
      * Existing application configurations are reused and never overwritten.
      */
     private String startJavaApplication(String[] parts) throws CoreException {
+        String investigationId = optionalInvestigation(parts, 3);
+        var investigation = investigationId == null ? null : investigations.require(investigationId);
         String projectName = require(parts, 1);
         String mainType = require(parts, 2);
         IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
@@ -238,15 +307,20 @@ public final class EclipseAgentOperations {
             config = matching.get(0);
         }
         String name = config.getName();
+        if (investigation != null) investigation.verifyLaunchTarget(name);
         // Preserve an active session, including its suspended state, rather than restarting it.
         for (var launch : manager().getLaunches()) {
             if (!launch.isTerminated() && ILaunchManager.DEBUG_MODE.equals(launch.getLaunchMode())
                     && config.equals(launch.getLaunchConfiguration())) {
+                if (investigation != null) investigation.recordLaunch(name, launch, false);
+                ui.follow(launch);
                 return ok(",\"launchName\":" + q(name)
                         + ",\"createdConfiguration\":" + created + ",\"reusedSession\":true");
             }
         }
-        config.launch(ILaunchManager.DEBUG_MODE, null);
+        ILaunch started = config.launch(ILaunchManager.DEBUG_MODE, null);
+        if (investigation != null) investigation.recordLaunch(name, started, true);
+        ui.follow(started);
         return ok(",\"launchName\":" + q(name)
                 + ",\"createdConfiguration\":" + created + ",\"reusedSession\":false");
     }
@@ -254,6 +328,8 @@ public final class EclipseAgentOperations {
     private static ILaunchManager manager() { return DebugPlugin.getDefault().getLaunchManager(); }
 
     private String startDebug(String[] p) throws CoreException {
+        String investigationId = optionalInvestigation(p, 2);
+        var investigation = investigationId == null ? null : investigations.require(investigationId);
         String name = require(p, 1);
         ILaunchConfiguration found = null;
         for (var c : manager().getLaunchConfigurations()) {
@@ -263,15 +339,20 @@ public final class EclipseAgentOperations {
             }
         }
         if (found == null) throw new IllegalArgumentException("Debug-capable launch configuration not found");
+        if (investigation != null) investigation.verifyLaunchTarget(name);
         // Reuse the existing active launch for this configuration by name.
         for (var launch : manager().getLaunches()) {
             if (launch.getLaunchConfiguration() != null
                     && launch.getLaunchConfiguration().equals(found) && !launch.isTerminated()
                     && ILaunchManager.DEBUG_MODE.equals(launch.getLaunchMode())) {
+                if (investigation != null) investigation.recordLaunch(name, launch, false);
+                ui.follow(launch);
                 return ok(",\"reused\":true,\"launchName\":" + q(name));
             }
         }
-        found.launch(ILaunchManager.DEBUG_MODE, null);
+        ILaunch started = found.launch(ILaunchManager.DEBUG_MODE, null);
+        if (investigation != null) investigation.recordLaunch(name, started, true);
+        ui.follow(started);
         return ok(",\"reused\":false,\"launchName\":" + q(name));
     }
 
@@ -299,6 +380,14 @@ public final class EclipseAgentOperations {
         }
         if (chosen == null) throw new IllegalArgumentException("No active Java debug target yet");
         return chosen;
+    }
+
+    /** Display the suspended source for the exact named launch without changing execution. */
+    private String showDebugLocation(String[] p) throws CoreException {
+        ILaunch selected = launch(require(p, 1));
+        boolean scheduled = ui.showSuspended(selected, true);
+        return ok(",\"scheduled\":" + scheduled + ",\"launchName\":"
+                + q(selected.getLaunchConfiguration().getName()));
     }
 
     private String getDebugState(String[] p) throws CoreException {
@@ -336,7 +425,9 @@ public final class EclipseAgentOperations {
     }
 
     private String getStack(String[] p) throws CoreException {
-        IThread t = thread(launch(require(p, 1)), number(p, 2));
+        ILaunch selected = launch(require(p, 1));
+        ui.follow(selected);
+        IThread t = thread(selected, number(p, 2));
         if (!t.isSuspended()) throw new IllegalArgumentException("Thread is not suspended");
         List<String> items = new ArrayList<>();
         IStackFrame[] frames = t.getStackFrames();
@@ -408,7 +499,19 @@ public final class EclipseAgentOperations {
 
     private String control(String[] p) throws CoreException {
         ILaunch l = launch(require(p, 1));
+        ui.follow(l);
         String action = require(p, 3);
+        String investigationId = optionalInvestigation(p, 4);
+        if (investigationId != null) {
+            var investigation = investigations.require(investigationId);
+            if (investigation.launchName() == null ||
+                    !investigation.launchName().equals(require(p, 1))) {
+                throw new IllegalArgumentException("Session is not associated with this investigation");
+            }
+            if ("STOP".equals(action) && investigation.ownedLaunch() != l) {
+                throw new IllegalStateException("Cannot terminate a reused/user-owned session");
+            }
+        }
         if ("STOP".equals(action)) {
             target(l).terminate();
         } else {
@@ -422,6 +525,7 @@ public final class EclipseAgentOperations {
                 default -> throw new IllegalArgumentException("Unknown control action");
             }
         }
+        if (!"STOP".equals(action)) ui.showSuspended(l, false);
         return ok(",\"action\":" + q(action) + ",\"accepted\":true");
     }
 
