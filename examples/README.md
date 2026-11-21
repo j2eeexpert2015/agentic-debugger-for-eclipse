@@ -1,5 +1,7 @@
 # Java debugging fixtures
 
+The [Spring Boot orders fixture](spring-boot-debugging/README.md) provides two Java mains, a local HTTP endpoint and selected plain and Spring-context JUnit tests for Phase 2.
+
 `average-calculator-debug-sample` is an optional two-class Java project for manual demonstrations. Import it into Eclipse with **Existing Projects into Workspace**.
 
 The automated `mvn verify -Pe2e` / `-Pinstalled-e2e` tests create their own isolated sample project; do not import this one for those tests.

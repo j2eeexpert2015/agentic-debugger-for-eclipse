@@ -22,7 +22,7 @@
 |---|---|---|---|
 | **0** | Real Eclipse JDT debugger controlled by a Java MCP server | Implemented; installed calculator E2E and ownership evidence | Preserve base regression and resource isolation |
 | **1** | Conditional and exception breakpoints, single JUnit test, nested inspection, tracepoints, owned restart and step filters | **All seven direct and explicit Claude tests passed on installed Windows candidate; publication pending** | Decide publication of the verified ZIP |
-| **2** | Reliable Boot launch/configuration, readiness, HTTP reproduction and practical Boot/JUnit debugging | **Planned, not verified as framework-specific functionality** | One complete real HTTP debugging path, Boot unit/integration test paths, negative/ownership tests and installed regression |
+| **2** | Reliable Boot launch/configuration, readiness, HTTP reproduction and practical Boot/JUnit debugging | Initial installed Boot and JUnit checks recorded; full acceptance pending | One complete real HTTP debugging path, Boot unit/integration test paths, negative/ownership tests and installed regression |
 | **3** | Optional, replaceable Java + JUnit + Spring Boot agentic debugging skill | Research and initial Java behavior baseline exist; **skill not implemented** | Demonstrate correct activation and cross-context guidance without coupling debugger to skill |
 | **4** | Repeatable no-skill / stable-skill / candidate-skill testing | Evaluation specification exists; **A/B runner and repeated trials not built** | Measurable value with predeclared thresholds, no safety or non-debug regressions |
 | **5** | Remote attach, watchpoints, run-to-line, HCR, mutation and deeper Boot/JPA/transaction diagnostics | **Deferred; feasibility and user value to be established** | Feature-specific API spike, fixture, proof, safety review and deliberate prioritization |
@@ -60,6 +60,8 @@
 **Objective:** Debug a real Spring Boot application *through Eclipse*, including a failing HTTP call and targeted JUnit tests, with the existing Java tools reused wherever possible. This is a bounded, testable milestone, not an indefinite Spring Tools replacement.
 
 **Important distinction:** Phase 1 already supports an individual ordinary JUnit 5 test. Phase 2 must *verify* that existing discovery/launch works for Spring-context tests and add only necessary changes; do not create a second JUnit subsystem prematurely.
+
+The [tool audit](spring-boot-tool-audit.md) records the fixture results, observed limits and remaining configuration checks.
 
 ### Milestone 2A — Tool and environment feasibility
 

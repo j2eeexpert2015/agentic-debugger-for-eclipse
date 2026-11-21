@@ -53,7 +53,7 @@
 
 ## Phase 2 — Essential Spring Boot and JUnit
 
-All rows below are **planned only**; no Spring-specific acceptance run is recorded. `BOOT-05` remains deferred to Phase 5 and its original ID is retained. Detailed real-world prompts, fixtures, direct assertions, negatives and evidence: [spring-boot-debugging-scenarios.md](spring-boot-debugging-scenarios.md).
+The [installed fixture audit](spring-boot-tool-audit.md) records initial direct checks for discovery, launch, readiness, HTTP and JUnit. Full scenario acceptance remains open. `BOOT-05` remains deferred to Phase 5 and its original ID is retained. Detailed real-world prompts, fixtures, direct assertions, negatives and evidence: [spring-boot-debugging-scenarios.md](spring-boot-debugging-scenarios.md).
 
 | ID / scenarios | Developer need / proposed capability | Reuse-first hypothesis (verify, not assume) | Required acceptance / priority |
 |---|---|---|---|

@@ -2,7 +2,7 @@
 
 Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
-**Project status · 22 November 2026.** Core Java debugging and the seven Phase 1 capabilities passed installed Windows candidate verification; publication remains pending. **Next planned phase: essential Spring Boot + Spring Boot/JUnit debugging**, followed by the optional unified skill and its A/B evaluation. [Verification evidence](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
+**Project status · 22 November 2026.** Core Java debugging and the seven Phase 1 capabilities passed installed Windows candidate verification; publication remains pending. **Phase 2 is underway.** The [first installed Boot checks](docs/spring-boot-tool-audit.md) exercised HTTP and individual Java and Spring-context JUnit launches. Further Boot verification is planned, followed by the optional unified skill and its A/B evaluation. [Verification evidence](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
 
 ## Contents
 
@@ -31,7 +31,7 @@ The [Development Roadmap](docs/development-roadmap.md) defines phase order and e
 |---|---|---|---|
 | **0** | Core Eclipse MCP debugger: Java launch, breakpoints, stepping, variables, lifecycle and ownership | Implemented; core installed regression tested | [Phase 0](docs/development-roadmap.md#phase-0--core-eclipse-mcp-debugger) |
 | **1** | Seven advanced Java features **including individual JUnit 5 debugging** | 7/7 direct and 7/7 explicit Claude tests passed on Windows candidate; **unpublished** | [Phase 1](docs/development-roadmap.md#phase-1--advanced-core-java-debugging) |
-| **2** | **Essential Spring Boot and Spring Boot/JUnit:** discovery, safe launch/config, readiness, HTTP reproduction, controller/service tracing, context tests | **Next; planned and not verified** | [Phase 2](docs/development-roadmap.md#phase-2--essential-spring-boot-and-junit-debugging) · [Scenarios](docs/spring-boot-debugging-scenarios.md) |
+| **2** | **Essential Spring Boot and Spring Boot/JUnit:** discovery, safe launch/config, readiness, HTTP reproduction, controller/service tracing, context tests | Initial direct checks completed; full acceptance pending | [Phase 2](docs/development-roadmap.md#phase-2--essential-spring-boot-and-junit-debugging) · [Scenarios](docs/spring-boot-debugging-scenarios.md) |
 | **3** | Optional, independently replaceable **Java + JUnit + Spring Boot** debugging skill | Research/requirements exist; skill not implemented | [Phase 3](docs/development-roadmap.md#phase-3--unified-agentic-debugging-skill) |
 | **4** | Repeatable no-skill / stable / candidate **skill A/B evaluation** | Baseline observations exist; runner and replicated comparisons pending | [Phase 4](docs/development-roadmap.md#phase-4--skill-evaluation-and-optimization) |
 | **5** | Advanced Java + Boot: remote attach, watchpoints, run-to-line, HCR, mutation, JPA/transactions | Deferred; individual feasibility required | [Phase 5](docs/development-roadmap.md#phase-5--advanced-java-and-spring-boot-capabilities) |

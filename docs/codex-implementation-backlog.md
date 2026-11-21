@@ -19,7 +19,7 @@
 
 **Inspect:** `README.md`, `docs/phase1-implementation-status.md`, `docs/capabilities.md`, `docs/phase1-claude-scenarios.md`, `scripts/windows/dev.bat`, `docs/evaluation-plan.md`, installed test results and current revision. **Deliver:** source SHA + bundle version + artifact hash release record, consistent documentation and a deliberate release decision. **Tests:** `dev.bat doctor`, `dev.bat test`, ownership suite on the disposable IDE and final installed candidate as available. Do not claim the old uncommitted candidate is byte-identical to current `main` without comparison.
 
-**Audit outcome (22 November 2026).** The original installed plug-in hash matches the historical test record, and its unpacked contents match a clean source rebuild of `ff28455`. **P1-REL verification complete.** The [newly versioned ZIP](phase1-implementation-status.md#verified-distribution-zip) passed installed acceptance. Publication awaits approval. P2-01 is the next development task. [Source and artifact audit](phase1-implementation-status.md#source-and-artifact-audit)
+**Audit outcome (22 November 2026).** The original installed plug-in hash matches the historical test record, and its unpacked contents match a clean source rebuild of `ff28455`. **P1-REL verification complete.** The [newly versioned ZIP](phase1-implementation-status.md#verified-distribution-zip) passed installed acceptance. Publication awaits approval. The P2-01 findings and P2-02 fixture are recorded below. [Source and artifact audit](phase1-implementation-status.md#source-and-artifact-audit)
 
 ### P2-01 — Audit existing API support for Boot and JUnit
 
@@ -28,6 +28,8 @@
 ### P2-02 — Create safe, deterministic Boot fixture
 
 **Deliver:** `examples/spring-boot-debugging` as a standalone Maven Spring Boot sample with an order endpoint, controller/service/in-memory repository, fixed deterministic discount defect, invalid-quantity error path, two candidate Boot mains/projects or test ambiguity setup, ordinary JUnit service test and `@SpringBootTest` test. Add distinct `@WebMvcTest` example only if useful, clearly labelled MockMvc. Document intended failure and root-cause oracle outside agent prompts. **Tests:** compile and run passing fixture setup/smoke checks, execute intentionally failing checks separately, ensure root package unaffected. Once the fixture builds, run the existing Java and JUnit tools against it in Eclipse. Update the P2-01 matrix with observed behavior and logs before proposing a Boot-specific API. **No real payments/databases/cloud accounts.**
+
+**P2-01 and P2-02 outcome.** The [tool audit](spring-boot-tool-audit.md) records the source review and initial direct installed results against the [orders fixture](../examples/spring-boot-debugging/README.md). Continue with P2-03 configuration, readiness failure and cleanup checks.
 
 ### P2-03 — Boot launch, configuration and readiness
 

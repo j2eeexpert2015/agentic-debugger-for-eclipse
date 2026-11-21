@@ -2,15 +2,15 @@
 
 [README](../README.md) · [Development roadmap](development-roadmap.md) · [Feature tracker](feature-roadmap.md) · [Codex implementation backlog](codex-implementation-backlog.md) · [Existing Java/JUnit scenarios](phase1-claude-scenarios.md)
 
-**State:** Requirements and acceptance specification; **none of these Spring Boot-specific scenarios is claimed as tested or implemented**. Reviewed against repository `main` at `11e6966` on 22 November 2026. The existing Phase 1 debugger already supports a selected standalone JUnit 5 method; this catalog adds Spring-context and application-level coverage, not a duplicate JUnit framework.
+**State on 22 November 2026.** Initial direct checks on the orders fixture are recorded in the [tool audit](spring-boot-tool-audit.md). The four acceptance gates below remain the criteria for full verification. The existing Phase 1 debugger already supports a selected standalone JUnit 5 method; this catalog adds Spring-context and application-level coverage, not a duplicate JUnit framework.
 
 ## 1. Evaluation method and fixture policy
 
 Each scenario has **four independent gates**: (1) direct installed-Eclipse/JDT behavior (not Claude), (2) explicit Claude prompt naming objective and mechanism, (3) symptom-only natural-language prompt requiring the agent to select the method, and (4) negative/ownership/cleanup assertions. A prompt alone is not test evidence.
 
-### Required fixture: `examples/spring-boot-debugging` (proposed, not yet present)
+### Installed test fixture
 
-Create a small Java 21+ Maven Spring Boot REST application with tests, documentation and repeatable fixed data. Choose a concrete supported Spring Boot release during implementation and record it; do **not** assert an unverified version here. Suggested packages: `...bootfixture` with `OrderController`, `OrderService`, `OrderRepository` (in-memory implementation initially), `OrderRequest`, `OrderResponse`, `BootFixtureApplication`, `OrderServiceTest`, `OrderControllerWebMvcTest`, `OrderApiIntegrationTest`.
+The [standalone Maven fixture](../examples/spring-boot-debugging/README.md) uses Spring Boot 3.5.16, two mains, an in-memory repository, a plain JUnit service test and a real-port Spring-context test.
 
 Ground-truth defects should be **intentional, independent and documented in a verifier-only oracle**, not telegraphed to Claude: e.g. request `POST /orders/quote` for quantity 2, unitPrice 60, discountPercent 10 should return 108.00, but truncating integer division produces 120.00. Another request with invalid quantity should produce a documented HTTP validation response; include one controlled caught-exception path. Use fixed ports chosen by test harness or an explicit ready-port handshake, not a hard-coded port that may conflict. Prevent calls to real external resources; no real email/payment/database writes.
 
