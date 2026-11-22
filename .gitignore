@@ -18,3 +18,9 @@ eclipse-plugin/lib/agentic-debugger-mcp.jar
 
 # Phase 1 local evaluation traces
 evaluation/reports/
+
+# Local test-framework installation backups
+evaluation/skill-automation/*-backup-*/
+
+# Temporary installer backups
+evaluation/skill-automation/*-install-backup-*/
