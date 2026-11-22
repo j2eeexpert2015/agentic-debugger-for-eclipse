@@ -206,3 +206,8 @@ Use [Phase 1 status](docs/phase1-implementation-status.md), [Java verification](
 These documents separate **what is implemented**, **what a source suggests**, **what may be feasible**, and **what has actually been verified**. The debugging skill and its repeatable A/B evaluation runner are proposals, not installed product features. Installed Phase 1 regressions and selected Phase 2 tests have passed, but broad Phase 2 acceptance and publication remain pending.
 
 For Java-only verification prerequisites, scenario selection, and report format, see [Phase 1 Java verification](docs/phase1-java-test-runner.md).
+
+
+## Windows developer/test setup (integrated)
+
+The project uses one central configuration file: [scripts/windows/dev-settings.cmd](scripts/windows/dev-settings.cmd). Use RUN-WINDOWS-TESTS.cmd config, then deploy (close target Eclipse first), followed by doctor. Commands print the effective repository, Eclipse installation, disposable workspace and bridge port. No manual cd or per-session environment variables are required. See [Windows testing quickstart](docs/windows-test-quickstart.md).

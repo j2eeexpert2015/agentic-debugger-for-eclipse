@@ -1,8 +1,9 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
+call "%~dp0dev-settings.cmd" || exit /b 1
 rem Agentic Debugger for Eclipse IDE - Phase 1 Java bridge acceptance tests.
 rem Author: Ayan Dutta
-rem Requires the new plugin installed in a RUNNING Eclipse instance, port 8765 free
+rem Requires the new plugin installed in a RUNNING Eclipse instance, the configured bridge port free
 rem from other Eclipse instances, and phase-one-debugging imported as a Maven project.
 rem Usage: verify-phase1-eclipse.bat [all|conditional|exception|junit|variables|trace|pause-restart|filters]
 set "PROJECT_DIR=%~dp0..\.."
@@ -42,7 +43,7 @@ echo =============================================
 echo Repository: %PROJECT_DIR%
 echo Scenario  : %SCENARIO%
 echo.
-echo [PREREQUISITES] Keep installed Eclipse open and its bridge listening on 127.0.0.1:8765.
+echo [PREREQUISITES] Keep installed Eclipse open and its bridge listening on 127.0.0.1:%AGENTDEBUG_PORT%.
 echo [PREREQUISITES] Import examples\phase-one-debugging using Maven ^> Existing Maven Projects.
 echo [IMPORTANT] This runs Java bridge tests; it does not invoke Claude Code.
 echo.

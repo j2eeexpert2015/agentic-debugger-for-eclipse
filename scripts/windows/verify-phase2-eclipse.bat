@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableExtensions
+call "%~dp0dev-settings.cmd" || exit /b 1
 pushd "%~dp0..\.." || exit /b 1
 set "mode=%~1"
 if "%mode%"=="" set "mode=all"
