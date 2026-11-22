@@ -62,4 +62,16 @@ These results cover the direct and explicit-prompt investigation of this fixture
 
 Eclipse previously launched the selected plain and Spring-context JUnit methods and stopped in application code. The latest default Maven fixture run recorded two passing tests and one disabled test skipped. The broken-context fixture carries the `debug-defect` tag, which that run excludes.
 
-The isolated Eclipse workspace reported a project-description error during import, before it produced JUnit results for the negative cases. Installed verification remains open for rejection of a missing method, context initialization failure before the test body, and a selected method skipped by JUnit.
+The earlier workspace stopped during import. On 22 November 2026, a clean build of commit `587f72950efee6826c16d9f36897b7ac1306c7d4` produced bundle `1.5.0.20261122050939175`. The installed plug-in matched the copy inside the update-site ZIP. Its committed importer prepared both fixture projects in an empty workspace, and Eclipse discovered all six Boot fixture methods.
+
+| Selected case | Installed Eclipse evidence |
+|---|---|
+| Missing method | The bridge rejected `OrderServiceTest.absentMethod`. Configuration count and JUnit session count stayed unchanged. |
+| Plain JUnit discount test | Only `calculatesDiscount` ran. The service stack showed the selected test as caller, with `percent=10` and `rate=0`. After resume JUnit recorded one assertion failure, expected 108.00 and actual 120.00. |
+| Spring-context discount test | Only `quoteAppliesDiscount` ran. The HTTP controller called the service in the embedded server with the same incorrect rate. JUnit reported the same assertion failure. |
+| Context initialization failure | Eclipse selected `BrokenContextTest.requiresContext`. JUnit recorded one error caused by the fixture bean exception before the test body executed. |
+| Disabled method | Eclipse selected `SkippedOrderTest.selectedButDisabled`. The completed JUnit report marked that method ignored, with zero failures and zero errors. |
+
+A test-only listener exported completed Eclipse JUnit sessions. The bridge provided the launch, stack and local-variable evidence. Every direct investigation completed NORMAL cleanup, earlier saved configurations retained their settings, and the final breakpoint list was empty. These are fixture-specific P2-05 checks. Full candidate acceptance remains in P2-06.
+
+Two fresh explicit Claude sessions (SB-06 and SB-07) also discovered and launched the individual methods, inspected the live rate of zero, distinguished the plain test caller from the HTTP controller, and completed NORMAL cleanup. Claude reported the debugger observations. The matching Eclipse JUnit XML supplied the final assertion verdict for each run.

@@ -2,7 +2,7 @@
 
 Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
-**Project status · 22 November 2026.** Core Java debugging and the seven Phase 1 capabilities passed installed Windows candidate verification; publication remains pending. **Phase 2 is underway.** Eclipse launched individual plain and Spring-context JUnit methods. A direct run and one explicit Claude run traced the incorrect HTTP quote from request to response. Task 5 is now checking JUnit failure and skip behavior in installed Eclipse. [Boot test results](docs/spring-boot-tool-audit.md) · [Verification evidence](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
+**Project status · 22 November 2026.** Core Java debugging and the seven Phase 1 capabilities passed installed Windows candidate verification; publication remains pending. **Phase 2 is underway.** Eclipse launched individual plain and Spring-context JUnit methods. A direct run and one explicit Claude run traced the incorrect HTTP quote from request to response. Installed JUnit checks now cover missing methods, Spring context startup errors and disabled tests. [Boot test results](docs/spring-boot-tool-audit.md) · [Verification evidence](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
 
 ## Contents
 
@@ -31,14 +31,14 @@ The [Development Roadmap](docs/development-roadmap.md) defines phase order and e
 |---|---|---|---|
 | **0** | Core Eclipse MCP debugger: Java launch, breakpoints, stepping, variables, lifecycle and ownership | Implemented; core installed regression tested | [Phase 0](docs/development-roadmap.md#phase-0--core-eclipse-mcp-debugger) |
 | **1** | Seven advanced Java features **including individual JUnit 5 debugging** | 7/7 direct and 7/7 explicit Claude tests passed on Windows candidate; **unpublished** | [Phase 1](docs/development-roadmap.md#phase-1--advanced-core-java-debugging) |
-| **2** | **Essential Spring Boot and Spring Boot/JUnit:** discovery, safe launch/config, readiness, HTTP reproduction, controller/service tracing, context tests | Launch and HTTP checks passed. JUnit failure cases are in progress. | [Phase 2](docs/development-roadmap.md#phase-2--essential-spring-boot-and-junit-debugging) · [Scenarios](docs/spring-boot-debugging-scenarios.md) |
+| **2** | **Essential Spring Boot and Spring Boot/JUnit:** discovery, safe launch/config, readiness, HTTP reproduction, controller/service tracing, context tests | Launch, HTTP and selected JUnit checks passed. Full Phase 2 acceptance is pending. | [Phase 2](docs/development-roadmap.md#phase-2--essential-spring-boot-and-junit-debugging) · [Scenarios](docs/spring-boot-debugging-scenarios.md) |
 | **3** | Optional, independently replaceable **Java + JUnit + Spring Boot** debugging skill | Research/requirements exist; skill not implemented | [Phase 3](docs/development-roadmap.md#phase-3--unified-agentic-debugging-skill) |
 | **4** | Repeatable no-skill / stable / candidate **skill A/B evaluation** | Baseline observations exist; runner and replicated comparisons pending | [Phase 4](docs/development-roadmap.md#phase-4--skill-evaluation-and-optimization) |
 | **5** | Advanced Java + Boot: remote attach, watchpoints, run-to-line, HCR, mutation, JPA/transactions | Deferred; individual feasibility required | [Phase 5](docs/development-roadmap.md#phase-5--advanced-java-and-spring-boot-capabilities) |
 
 **Current evidence boundary:** On installed candidate `1.5.0.20261121184224374`, the repo records 7/7 direct Java feature checks, 7/7 explicit Claude runs and 32/32 ownership checks. In **seven trials (one per symptom prompt, with relevant fixture source supplied)**, Claude selected the intended mechanism in 6/7 and provided complete answers in 5/7. Trace output completeness and choosing a restart were the two partial cases; this is a skill-evaluation baseline, **not** evidence that the Phase 1 tools failed. [Details](docs/phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
 
-**Implementation order:** [Phase 1 distribution verified](docs/phase1-implementation-status.md#verified-distribution-zip) → finish installed JUnit failure checks and the remaining Boot acceptance scenarios → establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
+**Implementation order:** [Phase 1 distribution verified](docs/phase1-implementation-status.md#verified-distribution-zip) → complete the remaining Boot acceptance scenarios → establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
 
 ## 1. Install and use (end users)
 

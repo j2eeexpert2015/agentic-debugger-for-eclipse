@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Development roadmap](development-roadmap.md) · [Feature tracker](feature-roadmap.md) · [Codex implementation backlog](codex-implementation-backlog.md) · [Existing Java/JUnit scenarios](phase1-claude-scenarios.md)
 
-**State on 22 November 2026.** The [tool audit](spring-boot-tool-audit.md) records direct launch and JUnit checks, the direct and explicit Claude HTTP investigation, and the pending installed JUnit failure cases. The four acceptance gates below remain the criteria for full verification. The existing Phase 1 debugger already supports a selected standalone JUnit 5 method; this catalog adds Spring-context and application-level coverage, not a duplicate JUnit framework.
+**State on 22 November 2026.** The [tool audit](spring-boot-tool-audit.md) records direct launch and JUnit checks, the direct and explicit Claude HTTP investigation, and the installed JUnit failure and skip results. The four acceptance gates below remain the criteria for full verification. The existing Phase 1 debugger already supports a selected standalone JUnit 5 method; this catalog adds Spring-context and application-level coverage, not a duplicate JUnit framework.
 
 ## 1. Evaluation method and fixture policy
 

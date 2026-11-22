@@ -49,7 +49,7 @@
 | JAVA-06 / P1-PAUSE | Pause, investigate and restart owned JVM | New owned launch observed; negative ownership passed | Natural-language Claude restart selection |
 | JAVA-07 / P1-FILTER | Per-target step filtering | Application-level frame observed | No global preference changes |
 
-**Do not call JUnit debugging missing.** Core single-test support and one Spring-context method have installed debugger evidence. Failure handling and more complex discovery remain open. [Phase 1 scenarios](phase1-claude-scenarios.md).
+**Do not call JUnit debugging missing.** Core single-test support and one Spring-context method have installed debugger evidence. Missing-method, context-error and disabled-method checks passed on the orders fixture. More complex discovery remains open. [Phase 1 scenarios](phase1-claude-scenarios.md).
 
 ## Phase 2 — Essential Spring Boot and JUnit
 

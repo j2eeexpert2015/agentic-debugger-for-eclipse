@@ -47,7 +47,7 @@
 
 **Deliver:** verify and, only when necessary, extend individual method discovery and launch for `OrderServiceTest`, `OrderApiIntegrationTest` and, optionally, a targeted MockMvc test. **Tests:** SB-06/07, missing test, initialization failure and unexecuted-test negative. **Definition of done:** selected test actually ran under the correct JUnit/Spring context and suspended in expected application frame; unrelated tests/configuration untouched.
 
-**P2-05 in progress.** The missing-method, broken-context and disabled-method cases still need installed Eclipse results after the workspace import error. [JUnit evidence and remaining checks](spring-boot-tool-audit.md#p2-05-junit-failure-and-skip-checks)
+**P2-05 complete for the orders fixture.** Installed Eclipse rejected a missing method, reported the broken Spring context as an error, and marked the disabled method as ignored. Both selected discount tests ran individually and reproduced the intended assertion failure. Next is P2-06 installed acceptance. [JUnit evidence](spring-boot-tool-audit.md#p2-05-junit-failure-and-skip-checks)
 
 ### P2-06 — Validation, sessions and installed acceptance
 

@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory)][string]$Receipt,
     [Parameter(Mandatory)][string]$LaunchName,
     [switch]$ApproveFixturePost,
+    [switch]$InvalidQuantity,
     [string]$RequestedUrl
 )
 $ErrorActionPreference = 'Stop'
@@ -16,6 +17,7 @@ $receiptPath = [IO.Path]::GetFullPath($Receipt)
 if (Test-Path -LiteralPath $receiptPath) { throw 'Choose a fresh receipt path for each run.' }
 $launch = $LaunchName
 $body = '{"quantity":2,"unitPrice":60,"discountPercent":10}'
+if ($InvalidQuantity) { $body = '{"quantity":0,"unitPrice":60,"discountPercent":10}' }
 $token = [IO.File]::ReadAllText("$env:USERPROFILE/.eclipse-agentdebug/bridge-$BridgePort.token").Trim()
 
 function Read-Bridge([string]$Command) {

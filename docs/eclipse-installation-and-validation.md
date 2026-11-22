@@ -25,7 +25,7 @@ set "AGENTDEBUG_PORT=18765"
 scripts\windows\dev.bat
 ```
 
-Use an Eclipse Java installation with m2e and JUnit support. On first deployment the plugin copies the checkout's fixture POM and sources into the selected workspace and imports them through m2e. The local deployment changes pass both `examples/phase-one-debugging` and `examples/spring-boot-debugging` to the importer. Automatic import of both projects in a fresh workspace still needs verification. An existing fixture from the same checkout is refreshed. A conflicting project or directory stops setup. The developer run uses its own MCP configuration for Claude. An alternate port has a separate authentication token.
+Use an Eclipse Java installation with m2e and JUnit support. On first deployment the plugin copies the checkout's fixture POM and sources into the selected workspace and imports them through m2e. The deployment script passes both `examples/phase-one-debugging` and `examples/spring-boot-debugging` to the importer. The installed P2-05 candidate imported both projects into an empty workspace. The doctor command checks Phase 1 discovery. An existing fixture from the same checkout is refreshed. A conflicting project or directory stops setup. The developer run uses its own MCP configuration for Claude. An alternate port has a separate authentication token.
 
 Reports are written to `e2e-runner/target/e2e-report/result.txt` and `evaluation/reports/phase1-live.json`. The calculator regression leaves its CONTROLLED session suspended for inspection.
 

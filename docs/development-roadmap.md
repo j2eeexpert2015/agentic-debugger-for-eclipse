@@ -59,7 +59,7 @@
 
 **Objective:** Debug a real Spring Boot application *through Eclipse*, including a failing HTTP call and targeted JUnit tests, with the existing Java tools reused wherever possible. This is a bounded, testable milestone, not an indefinite Spring Tools replacement.
 
-**Important distinction:** Phase 1 already supports an individual ordinary JUnit 5 test. The existing JUnit launcher also reached application code from a selected Spring-context method. Installed failure and skip checks are in progress. [JUnit verification](spring-boot-tool-audit.md#p2-05-junit-failure-and-skip-checks)
+**Important distinction:** Phase 1 already supports an individual ordinary JUnit 5 test. The existing JUnit launcher also reached application code from a selected Spring-context method. Installed checks passed for a missing method, a context startup error and a disabled method. [JUnit verification](spring-boot-tool-audit.md#p2-05-junit-failure-and-skip-checks)
 
 The [tool audit](spring-boot-tool-audit.md) records the fixture results, observed limits and remaining configuration checks.
 
