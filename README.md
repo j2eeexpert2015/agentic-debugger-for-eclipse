@@ -6,25 +6,30 @@ Debug Java, Spring Boot, and JUnit applications in Eclipse IDE using Claude Code
 
 ## Contents
 
-1. [Build and Install the Eclipse Plugin](#1-build-and-install-the-eclipse-plugin)
+1. [Download or Build and Install the Eclipse Plugin](#1-download-or-build-and-install-the-eclipse-plugin)
 2. [Features, Implementation and Test Status](#2-features-implementation-and-test-status)
 3. [Feature Demonstration Videos](#3-feature-demonstration-videos)
 4. [Limitations and Pending Work](#4-limitations-and-pending-work)
-5. [For Developers — Local Build and Testing](#5-for-developers--local-build-and-testing)
+5. [For Developers — Architecture, Development and Testing](#5-for-developers--architecture-development-and-testing)
 6. [Additional Documentation](#6-additional-documentation)
 
-## 1. Build and Install the Eclipse Plugin
+## 1. Download or Build and Install the Eclipse Plugin
 
 ### Requirements
 
 - Eclipse IDE with Java Development Tools (JDT)
-- JDK 21 or newer; Maven to build from source
-- Installed and authenticated Claude Code CLI
-- Git, if cloning the repository
+- JDK 21 or newer and an installed, authenticated Claude Code CLI
+- **Only for building from source:** Apache Maven, Git, and access to Maven/Eclipse dependencies
 
-### Build the installable ZIP
+### Step 1 — Get the installable ZIP
 
-In Windows Command Prompt (CMD):
+**Option A — Download from GitHub Releases (recommended when a release is published)**
+
+Go to [GitHub Releases](https://github.com/j2eeexpert2015/agentic-debugger-for-eclipse/releases) and download the Eclipse update-site ZIP from the latest release's **Assets** (expected naming: `agentic-debugger-update-site-*.zip`). **If no release asset is published yet, use Option B.** GitHub's automatic "Source code (zip)" is not an installable Eclipse update site.
+
+**Option B — Build from source**
+
+From Windows Command Prompt (CMD):
 
 ```cmd
 git clone https://github.com/j2eeexpert2015/agentic-debugger-for-eclipse.git
@@ -32,18 +37,18 @@ cd agentic-debugger-for-eclipse
 mvn clean package
 ```
 
-The build produces an **Eclipse update-site ZIP** under `eclipse-update-site/target/`. For the current Maven version, an example path is:
+The successful build produces the installable ZIP under `eclipse-update-site/target/`. With the current Maven project version, the expected filename is:
 
 ```text
 eclipse-update-site/target/agentic-debugger-update-site-1.0.0-SNAPSHOT.zip
 ```
 
-Use the ZIP from **your successful build** (the filename changes if the Maven version changes). Do **not** install the GitHub source ZIP or an individual JAR.
+Use the ZIP from your own successful build; the filename changes when the Maven version changes. **Use `mvn clean package`, not `mvn clean compile`**: `compile` does not create the update-site ZIP. The standard build packages artifacts but does **not** start Eclipse, install the plugin, register Claude Code, or invoke the optional installed-Eclipse/Claude E2E profiles. Maven may execute normal lifecycle tests and download dependencies.
 
 ### Install in Eclipse
 
 1. Open **Help → Install New Software → Add → Archive**.
-2. Select the generated update-site ZIP in `eclipse-update-site/target/`.
+2. Select the **downloaded release ZIP or locally generated update-site ZIP**.
 3. Select **Agentic Debugger for Eclipse IDE**, complete the wizard, and **restart Eclipse**.
 4. Open **Window → Preferences → Agentic Debugger → Configure Claude Code**, then verify the registration.
 5. Keep Eclipse running. Start `claude` in a terminal with your Java project as the working directory, check `/mcp` for `eclipse-debugger`, and ask Claude to call `eclipse_ping` (expected response: `PONG`).
@@ -116,17 +121,37 @@ Claude scenario IDs above are defined in [`evaluation/skill-automation/scenarios
 
 Never terminate an unrelated session, remove another investigation's breakpoint, or send side-effecting requests without explicit authorization. Public release and full acceptance remain pending.
 
-## 5. For Developers — Local Build and Testing
+## 5. For Developers — Architecture, Development and Testing
 
 Use these steps to test changes against a **disposable Windows Eclipse installation/workspace**, not an IDE containing important work. The automation is separate from the manual ZIP installation in Section 1.
 
-### 5.1 Install prerequisites
+### 5.1 Architecture and module responsibilities
+
+**Execution path:** Claude Code → MCP stdio server → authenticated local Eclipse bridge → Eclipse operations/services → Eclipse JDT debugger → Java/JUnit/Spring Boot JVM. The optional skill supplies Claude guidance; correctness and session protections belong in Java code, not in the skill.
+
+| Module / component | Source entry points | What it owns / where to start changing code |
+|---|---|---|
+| Eclipse plugin lifecycle | [plugin.xml](eclipse-plugin/plugin.xml), [Activator.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/Activator.java), [AgentDebugStartup.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/AgentDebugStartup.java) | Eclipse startup and lifecycle, bridge initialization, first-run UI |
+| Authenticated bridge | [EclipseBridgeServer.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/bridge/EclipseBridgeServer.java) | Loopback request transport, authentication, dispatch boundary |
+| Eclipse operation router | [EclipseAgentOperations.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/debug/EclipseAgentOperations.java) | Maps bridge commands to Eclipse JDT operations: launch, session, frames, variables, stepping, evaluate, breakpoint actions |
+| Debug sessions | [EclipseDebugService.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/debug/EclipseDebugService.java) | Debug session discovery and JDT session information |
+| Breakpoints | [EclipseBreakpointService.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/debug/EclipseBreakpointService.java) | Line/conditional/exception breakpoints, tracepoints, marker ownership |
+| Investigation safety | [DebugInvestigationPolicy.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/debug/DebugInvestigationPolicy.java) | NORMAL/CONTROLLED investigation ownership, resource cleanup constraints |
+| Claude integration | [ClaudeIntegration.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/integration/ClaudeIntegration.java), [ClaudeRegistration.java](eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/integration/ClaudeRegistration.java) | MCP registration and local Claude integration |
+| MCP server | [DebugMcpServer.java](mcp-server/src/main/java/org/learningfromexperience/eclipse/agentdebug/mcp/DebugMcpServer.java) | MCP tool names/schemas, parameter mapping and bridge client; update both MCP and Eclipse dispatch when adding a tool |
+| Packaging | [root POM](pom.xml), [plugin POM](eclipse-plugin/pom.xml), [feature](eclipse-feature/), [update site](eclipse-update-site/) | Tycho build, embedded MCP JAR, installable Eclipse ZIP |
+| Optional skill | [SKILL.md](skills/eclipse-debugger/SKILL.md), [skill references](skills/eclipse-debugger/references/) | Claude strategy only; it must remain optional and removable |
+| Test infrastructure | [E2E Java sources](e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/), [ownership tests](e2e-runner/ownership-tests/), [Windows scripts](scripts/windows/), [skill scenarios](evaluation/skill-automation/scenarios.json) | Direct bridge tests, isolated ownership checks, Claude trials and result evaluation |
+
+**Modification rule:** For a new debugging capability, examine MCP tool contracts, bridge routing, Eclipse JDT operation implementation, investigation safety, and tests together. Do not add a skill instruction as a substitute for an actual MCP operation.
+
+### 5.2 Install prerequisites
 
 - Windows CMD / Windows PowerShell 5.1, JDK **25**, Maven, Eclipse IDE with JDT/JUnit tooling, Git.
-- Claude Code CLI installed and authenticated **only for Claude-driven tests**. Direct bridge tests do not require the skill or Claude decision-making.
+- Claude Code CLI installed and authenticated **for Claude-driven tests**. Direct bridge tests do not require the skill or Claude decision-making.
 - Clone the repository (Section 1), then run all commands below from its **root directory**.
 
-### 5.2 REQUIRED: check local paths and constants before running anything
+### 5.3 REQUIRED: check local paths and constants before running anything
 
 **Edit [`scripts/windows/dev-settings.cmd`](scripts/windows/dev-settings.cmd) for your machine, or set equivalent environment variables before invoking the commands.** The defaults below reflect the original Windows development machine, not universal installation paths.
 
@@ -151,7 +176,7 @@ RUN-WINDOWS-TESTS.cmd config
 
 Confirm the printed **Eclipse path, workspace, port, and Claude path** before deployment.
 
-### 5.3 First run: deploy, verify readiness, and check the harness
+### 5.4 First run: deploy, verify readiness, and check the harness
 
 **Close any Eclipse instance using the target installation before deploying** (the p2 installer must not update a running Eclipse installation).
 
@@ -167,7 +192,7 @@ RUN-WINDOWS-TESTS.cmd skill preflight
 - `skill selftest` checks the harness parser on synthetic evidence; `skill preflight` verifies tool/skill prerequisites. These are **not** live debugger acceptance tests.
 - The test fixtures live at [`examples/phase-one-debugging/`](examples/phase-one-debugging/) and [`examples/spring-boot-debugging/`](examples/spring-boot-debugging/). If the doctor reports an undiscovered project/test in a manually configured workspace, import these via **File → Import → Maven → Existing Maven Projects**, let Eclipse finish building, and rerun `doctor`.
 
-### 5.4 Direct debugger tests (without Claude skill)
+### 5.5 Direct debugger tests (without Claude skill)
 
 Run the installed E2E and all seven Java bridge scenarios:
 
@@ -198,7 +223,19 @@ RUN-WINDOWS-TESTS.cmd phase2
 
 This authorizes the controlled Phase 2 direct test, **not arbitrary network requests**. Use `set "AGENTDEBUG_APPROVE_FIXTURE_POST="` to clear the approval afterward. The direct Phase 2 verifier covers `validation` and `ownership` test cases; it does not establish complete Spring Boot acceptance by itself.
 
-### 5.5 Claude-driven tests (agent reasoning and cleanup)
+### 5.6 Dedicated ownership and session-isolation tests
+
+The normal installed regression does **not** replace the specialized [ownership test runner](e2e-runner/ownership-tests/run.ps1). Run it against the **disposable** workspace only, and close Eclipse from the configured test installation first. The workspace must already have been prepared by `deploy`, including the `phase-one-debugging` fixture marker.
+
+From PowerShell (substitute the paths/port configured in `dev-settings.cmd`):
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "e2e-runner\ownership-tests\run.ps1" -EclipseDirectory "C:\All_Softwares\eclipse" -Workspace "$env:LOCALAPPDATA\AgenticDebugger\dev-workspace" -Port 21765
+```
+
+The runner builds an ownership test bundle, installs it into the **test Eclipse** `dropins/`, redeploys/starts that instance, and checks `ownership-results.json` in the test workspace. **This modifies the disposable installation and must not be run against a personal Eclipse installation.** It is separate from the Claude skill's existing-session-protection scenario.
+
+### 5.7 Claude-driven tests (agent reasoning and cleanup)
 
 The optional skill, when used, must first be installed as described in Section 1. Check skill visibility separately from MCP connectivity.
 
@@ -225,7 +262,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts\windows\test-sc
 
 This script validates scoring against previously recorded traces; it is **not** a first-run prerequisite and can fail when recordings do not exist.
 
-### 5.6 Results and troubleshooting
+### 5.8 Results and troubleshooting
 
 | Location | Output |
 |---|---|
@@ -236,6 +273,15 @@ This script validates scoring against previously recorded traces; it is **not** 
 | `evaluation/reports/skill-automation/<run-id>/comparison.md` | Claude run summary |
 
 Verdicts include **PASS**, **FAIL**, **PARTIAL**, **NOT_CONFIRMED**, **NOT_RUN**, and **BLOCKED**. A bridge/project readiness failure is an environment failure, not proof that a debugger feature is broken. If Eclipse retains an old installed bundle, check its version and redeploy to the disposable installation; Eclipse p2 can reuse a previously installed version. Keep raw traces and credentials out of Git: debug reports can contain application variables and request details.
+
+### 5.9 Development workflow and verification checklist
+
+1. Locate the relevant module in **5.1** and inspect the MCP ↔ bridge ↔ JDT contract and existing tests before editing.
+2. Preserve authentication, explicit consent, existing launch configurations, user-owned breakpoints/sessions, and NORMAL/CONTROLLED cleanup semantics. Do not silently alter an unrelated debug target.
+3. Make the smallest change and add/adjust corresponding deterministic tests; update skill scenarios only when agent behavior changes.
+4. Run `mvn clean package`. For changes to the installed Eclipse plugin/MCP distribution, close test Eclipse and run `RUN-WINDOWS-TESTS.cmd deploy`, then `doctor`.
+5. Run the affected direct Java scenario(s), `RUN-WINDOWS-TESTS.cmd test`, the explicitly approved Spring Boot checks if relevant, and ownership tests for lifecycle changes. Run Claude scenarios separately for tool choice/diagnostic behavior.
+6. Report the **exact commands, installed bundle/source revision, test outputs, and PASS/FAIL/PARTIAL/NOT_RUN**. A successful Maven build is not evidence of live Eclipse acceptance; no single command currently covers every acceptance gate.
 
 ## 6. Additional Documentation
 
