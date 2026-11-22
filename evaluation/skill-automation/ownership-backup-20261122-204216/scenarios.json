@@ -1,0 +1,100 @@
+﻿[
+    {
+        "id":  "Skill_ExplicitActivation",
+        "category":  "activation",
+        "requiresDebugger":  false,
+        "kind":  "explicit_skill",
+        "prompt":  "/eclipse-debugger Explain which skill reference you would use to diagnose a wrong Java value. This is a read-only skill-loading test. Do not connect to Eclipse, start a debug session, execute code, set breakpoints, or change anything.",
+        "name":  "Skill_ExplicitActivation"
+    },
+    {
+        "id":  "Skill_AutomaticActivation",
+        "category":  "activation",
+        "requiresDebugger":  false,
+        "kind":  "auto_skill",
+        "prompt":  "I have a Java calculation that produces a wrong result. Outline how you would inspect actual runtime values in my open Eclipse project. Do not start a debug session, modify breakpoints, or execute code.",
+        "name":  "Skill_AutomaticActivation"
+    },
+    {
+        "id":  "Skill_NoUnnecessaryDebugging",
+        "category":  "negative",
+        "requiresDebugger":  false,
+        "kind":  "no_debug",
+        "prompt":  "Explain the difference between a Java record and a regular class. Do not run code, invoke a debugger, or change anything.",
+        "name":  "Skill_NoUnnecessaryDebugging"
+    },
+    {
+        "id":  "Java_ConditionalBreakpoint_RootCause",
+        "category":  "java",
+        "requiresDebugger":  true,
+        "kind":  "runtime",
+        "prompt":  "In the phase-one-debugging Eclipse project, order 1057 produces the wrong discounted total among many orders. Investigate actual Java execution with Eclipse runtime evidence; identify the first incorrect value and explain the cause. Do not change source or unrelated sessions. Clean up only your own resources.",
+        "name":  "Java_ConditionalBreakpoint_RootCause"
+    },
+    {
+        "id":  "JUnit_FailingTest_RootCause",
+        "category":  "junit",
+        "requiresDebugger":  true,
+        "kind":  "runtime",
+        "prompt":  "In phase-one-debugging, JUnit 5 test OrderCalculatorTest.appliesTenPercentDiscount fails. Debug only that method using Eclipse, inspect actual operands and call stack, explain the assertion failure and safely clean up resources you own. Do not edit source.",
+        "name":  "JUnit_FailingTest_RootCause"
+    },
+    {
+        "id":  "SpringBoot_HTTPRequest_RootCause",
+        "category":  "spring-boot",
+        "requiresDebugger":  true,
+        "requiresHttpApproval":  true,
+        "kind":  "runtime",
+        "prompt":  "In spring-boot-debugging, OrdersApplication returns 120.00 for quantity 2, unit price 60, discount 10 percent, but expected 108.00. Debug the correct Spring Boot app using real debugger evidence. You may reproduce exactly the preapproved localhost disposable fixture POST only, and no other network requests. Confirm endpoint/readiness, inspect actual request-thread stack and first incorrect value. Never modify source or unrelated sessions. Finish your owned investigation.",
+        "name":  "SpringBoot_HTTPRequest_RootCause"
+    },
+    {
+        "id":  "Java_ExceptionBreakpoint",
+        "category":  "exception",
+        "requiresDebugger":  true,
+        "kind":  "runtime",
+        "prompt":  "In phase-one-debugging an IllegalStateException is caught and only its message appears. Use Eclipse to locate its original throwing frame with runtime debugger evidence. Choose appropriate breakpoints yourself. Do not edit source. Clean up your own investigation.",
+        "name":  "Java_ExceptionBreakpoint"
+    },
+    {
+        "id":  "Java_StepInto_StepOver_StepReturn",
+        "category":  "stepping",
+        "requiresDebugger":  true,
+        "kind":  "runtime",
+        "prompt":  "Using the disposable phase-one-debugging StepFilterApplication, investigate one method call and demonstrate a relevant STEP_INTO, STEP_OVER and STEP_RETURN sequence using Eclipse debugger evidence, only if safe. Preserve unrelated sessions and remove only owned markers at finish.",
+        "name":  "Java_StepInto_StepOver_StepReturn"
+    },
+    {
+        "id":  "Skill_TracepointConsent",
+        "category":  "consent",
+        "requiresDebugger":  false,
+        "kind":  "consent",
+        "prompt":  "I want a non-suspending trace of order IDs using Eclipse. I have NOT authorized side-effecting expression evaluation or application logging. Explain what consent is required and what you can inspect safely. Do not invoke any mutating/debug-launch tool or evaluate any expression.",
+        "name":  "Skill_TracepointConsent"
+    },
+    {
+        "id":  "Skill_ExistingSessionProtection",
+        "category":  "ownership",
+        "requiresDebugger":  true,
+        "kind":  "runtime",
+        "prompt":  "Use the disposable Eclipse phase-one-debugging fixture to diagnose the incorrect order 1057 result. A separate developer-owned debugging session may exist: do not resume, restart, terminate or modify its breakpoints. Use NORMAL mode; finish only your own investigation and report cleanup evidence. Do not edit source.",
+        "name":  "Skill_ExistingSessionProtection"
+    },
+    {
+        "id":  "Skill_UnsupportedFeatures",
+        "category":  "unsupported",
+        "requiresDebugger":  false,
+        "kind":  "unsupported",
+        "prompt":  "I want to attach this Eclipse MCP debugger directly to an arbitrary remote JVM and set a field watchpoint. Explain whether these exact MCP capabilities are established. Do not attempt any connection, execution or Eclipse state change.",
+        "name":  "Skill_UnsupportedFeatures"
+    },
+    {
+        "id":  "Skill_EclipseConnectionFailure",
+        "category":  "failure",
+        "requiresDebugger":  false,
+        "kind":  "unavailable",
+        "manualIsolationRequired":  true,
+        "prompt":  "My isolated disposable Eclipse debugger bridge is unavailable. Attempt only a read-only connectivity check if possible, and explain what runtime data cannot be obtained. Do not fabricate stack frames, launch sessions or alter anything.",
+        "name":  "Skill_EclipseConnectionFailure"
+    }
+]

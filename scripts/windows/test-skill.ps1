@@ -1,5 +1,7 @@
+﻿# EXTENDED-EVIDENCE-CHECKING-INSTALLED
+# MEANINGFUL-SCENARIO-IDS-INSTALLED
 #requires -Version 5.1
-# Activation test patch: T-00 explicit CLI probe; T-01 automatic behavior remains separate.
+# Activation test patch: Skill_ExplicitActivation explicit CLI probe; Skill_AutomaticActivation automatic behavior remains separate.
 [CmdletBinding()]
 param(
     [ValidateSet('preflight','smoke','selected','full','compare','analyze','selftest')]
@@ -91,12 +93,12 @@ if($Mode -eq 'selftest') {
         '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Skill","input":{"skill":"eclipse-debugger"}}]}}',
         '{"type":"result","result":"Read-only plan","is_error":false,"num_turns":2,"total_cost_usd":0.01}'
       ) | Set-Content -LiteralPath $f
-      $a=AnalyzeStream $f 'auto_skill' 'T-01'
+      $a=AnalyzeStream $f 'auto_skill' 'Skill_AutomaticActivation'
       Ensure ($a.verdict -eq 'PASS') 'Selftest activation failed'
-      $a0=AnalyzeStream $f 'explicit_skill' 'T-00'
+      $a0=AnalyzeStream $f 'explicit_skill' 'Skill_ExplicitActivation'
       Ensure ($a0.verdict -eq 'PASS') 'Selftest explicit activation failed'
       Ensure ($a.toolCalls.Count -eq 1 -and $a.toolCalls[0] -eq 'Skill') 'Selftest tool-call array conversion failed'
-      $b=AnalyzeStream $f 'runtime' 'T-03'
+      $b=AnalyzeStream $f 'runtime' 'Java_ConditionalBreakpoint_RootCause'
       Ensure ($b.verdict -eq 'FAIL') 'Selftest no-runtime-tools failure detection failed'
       Write-Host 'PASS: mock JSONL parser, activation and missing-runtime-evidence guards.'
     } finally { Remove-Item -Recurse -Force $dir }
@@ -114,9 +116,9 @@ foreach ($candidate in $parsedScenarios) {
     Ensure (-not [string]::IsNullOrWhiteSpace([string](Get-Js $candidate 'prompt'))) "scenarios.json has a scenario without a prompt"
     $scenarios.Add($candidate)
 }
-Ensure ($scenarios.Count -ge 11) "Expected at least 11 scenarios (T-01 through T-11); found $($scenarios.Count) at $scenarioFile"
+Ensure ($scenarios.Count -ge 11) "Expected at least 11 scenarios (Skill_AutomaticActivation through Skill_EclipseConnectionFailure); found $($scenarios.Count) at $scenarioFile"
 $scenarioIds = @($scenarios.ToArray() | ForEach-Object { [string]$_.id })
-foreach ($id in @('T-01','T-02','T-03','T-04','T-05','T-06','T-07','T-08','T-09','T-10','T-11')) {
+foreach ($id in @('Skill_AutomaticActivation','Skill_NoUnnecessaryDebugging','Java_ConditionalBreakpoint_RootCause','JUnit_FailingTest_RootCause','SpringBoot_HTTPRequest_RootCause','Java_ExceptionBreakpoint','Java_StepInto_StepOver_StepReturn','Skill_TracepointConsent','Skill_ExistingSessionProtection','Skill_UnsupportedFeatures','Skill_EclipseConnectionFailure')) {
     Ensure ($scenarioIds -contains $id) "Required scenario missing from scenarios.json: $id"
 }
 $skillSource=Join-Path $repo 'skills\eclipse-debugger\SKILL.md'
@@ -143,11 +145,11 @@ Ensure (Test-Path $skillSource) 'Repository skill source missing.'
 # Use explicit selection against normalized scenario IDs. Empty selection must fail;
 # a zero-row report is NEVER evidence of a successful smoke test.
 $selected = New-Object 'System.Collections.Generic.List[object]'
-$smokeIds = @('T-00','T-01','T-02','T-08','T-10')
+$smokeIds = @('Skill_ExplicitActivation','Skill_AutomaticActivation','Skill_NoUnnecessaryDebugging','Skill_TracepointConsent','Skill_UnsupportedFeatures')
 $requestedIds = @()
 if ($Mode -eq 'selected') {
     $requestedIds = @($Scenario | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
-    Ensure ($requestedIds.Count -gt 0) 'selected requires -Scenario T-03,T-04'
+    Ensure ($requestedIds.Count -gt 0) 'selected requires -Scenario Java_ConditionalBreakpoint_RootCause,JUnit_FailingTest_RootCause'
 }
 foreach ($test in $scenarios) {
     $id = [string]$test.id
@@ -164,22 +166,39 @@ $conditions=if($Mode -eq 'compare'){@('WITHOUT_SKILL','WITH_SKILL')}else{@($Cond
 if($Mode -eq 'compare') {Ensure ($Repeats -ge 2) 'Compare requires -Repeats 2 or more (five recommended)'}
 $manifest=[ordered]@{createdUtc=[DateTime]::UtcNow.ToString('o');mode=$Mode;model=$Model;conditions=$conditions;repeats=$Repeats;scenarios=@($selected.ToArray() | ForEach-Object {$_.id});preflight=$preflight;status='UNVERIFIED_ENVIRONMENT';important='Runtime verdicts require independent Eclipse/JVM oracle; this runner does not infer them from Claude prose.'}
 WriteJsonFile $manifest (Join-Path $target 'manifest.json')
+# OWNERSHIP-PROTECTION-TEST-V1
+. (Join-Path $PSScriptRoot 'ownership-fixture.ps1')
+$ownershipResults=@{}
 $results=New-Object 'System.Collections.Generic.List[object]'
 foreach($conditionName in $conditions){
   if($conditionName -eq 'WITH_SKILL' -and -not $skillPresent -and -not $DryRun) { Write-Warning "Global skill is not installed at $globalSkill; WITH_SKILL trials will be BLOCKED." }
   foreach($test in $selected.ToArray()){
     for($repeat=1;$repeat -le $Repeats;$repeat++){
       $reason=''
-      # T-00 is an automated non-interactive explicit slash-command probe.
+      # Skill_ExplicitActivation is an automated non-interactive explicit slash-command probe.
       if($conditionName -eq 'WITH_SKILL' -and -not $skillPresent){$reason='Global skill not installed. Cannot claim with-skill condition.'}
       if($test.requiresDebugger -and -not $AllowDisposableEclipse){$reason='Requires -AllowDisposableEclipse for disposable fixture only'}
-      if((Get-Js $test 'requiresHttpApproval') -eq $true -and -not $ApproveFixturePost){$reason='T-05 requires -ApproveFixturePost after confirming localhost fixture target'}
-      if((Get-Js $test 'manualIsolationRequired') -eq $true -and -not $IsolatedDisconnectedBridge){$reason='T-11 requires an independently isolated disconnected test bridge'}
-      $runId=$test.id+'-'+$conditionName+'-'+$repeat
+      if((Get-Js $test 'requiresHttpApproval') -eq $true -and -not $ApproveFixturePost){$reason='SpringBoot_HTTPRequest_RootCause requires -ApproveFixturePost after confirming localhost fixture target'}
+      if((Get-Js $test 'manualIsolationRequired') -eq $true -and -not $IsolatedDisconnectedBridge){$reason='Skill_EclipseConnectionFailure requires an independently isolated disconnected test bridge'}
+            # Stable ID plus readable scenario name in every new trace filename.
+      $testDisplayName = [string](Get-Js $test 'name')
+      if([string]::IsNullOrWhiteSpace($testDisplayName)) {$testDisplayName=[string]$test.id}
+      $testFileName=($testDisplayName -replace '[^A-Za-z0-9_]+','_').Trim('_')
+      $runId=$test.id+'_'+$conditionName+'_'+$repeat
       $raw=Join-Path $target ($runId+'.jsonl')
       $stderr=Join-Path $target ($runId+'.stderr.txt')
       if($reason){$results.Add([pscustomobject]@{id=$test.id;condition=$conditionName;repeat=$repeat;verdict='NOT_RUN';reason=$reason;elapsedSeconds=0;costUSD=$null;eclipseCalls=0;skillInvocations=0});continue}
       if($DryRun){$results.Add([pscustomobject]@{id=$test.id;condition=$conditionName;repeat=$repeat;verdict='NOT_RUN';reason='DRY RUN';elapsedSeconds=0;costUSD=$null;eclipseCalls=0;skillInvocations=0});continue}
+      # Own a suspended fixture in a SEPARATE investigation before launching the subject Claude trial.
+      $protected=$null
+      if([string]$test.id -eq 'Skill_ExistingSessionProtection'){
+        try { $protected=Own-StartFixture }
+        catch {
+          $why='Protected fixture setup unavailable: '+$_.Exception.Message
+          $results.Add([pscustomobject]@{id=$test.id;condition=$conditionName;repeat=$repeat;verdict='BLOCKED';reason=$why;elapsedSeconds=0;costUSD=$null;eclipseCalls=0;skillInvocations=0})
+          continue
+        }
+      }
       # `--disable-slash-commands` prevents both project/personal skills from entering WITHOUT_SKILL.
       # Never allow bypassPermissions. Explicitly allow only Eclipse MCP tools; Claude can still be denied by local policies.
       $cliArgs=@('-p',[string]$test.prompt,'--output-format','stream-json','--verbose','--max-turns',[string]$MaxTurns,'--permission-mode','dontAsk','--allowedTools',('Skill,'+$McpAllowedToolPattern))
@@ -196,6 +215,13 @@ foreach($conditionName in $conditions){
         $_.Exception.ToString() | Set-Content -LiteralPath $stderr -Encoding UTF8
         @() | Set-Content -LiteralPath $raw -Encoding UTF8
       } finally { $clock.Stop() }
+      if($null -ne $protected){
+        $preserved=$null; $cleanupError=''
+        try { $preserved=Own-VerifyFixture $protected }
+        catch { $preserved=[pscustomobject]@{ok=$false;reason=('Independent fixture check failed: '+$_.Exception.Message)} }
+        finally {try {Own-FinishFixture $protected} catch {$cleanupError=$_.Exception.Message}}
+        $ownershipResults[$runId]=[pscustomobject]@{preserved=$preserved;cleanupError=$cleanupError}
+      }
       $analysis=AnalyzeStream $raw ([string]$test.kind) ([string]$test.id)
       if($rc -ne 0){$analysis.verdict='BLOCKED';$analysis.reason="Claude exited $rc; review stderr/output; no functional verdict"}
       if($analysis.parsedEvents -eq 0){$analysis.verdict='BLOCKED';$analysis.reason='No parseable Claude stream-json events'}
@@ -204,23 +230,117 @@ foreach($conditionName in $conditions){
       }
       WriteJsonFile $analysis (Join-Path $target ($runId+'.analysis.json'))
       $results.Add([pscustomobject]@{id=$test.id;condition=$conditionName;repeat=$repeat;verdict=$analysis.verdict;reason=$analysis.reason;elapsedSeconds=[math]::Round($clock.Elapsed.TotalSeconds,2);costUSD=$analysis.costUSD;eclipseCalls=$analysis.eclipseCalls;skillInvocations=$analysis.skillInvocations;claudeExitCode=$rc})
-      Write-Host "$runId : $($analysis.verdict) ($($analysis.reason))"
+      # Provisional verdict intentionally not printed; final verdict is printed after evidence checking.
     }
   }
+}
+# BEGIN AUTO-VERIFIED SKILL RESULTS
+# This section only checks recorded trace files. It does not launch Eclipse or Claude.
+$checkerPath = Join-Path $PSScriptRoot 'check-skill-results.ps1'
+$scoringFiles=@(Get-ChildItem -LiteralPath $target -Filter '*.jsonl' -File |
+   Where-Object {$_.BaseName -match '^(Java_ConditionalBreakpoint_RootCause|JUnit_FailingTest_RootCause|Java_ExceptionBreakpoint|Java_StepInto_StepOver_StepReturn|Skill_ExistingSessionProtection|Skill_UnsupportedFeatures)[-_]'})
+if($scoringFiles.Count -gt 0) {
+  Ensure (Test-Path -LiteralPath $checkerPath) "Missing scoring script: $checkerPath"
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $checkerPath -ReportDirectory $target
+  $scorerExit=$LASTEXITCODE
+  $verifiedPath=Join-Path $target 'verified-results.json'
+  Ensure (Test-Path -LiteralPath $verifiedPath) 'Checker did not produce verified-results.json'
+  $verified=ConvertFrom-Json -InputObject (Get-Content -LiteralPath $verifiedPath -Raw)
+  foreach($v in $verified){
+    foreach($r in $results){
+      if([string]$r.id -eq [string]$v.id -and [string]$r.condition -eq [string]$v.condition -and [int]$r.repeat -eq [int]$v.repeat -and [string]$v.source -eq (([string]$r.id)+'_'+([string]$r.condition)+'_'+([string]$r.repeat))){
+        $r.verdict=[string]$v.verdict
+        $r.reason=[string]$v.reason
+      }
+    }
+  }
+  if($scorerExit -ne 0) { Write-Warning 'Some recorded runtime checks failed. See verified-results.md in this run folder.' }
+}
+foreach($r in $results){
+  $scenarioName = ''
+  foreach($s in $scenarios){if([string]$s.id -eq [string]$r.id){$scenarioName=[string](Get-Js $s 'name');break}}
+  if([string]::IsNullOrWhiteSpace($scenarioName)){$scenarioName=[string]$r.id}
+  $r | Add-Member -NotePropertyName testName -NotePropertyValue $scenarioName -Force
+}
+# END AUTO-VERIFIED SKILL RESULTS
+# The trace checker reports PARTIAL for this ownership scenario until the independent
+# runner fixture has been verified. Do not infer ownership protection from Claude's prose.
+foreach($resultRow in $results){
+ if([string]$resultRow.id -ne 'Skill_ExistingSessionProtection' -or [string]$resultRow.verdict -in @('NOT_RUN','BLOCKED')) {continue}
+ $resultKey=([string]$resultRow.id)+'_'+([string]$resultRow.condition)+'_'+([string]$resultRow.repeat)
+ if(-not $ownershipResults.ContainsKey($resultKey)){
+   $resultRow.verdict='BLOCKED';$resultRow.reason='No independent protected fixture result was recorded';continue
+ }
+ $proof=$ownershipResults[$resultKey]
+ if(-not $proof.preserved.ok){
+   $resultRow.verdict='FAIL';$resultRow.reason=[string]$proof.preserved.reason;continue
+ }
+ if($proof.cleanupError){
+   $resultRow.verdict='FAIL';$resultRow.reason='Runner fixture cleanup failed: '+[string]$proof.cleanupError;continue
+ }
+ # Check successful MCP responses recorded by the evidence checker, not just tool names.
+ $verifiedPath=Join-Path $target 'verified-results.json'
+ if(-not (Test-Path -LiteralPath $verifiedPath)){
+   $resultRow.verdict='FAIL';$resultRow.reason='Independent checker report missing';continue
+ }
+ $verifiedEntries=ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($verifiedPath))
+ $verifiedMatch=@($verifiedEntries|Where-Object {[string]$_.id -eq [string]$resultRow.id -and [string]$_.condition -eq [string]$resultRow.condition -and [int]$_.repeat -eq [int]$resultRow.repeat})
+ if($verifiedMatch.Count -ne 1){
+   $resultRow.verdict='FAIL';$resultRow.reason='Independent checker entry missing or duplicated';continue
+ }
+ if([int]$verifiedMatch[0].parseErrors -gt 0 -or [int]$resultRow.claudeExitCode -ne 0){
+   $resultRow.verdict='FAIL';$resultRow.reason='Claude execution or recording contained errors';continue
+ }
+ $failedChecks=@($verifiedMatch[0].checks|Where-Object {-not $_.passed})
+ if($failedChecks.Count -gt 0){
+   $resultRow.verdict='PARTIAL';$resultRow.reason='Protected resources survived, but Claude investigation incomplete: '+(($failedChecks|ForEach-Object {$_.check}) -join '; ');continue
+ }
+ $resultRow.verdict='PASS'
+ $resultRow.reason='Independent suspended session and breakpoint preserved; Claude separate investigation and cleanup observed; runner fixture cleanup completed'
+}
+# Keep the recorded verified-results.json in agreement with the final CSV and console verdict.
+$verifiedPath=Join-Path $target 'verified-results.json'
+if(Test-Path -LiteralPath $verifiedPath -PathType Leaf){
+ $verifiedRows=ConvertFrom-Json -InputObject ([IO.File]::ReadAllText($verifiedPath))
+ foreach($vr in $verifiedRows){
+   if([string]$vr.id -ne 'Skill_ExistingSessionProtection'){continue}
+   foreach($rr in $results){
+     if([string]$rr.id -eq [string]$vr.id -and [string]$rr.condition -eq [string]$vr.condition -and [int]$rr.repeat -eq [int]$vr.repeat){
+       $vr.verdict=[string]$rr.verdict; $vr.reason=[string]$rr.reason
+       $vr | Add-Member -NotePropertyName independentFixtureVerified -NotePropertyValue ($rr.verdict -eq 'PASS') -Force
+     }
+   }
+ }
+ ConvertTo-Json -InputObject $verifiedRows -Depth 25 | Set-Content -LiteralPath $verifiedPath -Encoding UTF8
+}
+$verifiedMd=Join-Path $target 'verified-results.md'
+if(Test-Path -LiteralPath $verifiedMd){
+ Add-Content -LiteralPath $verifiedMd -Encoding UTF8 -Value "`r`n## Ownership test final result (runner independent fixture)`r`n"
+ foreach($rr in $results){if([string]$rr.id -eq 'Skill_ExistingSessionProtection'){
+   Add-Content -LiteralPath $verifiedMd -Encoding UTF8 -Value ('- '+$rr.id+' '+$rr.condition+': '+$rr.verdict+' — '+$rr.reason)
+ }}
+}
+# FINAL-VERDICTS-V2-INSTALLED
+# Print exactly one verdict per selected trial, after evidence-based scoring.
+foreach($finalRow in $results) {
+  $finalId=([string]$finalRow.id)+'_'+([string]$finalRow.condition)+'_'+([string]$finalRow.repeat)
+  Write-Host ($finalId+' : '+[string]$finalRow.verdict+' ('+[string]$finalRow.reason+')')
 }
 $csv=Join-Path $target 'trial-results.csv'
 $results | Export-Csv -LiteralPath $csv -NoTypeInformation -Encoding UTF8
 $lines=New-Object 'System.Collections.Generic.List[string]'
-$lines.Add('# Eclipse debugger skill automation — provisional report')
+$lines.Add('# Eclipse debugger skill automation â€” provisional report')
 $lines.Add('')
 $lines.Add('Do not interpret `PARTIAL`, `NOT_CONFIRMED` or `NOT_RUN` as passes. Runtime debugging requires JVM-ground-truth oracles.')
 $lines.Add('')
-$lines.Add('| Scenario | Condition | Trial | Verdict | Reason |')
-$lines.Add('|---|---|---:|---|---|')
-foreach($r in $results){$lines.Add('| '+$r.id+' | '+$r.condition+' | '+$r.repeat+' | '+$r.verdict+' | '+(([string]$r.reason).Replace('|','/'))+' |')}
+$lines.Add('| Scenario | Test name | Condition | Trial | Verdict | Reason |')
+$lines.Add('|---|---|---|---:|---|---|')
+foreach($r in $results){$lines.Add('| '+$r.id+' | '+$r.testName.Replace('_',' ')+' | '+$r.condition+' | '+$r.repeat+' | '+$r.verdict+' | '+(([string]$r.reason).Replace('|','/'))+' |')}
 $lines.Add('')
 $lines.Add('Raw Claude JSONL traces and parsed tool-call analyses are stored in this directory. Redact secrets before sharing.')
 $lines | Set-Content -LiteralPath (Join-Path $target 'comparison.md') -Encoding UTF8
 Write-Host "Report: $target"
 if(@($results | Where-Object {$_.verdict -in @('FAIL','BLOCKED')}).Count -gt 0){exit 1}
 exit 0
+
+

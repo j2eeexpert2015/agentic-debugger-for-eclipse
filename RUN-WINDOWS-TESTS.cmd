@@ -59,6 +59,6 @@ call "%SCRIPTS%\test-skill.bat" -Mode analyze
 exit /b %errorlevel%
 :usage
 echo Usage: RUN-WINDOWS-TESTS.cmd config^|doctor^|start^|build^|deploy^|test^|phase2
- echo        RUN-WINDOWS-TESTS.cmd skill selftest^|preflight^|smoke^|selected T-03^|full^|compare
+ echo        RUN-WINDOWS-TESTS.cmd skill selftest^|preflight^|smoke^|selected Java_ConditionalBreakpoint_RootCause^|full^|compare
  echo [SAFE] Invalid arguments. Nothing was changed.
 exit /b 2
