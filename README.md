@@ -188,3 +188,27 @@ Use [Phase 1 status](docs/phase1-implementation-status.md), [Java verification](
 These documents separate **what is implemented**, **what a source suggests**, **what may be feasible**, and **what has actually been verified**. The debugging skill and its repeatable A/B evaluation runner are proposals, not installed product features. The latest release candidate has verified Phase 1 tests but remains unpublished.
 
 For Java-only verification prerequisites, scenario selection, and report format, see [Phase 1 Java verification](docs/phase1-java-test-runner.md).
+
+
+# Phase 2 documentation reconciliation package
+
+All files relate to the **same existing repository**. No new checkout, Git command or plugin installation is required.
+
+This package includes:
+- `docs/phase2-verification-consolidation.md`: the new evidence-based acceptance report.
+- `scripts/windows/apply-phase2-documentation.ps1`: a local, idempotent reconciliation that updates the **existing** README and six docs in place, preserving Codex edits already present in the workspace and making backup copies under the Windows TEMP directory first.
+
+**Why an updater instead of seven wholesale replacement files?** The latest GitHub documents changed after the earlier downloadable roadmap archive. The updater works on your exact current files and does not roll those changes back.
+
+## Apply (Windows CMD)
+
+1. Extract this ZIP into `C:\All_GitHub_Desktop\agentic-debugger-for-eclipse`, merging directories.
+2. Run the updater from that repository root:
+
+```cmd
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\windows\apply-phase2-documentation.ps1
+```
+
+3. Review `README.md`, `docs/phase2-verification-consolidation.md` and the other files listed in the script output.
+
+The script does not run Maven, Eclipse, Claude or Git. Existing development tools can remain open. It does not claim full Phase 2 acceptance.

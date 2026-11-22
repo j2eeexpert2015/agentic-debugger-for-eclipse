@@ -298,7 +298,8 @@ public final class PhaseOneBridgeVerifier {
 
     static final class Bridge {
         private final String token;
-        private final List<Map<String, Object>> traces = new ArrayList<>();
+        //private final List<Map<String, Object>> traces = new ArrayList<>();
+		final List<Map<String, Object>> traces = new ArrayList<>();
         Bridge() throws IOException {
             token = Files.readString(Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", BRIDGE_PORT == 8765 ? "bridge.token" : "bridge-" + BRIDGE_PORT + ".token"), StandardCharsets.UTF_8).trim();
             if (token.isEmpty()) throw new IOException("Empty Eclipse bridge authentication token");
