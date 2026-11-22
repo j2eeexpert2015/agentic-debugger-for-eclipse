@@ -27,7 +27,7 @@ function Ensure-Compiled-PluginClasses([string]$root) {
         Write-Host '[DOCTOR] Building local source automatically (mvn -DskipTests package). This does NOT redeploy Eclipse.'
         Push-Location $root
         try {
-            & mvn.cmd '-DskipTests' 'package'
+            & mvn.cmd '-DskipTests' 'package' | Out-Host
             if ($LASTEXITCODE -ne 0) { throw "Automatic Maven build failed (exit $LASTEXITCODE). See Maven output above." }
         } finally { Pop-Location }
         $stillMissing = @($needed | Where-Object { -not (Test-Path -LiteralPath (Join-Path $base $_) -PathType Leaf) })
