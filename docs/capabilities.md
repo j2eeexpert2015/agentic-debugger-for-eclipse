@@ -2,7 +2,7 @@
 
 [README](../README.md) · [Feature roadmap](feature-roadmap.md) · [Phase 1 evidence](phase1-implementation-status.md) · [Phase 2 consolidation](phase2-verification-consolidation.md) · [Spring Boot audit](spring-boot-tool-audit.md) · [Scenario catalog](spring-boot-debugging-scenarios.md) · [Evaluation plan](evaluation-plan.md)
 
-**Reviewed: 22 November 2026.** The latest repository review used GitHub `main` at `c4ff2ec8808caf32da1d7e95190a291c23cd6645`, together with the user's reported installed Windows run on candidate `1.5.0.20261122084229515`. These are **different evidence sources**; locally verified changes are not automatically proof of release or of code at the reviewed GitHub commit.
+**Reviewed: 22 November 2026.** The latest repository review used GitHub `main` at `77c43a08f72d7a4578718a92d8d0c8b9bce2377a`, together with the user's reported installed Windows run on candidate `1.5.0.20261122084229515`. These are **different evidence sources**; locally verified changes are not automatically proof of release or of code at the reviewed GitHub commit.
 
 ## At a glance
 
@@ -31,7 +31,11 @@
 | Ordinary line breakpoint | **Verified** | **Verified** (controller, service, repository) | **Verified** (application code during tests) |
 | Conditional breakpoint | **Verified** | Supported via JDT; **not separately verified** | Supported via JDT; **not separately verified** |
 | Caught/uncaught exception breakpoint | **Verified** | Supported via JDT; handled-exception path **verified** with ordinary line stops | Supported via JDT; **not separately verified** for exception breakpoint |
-| Step into / over / out | **Verified in installed Java workflow** | Supported via JDT; **not separately verified as full step matrix** | Supported via JDT; **not separately verified as full step matrix** |
+| Step Into | **Implemented; separate installed acceptance not recorded** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
+| Step Over | **Verified in installed calculator workflow** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
+| Step Out | **Implemented; separate installed acceptance not recorded** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
+| Resume | **Verified in installed Java workflows** | **Verified in HTTP request investigation** | **Verified in JUnit debugging workflow** |
+| Pause / suspend a running thread | **Verified** (JAVA-06) | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
 | Read threads, stacks and local variables | **Verified** | **Verified** (request thread and service locals) | **Verified** (test target and application locals) |
 | Expand nested variables, bounded field/array reads | **Verified** | Supported via JDT; **not separately verified** | Supported via JDT; **not separately verified** |
 | Non-suspending tracepoint | **Verified** | Supported via JDT; **not separately verified** | Supported via JDT; **not separately verified** |
@@ -55,7 +59,7 @@ Keep these stable IDs aligned with the [feature roadmap](feature-roadmap.md), wh
 | CORE-02 | Java application discovery | Main discovery and multiple Boot mains verified; ambiguous agent selection needs more trials |
 | CORE-03 | Start/reuse existing Java launch configuration | Installed owned and borrowed launches verified; custom-config negatives remain important |
 | CORE-04 | Add/list/remove source line breakpoints | Installed runtime marker hits and cleanup; never delete user markers |
-| CORE-05 | Pause, resume and step Java execution | Installed Java checks; stale threads and target changes need protection |
+| CORE-05 | Pause, resume, Step Into, Step Over and Step Out | Resume and Step Over have recorded installed evidence; Step Into and Step Out are implemented but require independently recorded step-result assertions |
 | CORE-06 | Inspect JVM threads, stack frames and variables | Live Java, Boot and JUnit evidence; bounded reads recommended |
 | CORE-07 | Navigate Eclipse editor to suspended source | Navigation operation verified; concurrent-session GUI focus needs manual validation |
 | CORE-08 | Investigation lifecycle `NORMAL`/`CONTROLLED` | Previous 32/32 ownership checks, new SB-09 subset; full concurrent Boot matrix pending |
@@ -75,6 +79,21 @@ Keep these stable IDs aligned with the [feature roadmap](feature-roadmap.md), wh
 | BOOT-07 / SB-08 | Invalid quantity, handled error and HTTP response | **Local installed PASS**: service line 17; controller handler line 27; HTTP 400 |
 | BOOT-10 / SB-09 | Ownership and authorization for Boot | **Local subset PASS**: borrowed launch, expired ID, unapproved POST; broader multi-service coverage open |
 | BOOT-11 / SB-10 | Plain Eclipse vs Spring Tools compatibility | Plain JDT/JUnit path tested; Spring Tools-specific comparison open |
+
+## Fundamental execution-control acceptance checklist (CORE-05)
+
+These are **test cases under existing feature ID `CORE-05`**, not new features. `Implemented` confirms the operation is exposed by the existing debugger; it does not imply the focused live assertion has passed.
+
+| Test case | Operation | Current evidence | Acceptance needed for standalone sign-off |
+|---|---|---|---|
+| CORE-05-01 | Resume a suspended thread | **Verified** in installed investigations | Correct selected thread resumes; unrelated targets remain unchanged |
+| CORE-05-02 | Step Over | **Verified** in installed calculator scenario | Next suspend is in the expected caller method after executing current line; locals change as expected |
+| CORE-05-03 | Step Into | **Implemented; dedicated test pending** | From a caller, enter the expected application method and verify target frame, line and thread |
+| CORE-05-04 | Step Out | **Implemented; dedicated test pending** | From a callee, return to the expected caller and verify frame/line and state |
+| CORE-05-05 | Pause / suspend | **Verified** in JAVA-06 | Stop the intended running thread, read the actual stack, leave other sessions untouched |
+| CORE-05-06 | Ended/stale thread and invalid step | **Not fully acceptance-tested** | Report an actionable error without stepping an unrelated or terminated target |
+
+**Scope:** These operations already exist in the Eclipse/JDT integration. Additional tests document confidence and guard regressions; do not implement duplicate stepping tools merely to satisfy this checklist. The Spring Boot and JUnit cross-context step matrix remains unverified and must be recorded separately if tested.
 
 ## Verified workflows
 
@@ -128,8 +147,8 @@ Use an **existing dedicated, disposable Eclipse test installation and workspace*
 
 ```cmd
 scripts\windows\dev.bat doctor
-scripts\windowserify-phase2-eclipse.bat
-scripts\windowserify-phase1-eclipse.bat
+scripts\windows\verify-phase2-eclipse.bat
+scripts\windows\verify-phase1-eclipse.bat
 ```
 
 For the Phase 2 command, set `AGENTDEBUG_WORKSPACE`, a non-default `AGENTDEBUG_PORT`, and `AGENTDEBUG_APPROVE_FIXTURE_POST=YES` **only for an approved disposable fixture**. Results are written to `evaluation/reports/phase2-live.json` and `evaluation/reports/phase1-live.json`. The direct verifiers do **not** run Claude and do not establish symptom-prompt quality.

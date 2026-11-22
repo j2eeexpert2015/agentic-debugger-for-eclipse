@@ -2,8 +2,7 @@
 
 [README](../README.md) · [Phase-level roadmap](development-roadmap.md) · [Spring Boot scenarios](spring-boot-debugging-scenarios.md) · [Evaluation plan](evaluation-plan.md) · [Codex backlog](codex-implementation-backlog.md) · [Phase 1 evidence](phase1-implementation-status.md)
 
-**Reviewed:** 22 November 2026, GitHub `main` `11e696624412725e2668fbe074cbf4e098b31055`. **Scope:** feature-level benefit, status, feasibility and acceptance. Phase numbering is revised; existing feature identifiers remain stable.
-
+**Reviewed:** 22 November 2026, GitHub `main` `77c43a08f72d7a4578718a92d8d0c8b9bce2377a`. **Scope:** feature-level benefit, status, feasibility and acceptance. Phase numbering is revised; existing feature identifiers remain stable.
 
 <!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
 ## Local Phase 2 Verification Update (22 November 2026)
@@ -36,13 +35,28 @@
 | CORE-02 | Discover Java `main()` entry points | Implemented; fixture discovery passed | Ambiguity and multi-project selection |
 | CORE-03 | Reuse/start Java launch without destroying user settings | Implemented; ownership tests | Custom configurations and fail-before-save |
 | CORE-04 | Set/list/remove ordinary breakpoints | Implemented; marker assertions | Duplicate and user marker safety |
-| CORE-05 | Pause/resume/step into/over/out | Implemented; installed step-over evidence | Stale thread/frame and termination |
+| CORE-05 | Pause/resume/step into/over/out | Implemented; installed resume, Step Over, pause evidence; dedicated Step Into/Step Out acceptance pending | Individually test five operations; stale thread/frame and termination |
 | CORE-06 | Read threads/stacks/locals | Implemented; runtime checks | Bounded output, stale frames |
 | CORE-07 | Navigate Eclipse editor to suspended source | Implemented; navigation request verified | Real GUI focus with concurrent sessions |
 | CORE-08 | NORMAL/CONTROLLED lifecycle, precise ownership/cleanup | 32 live negative/ownership checks passed | Preserve invariants for new operations |
 | CORE-09 | Managed Claude MCP registration | Implemented; installed preservation coverage pending | Existing unrelated registrations |
 | CORE-10 | Installed binary verification | Loaded class hashes matched | Match source revision and release ZIP |
 | CORE-11 | Windows build/deploy/doctor/test with fixture import | Fresh and repeat deployment recorded | Failure recovery, version changes |
+
+### CORE-05 — Fundamental execution-control acceptance
+
+The debugger implements these operations, but a general passing regression does **not** prove that each action passed a separate, targeted assertion. Track tests as children of `CORE-05` rather than inventing new feature IDs.
+
+| Test ID | Operation | Status | Required focused evidence |
+|---|---|---|---|
+| CORE-05-01 | Resume | Installed workflow verified | Selected suspended thread resumes; other sessions unchanged |
+| CORE-05-02 | Step Over | Installed calculator workflow verified | Expected next application line and changed locals |
+| CORE-05-03 | Step Into | Implemented; standalone acceptance pending | Enter expected application callee; verify frame, line, thread |
+| CORE-05-04 | Step Out | Implemented; standalone acceptance pending | Return to expected caller; verify frame, line, thread |
+| CORE-05-05 | Pause | Installed JAVA-06 workflow verified | Selected running thread suspends; stack is readable |
+| CORE-05-06 | Ended/stale/invalid thread operations | Broader negative coverage pending | Fail safely with no action on another debug target |
+
+Keep Step Into and Step Out as **supported**, not as separately tested operations until a recorded installed run proves the outcomes. Cross-context Spring Boot and JUnit stepping checks remain open. The corresponding user-facing status matrix is in [capabilities.md](capabilities.md#fundamental-execution-control-acceptance-checklist-core-05).
 
 ## Phase 1 — Verified Java features
 
