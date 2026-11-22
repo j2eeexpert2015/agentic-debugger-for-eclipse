@@ -49,11 +49,11 @@
 | JAVA-06 / P1-PAUSE | Pause, investigate and restart owned JVM | New owned launch observed; negative ownership passed | Natural-language Claude restart selection |
 | JAVA-07 / P1-FILTER | Per-target step filtering | Application-level frame observed | No global preference changes |
 
-**Do not call JUnit debugging missing.** Core single-test support is verified; Spring-context test behavior and more complex discovery are what require Phase 2 verification. [Phase 1 scenarios](phase1-claude-scenarios.md).
+**Do not call JUnit debugging missing.** Core single-test support and one Spring-context method have installed debugger evidence. Failure handling and more complex discovery remain open. [Phase 1 scenarios](phase1-claude-scenarios.md).
 
 ## Phase 2 — Essential Spring Boot and JUnit
 
-The [installed fixture audit](spring-boot-tool-audit.md) records initial direct checks for discovery, launch, readiness, HTTP and JUnit. Full scenario acceptance remains open. `BOOT-05` remains deferred to Phase 5 and its original ID is retained. Detailed real-world prompts, fixtures, direct assertions, negatives and evidence: [spring-boot-debugging-scenarios.md](spring-boot-debugging-scenarios.md).
+The [installed fixture audit](spring-boot-tool-audit.md) records direct checks for discovery, launch, readiness and JUnit, plus direct and explicit Claude evidence for the HTTP quote. Full scenario acceptance remains open. `BOOT-05` remains deferred to Phase 5 and its original ID is retained. Detailed real-world prompts, fixtures, direct assertions, negatives and evidence: [spring-boot-debugging-scenarios.md](spring-boot-debugging-scenarios.md).
 
 | ID / scenarios | Developer need / proposed capability | Reuse-first hypothesis (verify, not assume) | Required acceptance / priority |
 |---|---|---|---|

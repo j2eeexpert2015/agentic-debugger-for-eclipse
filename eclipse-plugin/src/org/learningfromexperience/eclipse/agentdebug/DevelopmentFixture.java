@@ -16,8 +16,8 @@ import org.eclipse.m2e.core.project.ProjectImportConfiguration;
 final class DevelopmentFixture {
     static void prepare(Path source, IProgressMonitor monitor) throws Exception {
         var root = ResourcesPlugin.getWorkspace().getRoot();
-        String name = "phase-one-debugging";
         source = source.toRealPath();
+        String name = source.getFileName().toString();
         var project = root.getProject(name);
         Path local = root.getLocation().toFile().toPath().resolve(name);
         if (project.exists()) {

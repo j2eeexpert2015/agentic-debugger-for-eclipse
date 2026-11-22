@@ -4,7 +4,7 @@ The Phase 2 feasibility check uses the existing debugger with the [standalone or
 
 ## Installed results, 22 November 2026
 
-The direct bridge probes used debugger bundle `1.5.0.20261121194127738` in a separate Windows Eclipse 2026-09 JDT/JUnit installation with m2e. The debugger and MCP server came from Phase 1. A temporary workspace helper imported the fixture. These checks exercised the Eclipse bridge directly. Boot-specific Claude trials remain pending.
+The direct bridge probes used debugger bundle `1.5.0.20261121194127738` in a separate Windows Eclipse 2026-09 JDT/JUnit installation with m2e. The debugger and MCP server came from Phase 1. A temporary workspace helper imported the fixture. These checks exercised the Eclipse bridge directly. The later [HTTP investigation](#p2-04-http-quote-investigation) includes an explicit Claude trial.
 
 | Check | Observation |
 |---|---|
@@ -57,3 +57,9 @@ A direct bridge probe and one fresh Claude Sonnet 5.5 session each debugged a se
 | Negative checks | The client rejected missing approval, a foreign host, the wrong port, another route and an unknown input parameter. On the separate zero-quantity test, the debugger stopped at the service rejection and then the controller error handler. An enabled repository entry breakpoint received no intervening hit. |
 
 These results cover the direct and explicit-prompt investigation of this fixture. Independent symptom-prompt trials and the full Phase 2 acceptance matrix remain pending.
+
+## P2-05 JUnit failure and skip checks
+
+Eclipse previously launched the selected plain and Spring-context JUnit methods and stopped in application code. The latest default Maven fixture run recorded two passing tests and one disabled test skipped. The broken-context fixture carries the `debug-defect` tag, which that run excludes.
+
+The isolated Eclipse workspace reported a project-description error during import, before it produced JUnit results for the negative cases. Installed verification remains open for rejection of a missing method, context initialization failure before the test body, and a selected method skipped by JUnit.

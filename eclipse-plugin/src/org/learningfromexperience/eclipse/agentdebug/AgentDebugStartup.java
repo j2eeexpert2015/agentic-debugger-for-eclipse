@@ -105,7 +105,14 @@ public class AgentDebugStartup implements IStartup {
                 // Start communication bridge.
                 try {
 
-                    if (fixture != null) DevelopmentFixture.prepare(java.nio.file.Path.of(fixture), monitor);
+                    if (fixture != null) {
+                        for (String item : fixture.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+                            String trimmed = item.trim();
+                            if (!trimmed.isEmpty()) {
+                                DevelopmentFixture.prepare(java.nio.file.Path.of(trimmed), monitor);
+                            }
+                        }
+                    }
                     EclipseBridgeServer bridgeServer =
                             new EclipseBridgeServer();
 

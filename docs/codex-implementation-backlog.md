@@ -29,7 +29,7 @@
 
 **Deliver:** `examples/spring-boot-debugging` as a standalone Maven Spring Boot sample with an order endpoint, controller/service/in-memory repository, fixed deterministic discount defect, invalid-quantity error path, two candidate Boot mains/projects or test ambiguity setup, ordinary JUnit service test and `@SpringBootTest` test. Add distinct `@WebMvcTest` example only if useful, clearly labelled MockMvc. Document intended failure and root-cause oracle outside agent prompts. **Tests:** compile and run passing fixture setup/smoke checks, execute intentionally failing checks separately, ensure root package unaffected. Once the fixture builds, run the existing Java and JUnit tools against it in Eclipse. Update the P2-01 matrix with observed behavior and logs before proposing a Boot-specific API. **No real payments/databases/cloud accounts.**
 
-**P2-01 and P2-02 outcome.** The [tool audit](spring-boot-tool-audit.md) records the source review and initial direct installed results against the [orders fixture](../examples/spring-boot-debugging/README.md). Continue with P2-03 configuration, readiness failure and cleanup checks.
+**P2-01 and P2-02 outcome.** The [tool audit](spring-boot-tool-audit.md) records the source review and initial direct installed results against the [orders fixture](../examples/spring-boot-debugging/README.md).
 
 ### P2-03 — Boot launch, configuration and readiness
 
@@ -46,6 +46,8 @@
 ### P2-05 — Spring-context and ordinary JUnit coverage
 
 **Deliver:** verify and, only when necessary, extend individual method discovery and launch for `OrderServiceTest`, `OrderApiIntegrationTest` and, optionally, a targeted MockMvc test. **Tests:** SB-06/07, missing test, initialization failure and unexecuted-test negative. **Definition of done:** selected test actually ran under the correct JUnit/Spring context and suspended in expected application frame; unrelated tests/configuration untouched.
+
+**P2-05 in progress.** The missing-method, broken-context and disabled-method cases still need installed Eclipse results after the workspace import error. [JUnit evidence and remaining checks](spring-boot-tool-audit.md#p2-05-junit-failure-and-skip-checks)
 
 ### P2-06 — Validation, sessions and installed acceptance
 

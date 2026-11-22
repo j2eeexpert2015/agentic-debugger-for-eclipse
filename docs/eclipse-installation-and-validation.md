@@ -10,7 +10,7 @@ From the checkout, use these commands with the installed Eclipse workspace open.
 
 | Command | Behavior |
 |---|---|
-| `scripts\windows\dev.bat doctor` | Shows the toolchain paths and Git status, authenticates to the bridge, compares two loaded debugger class hashes with the compiled classes, and checks fixture discovery. |
+| `scripts\windows\dev.bat doctor` | Shows the toolchain paths and Git status, authenticates to the bridge, compares two loaded debugger class hashes with the compiled classes, and checks discovery of the Phase 1 Java main and JUnit method. |
 | `scripts\windows\dev.bat test` | Runs doctor, the installed Claude calculator regression, and all seven Phase 1 bridge scenarios. Requires a signed-in Claude CLI. |
 | `scripts\windows\dev.bat exception` | Runs doctor and the exception scenario. Other selectors are conditional, junit, variables, trace, pause-restart, and filters. |
 | `scripts\windows\dev.bat deploy` | Packages the current checkout, installs the debugger through p2, opens the selected workspace, imports the Maven fixture, and checks readiness. |
@@ -25,7 +25,7 @@ set "AGENTDEBUG_PORT=18765"
 scripts\windows\dev.bat
 ```
 
-Use an Eclipse Java installation with m2e and JUnit support. On first deployment the plugin copies the checkout's fixture POM and sources into the selected workspace and imports them through m2e. An existing fixture from the same checkout is refreshed. A conflicting project or directory stops setup. The developer run uses its own MCP configuration for Claude. An alternate port has a separate authentication token.
+Use an Eclipse Java installation with m2e and JUnit support. On first deployment the plugin copies the checkout's fixture POM and sources into the selected workspace and imports them through m2e. The local deployment changes pass both `examples/phase-one-debugging` and `examples/spring-boot-debugging` to the importer. Automatic import of both projects in a fresh workspace still needs verification. An existing fixture from the same checkout is refreshed. A conflicting project or directory stops setup. The developer run uses its own MCP configuration for Claude. An alternate port has a separate authentication token.
 
 Reports are written to `e2e-runner/target/e2e-report/result.txt` and `evaluation/reports/phase1-live.json`. The calculator regression leaves its CONTROLLED session suspended for inspection.
 

@@ -29,7 +29,13 @@ try {
     $change += @('-repository',([uri]$site).AbsoluteUri,'-installIU',"$iu/$version")
     & $director @argsP2 @change
     if ($LASTEXITCODE) { throw 'Eclipse p2 deployment failed' }
-    $env:AGENTDEBUG_FIXTURE_SOURCE = Join-Path $repo 'examples\phase-one-debugging'
-    Start-Process -FilePath "$ide\eclipse.exe" -ArgumentList "-clean -data `"$workspace`"" -WindowStyle Normal
+    $p1 = Join-Path $repo 'examples\phase-one-debugging'
+    $p2 = Join-Path $repo 'examples\spring-boot-debugging'
+    $env:AGENTDEBUG_FIXTURE_SOURCE = "$p1;$p2"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "$ide\eclipse.exe"
+    $psi.Arguments = "-clean -data `"$workspace`""
+    $psi.UseShellExecute = $true
+    [void][System.Diagnostics.Process]::Start($psi)
     Write-Host "Started Eclipse with debugger $version. Waiting for fixture import and bridge readiness."
 } catch { Write-Host "FAIL: $($_.Exception.Message)"; exit 1 }
