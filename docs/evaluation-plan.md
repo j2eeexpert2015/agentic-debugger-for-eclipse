@@ -4,6 +4,13 @@
 
 **Planning baseline:** GitHub `main` `11e6966` as reviewed on 22 November 2026. This plan updates the previously stale JUnit and conditional-breakpoint restrictions: **both capabilities exist and passed installed Phase 1 tests**. Boot-specific feature checks, optional skills, and repeated A/B automation have **not** been implemented or verified.
 
+
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
+## Local Phase 2 Verification Update (22 November 2026)
+
+**New direct-only results (not skill A/B):** Local candidate `1.5.0.20261122084229515` passed SB-08 and SB-09's tested subset together, then passed all seven Phase 1 bridge scenarios. This is important deterministic regression evidence, but **does not change the existing no-skill Claude symptom baseline or establish any Boot agent-choice outcome**. Continue to label all Boot symptom-only conditions `NOT RUN` until observed in isolated fresh agent sessions. [Current evidence matrix](phase2-verification-consolidation.md).
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:END -->
+
 ## 1. Current no-skill baseline — what it actually shows
 
 - Windows candidate `1.5.0.20261121184224374`: 7/7 Phase 1 direct bridge checks; 7/7 explicit Claude tool-driven scenarios; 32/32 ownership/failure checks; installed calculator regression.

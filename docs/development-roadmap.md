@@ -4,6 +4,15 @@
 
 **Planning baseline:** GitHub `main` at `11e696624412725e2668fbe074cbf4e098b31055`, reviewed 22 November 2026. This document **reorders the proposed phases**; it does not claim the roadmap changes or proposed features have been implemented. Source of truth for actual installed testing remains [Phase 1 Implementation Status](phase1-implementation-status.md).
 
+
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
+## Local Phase 2 Verification Update (22 November 2026)
+
+**Newest local installed evidence:** SB-08 direct invalid-quantity request debugging and SB-09 bounded ownership/consent checks both **PASS** together, followed by **7/7 Phase 1 bridge regression PASS**, all with reported cleanup. The local installed bundle was `1.5.0.20261122084229515`. These results extend, but do not replace, the separate historical P2-01â€“P2-05 audit evidence. P2-06 remains **in progress**, because full SB-01â€“SB-10 explicit/symptom/negative gates and STS coverage are not complete. [Consolidated evidence](phase2-verification-consolidation.md).
+
+**Immediate order:** archive successful results and reproducible local harness fixes â†’ finish essential multi-service and environment checks â†’ obtain bounded skill-free Java/JUnit/Boot symptom baseline â†’ author optional unified skill (Phase 3) â†’ controlled A/B evaluation (Phase 4). Do not imply that an optional skill is required for core debugging.
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:END -->
+
 ## Contents
 
 - [Roadmap overview](#roadmap-overview)

@@ -4,6 +4,15 @@
 
 **Target repository:** `j2eeexpert2015/agentic-debugger-for-eclipse`; reviewed GitHub `main` commit `11e696624412725e2668fbe074cbf4e098b31055` on 22 November 2026. This is an **ordered task specification for Codex**, not evidence the tasks have been completed. Work against the freshest local tree and recheck Git status and latest remote commit before editing.
 
+
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
+## Local Phase 2 Verification Update (22 November 2026)
+
+**P2-06 local progress (22 November 2026):** The Java Phase 2 verifier now records SB-08 **PASS** (real HTTP 400 with service and controller exception stops) and a focused SB-09 **PASS** (borrowed session preserved, expired investigation rejected and unapproved POST blocked). Both passed sequentially on installed `1.5.0.20261122084229515`; all seven Phase 1 direct scenarios also passed afterward. **P2-06 remains open** for the broader cross-session matrix, STS coverage, complete source-to-artifact evidence and explicit/symptom-only trials. [Consolidated acceptance ledger](phase2-verification-consolidation.md). The Java test harness and HTTP client fixes were local; do not assume GitHub `main` already includes them.
+
+**Next code tasks:** preserve the corrected Phase 2 verifier and PowerShell client; collect successful JSON and command transcripts; finish bounded SB-09/10 checks, then prepare skill-free agent baselines before starting Phase 3's optional skill. Do not rebuild new Boot MCP APIs without observed gaps.
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:END -->
+
 ## Principles and non-negotiable constraints
 
 - Inspect the working tree, branches, current source and existing tests; **preserve uncommitted work**. Do not reset or overwrite it. Do not push or publish without authorization.

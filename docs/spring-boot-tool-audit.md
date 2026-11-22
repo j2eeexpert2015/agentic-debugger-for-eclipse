@@ -2,6 +2,15 @@
 
 The Phase 2 feasibility check uses the existing debugger with the [standalone orders fixture](../examples/spring-boot-debugging/README.md). The matrix identifies the operations under test and the checks still needed before claiming broader Boot support.
 
+
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
+## Local Phase 2 Verification Update (22 November 2026)
+
+**Additional local installed run, 22 November 2026:** User-supplied console output confirms `scripts\windows\verify-phase2-eclipse.bat` **PASS** for `validation` and `ownership` in a single Eclipse session, using plugin `1.5.0.20261122084229515`, JDK 25 and bridge port 21765. The validation request was actually served (HTTP 400, service throw line 17, controller handler line 27). The ownership subset preserved a borrowed launch and rejected an expired investigation and unapproved POST; both scenarios reported `cleanup=true`. Then `scripts\windows\verify-phase1-eclipse.bat` reported all seven Java bridge scenarios **PASS**, cleanup true, and Maven `BUILD SUCCESS`. These runs extend the prior tool audit but are **not** a full SB-01â€“SB-10 four-gate sign-off. [Evidence, artifact distinction, and remaining gaps](phase2-verification-consolidation.md).
+
+The first local validation failure was due to the Windows PowerShell fixture HTTP client not loading `System.Net.Http`. After fixing the client, the test passed. The verifier also required a local Java access-modifier correction for the shared bridge trace field. Both harness changes should be included in any reproducible candidate source baseline. The older failed JSON is not proof of the subsequent successful run.
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:END -->
+
 ## Installed results, 22 November 2026
 
 The direct bridge probes used debugger bundle `1.5.0.20261121194127738` in a separate Windows Eclipse 2026-09 JDT/JUnit installation with m2e. The debugger and MCP server came from Phase 1. A temporary workspace helper imported the fixture. These checks exercised the Eclipse bridge directly. The later [HTTP investigation](#p2-04-http-quote-investigation) includes an explicit Claude trial.

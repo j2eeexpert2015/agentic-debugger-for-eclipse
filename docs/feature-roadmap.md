@@ -4,6 +4,13 @@
 
 **Reviewed:** 22 November 2026, GitHub `main` `11e696624412725e2668fbe074cbf4e098b31055`. **Scope:** feature-level benefit, status, feasibility and acceptance. Phase numbering is revised; existing feature identifiers remain stable.
 
+
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
+## Local Phase 2 Verification Update (22 November 2026)
+
+**Post-audit local test update:** BOOT-07 / SB-08 (invalid-quantity exception/handler) passed direct installed Eclipse checks; BOOT-10 / SB-09 passed a **subset** covering borrowed launch preservation, expired investigation rejection and refusal of unapproved fixture POST. Phase 1's seven capabilities passed direct regression on the same installation. The broader BOOT-10 cross-service matrix and BOOT-11 / SB-10 Spring Tools compatibility remain pending. No Boot-specific natural-language symptom-only trial or skill A/B result is claimed. [Evidence ledger](phase2-verification-consolidation.md).
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:END -->
+
 ## Contents
 
 - [Status and evidence rules](#status-and-evidence-rules)

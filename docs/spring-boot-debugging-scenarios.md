@@ -4,6 +4,13 @@
 
 **State on 22 November 2026.** The [tool audit](spring-boot-tool-audit.md) records direct launch and JUnit checks, the direct and explicit Claude HTTP investigation, and the installed JUnit failure and skip results. The four acceptance gates below remain the criteria for full verification. The existing Phase 1 debugger already supports a selected standalone JUnit 5 method; this catalog adds Spring-context and application-level coverage, not a duplicate JUnit framework.
 
+
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
+## Local Phase 2 Verification Update (22 November 2026)
+
+**New local direct evidence:** On candidate `1.5.0.20261122084229515`, SB-08 stopped at `OrderService.java:17` and `OrderController.java:27`, returned HTTP 400 with `Quantity must be positive`, and cleaned up. SB-09's tested borrowed-launch, expired-ID and unapproved-POST subset passed with cleanup. These two checks passed sequentially; the full Phase 1 direct suite then passed 7/7. **Explicit Claude and symptom-only Boot gates were not rerun**. The [consolidated four-gate scenario matrix](phase2-verification-consolidation.md#4-scenario-acceptance-matrix--do-not-treat-unrun-trials-as-failures-or-successes) remains authoritative for completion decisions; this catalog's original acceptance requirements stay unchanged.
+<!-- PHASE2-VERIFICATION-CONSOLIDATION:END -->
+
 ## 1. Evaluation method and fixture policy
 
 Each scenario has **four independent gates**: (1) direct installed-Eclipse/JDT behavior (not Claude), (2) explicit Claude prompt naming objective and mechanism, (3) symptom-only natural-language prompt requiring the agent to select the method, and (4) negative/ownership/cleanup assertions. A prompt alone is not test evidence.

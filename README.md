@@ -2,10 +2,11 @@
 
 Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect local variables, and step through code. Independent open-source integration; not affiliated with the Eclipse Foundation.
 
-**Project status · 22 November 2026.** Core Java debugging and the seven Phase 1 capabilities passed installed Windows candidate verification; publication remains pending. **Phase 2 is underway.** Eclipse launched individual plain and Spring-context JUnit methods. A direct run and one explicit Claude run traced the incorrect HTTP quote from request to response. Installed JUnit checks now cover missing methods, Spring context startup errors and disabled tests. [Boot test results](docs/spring-boot-tool-audit.md) · [Verification evidence](docs/phase1-implementation-status.md) · [Development roadmap](docs/development-roadmap.md).
+**Project status · 22 November 2026.** Core Java debugging and all seven Phase 1 advanced capabilities have passed installed-Windows verification. Core Spring Boot application, HTTP request, ordinary JUnit and Spring-context JUnit debugging have also been demonstrated. On installed bundle `1.5.0.20261122084229515`, the Phase 2 SB-08 validation and SB-09 safety subset both passed, followed by all seven Phase 1 regressions. **Full Phase 2 acceptance and public release are still pending.** See [Supported Debugging Capabilities](docs/capabilities.md) and [Phase 2 verification evidence](docs/phase2-verification-consolidation.md).
 
 ## Contents
 
+- [Supported debugging capabilities — Java, Spring Boot and JUnit](#supported-debugging-capabilities--java-spring-boot-and-junit)
 - [Project roadmap — Phases 0–5](#project-roadmap--phases-05)
 - [Development roadmap (phase-level)](docs/development-roadmap.md)
 - [Feature roadmap and tracker (feature-level)](docs/feature-roadmap.md)
@@ -23,6 +24,18 @@ Use Claude Code to set Java breakpoints, start debugging in Eclipse, inspect loc
 - [Phase 1 candidate — advanced core-Java debugging](#phase-1-candidate--advanced-core-java-debugging)
 - [Documentation](#documentation)
 
+## Supported Debugging Capabilities — Java, Spring Boot and JUnit
+
+**The core debugger can debug standard Java applications, Spring Boot applications, and individual JUnit 5 tests (including Spring-context tests).** These capabilities use the existing Eclipse JDT debugger and do **not** require an optional Claude skill. However, some combinations of advanced debugger operations and application types have not been tested independently.
+
+| Developer workflow | Current capability | Verification boundary |
+|---|---|---|
+| **Java applications** | Discover and debug a Java `main()`, use breakpoints, step through execution and inspect live state | Seven advanced Phase 1 scenarios passed installed-Eclipse regression on 22 November 2026 |
+| **Spring Boot applications** | Discover and launch a Boot main, reuse existing configuration, verify readiness, debug approved local HTTP requests through application code | Direct HTTP request, incorrect-total trace and invalid-quantity/HTTP 400 case demonstrated; full scenario matrix remains open |
+| **JUnit 5 tests** | Discover and debug an individual Java JUnit test method, including Spring Boot `@SpringBootTest` methods | Direct installed tests and earlier explicit Claude trials; failures, missing methods, disabled tests and context failures checked |
+
+**Not currently implemented:** JDWP remote attach, field watchpoints, run-to-line, Hot Code Replace, runtime variable mutation, and specialized JPA/transaction diagnostics. **Further evaluation required:** broad Spring Tools-specific compatibility, complex/parameterized JUnit selection, expanded concurrent-service isolation, and symptom-only Claude reliability. For the per-feature × execution-context matrix, verified versus unverified evidence, limitations, and commands, read **[Implemented Capabilities and Verification](docs/capabilities.md)**. [Phase 2 verification consolidation](docs/phase2-verification-consolidation.md) separates historical experiments from the newest local candidate.
+
 ## Project roadmap — Phases 0–5
 
 The [Development Roadmap](docs/development-roadmap.md) defines phase order and exit gates. The [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) records capability IDs, user benefits, evidence and feasibility. The [Spring Boot/JUnit Scenario Catalog](docs/spring-boot-debugging-scenarios.md) defines exact Phase 2 prompts and acceptance cases; the [Codex Backlog](docs/codex-implementation-backlog.md) makes unfinished work actionable.
@@ -31,14 +44,14 @@ The [Development Roadmap](docs/development-roadmap.md) defines phase order and e
 |---|---|---|---|
 | **0** | Core Eclipse MCP debugger: Java launch, breakpoints, stepping, variables, lifecycle and ownership | Implemented; core installed regression tested | [Phase 0](docs/development-roadmap.md#phase-0--core-eclipse-mcp-debugger) |
 | **1** | Seven advanced Java features **including individual JUnit 5 debugging** | 7/7 direct and 7/7 explicit Claude tests passed on Windows candidate; **unpublished** | [Phase 1](docs/development-roadmap.md#phase-1--advanced-core-java-debugging) |
-| **2** | **Essential Spring Boot and Spring Boot/JUnit:** discovery, safe launch/config, readiness, HTTP reproduction, controller/service tracing, context tests | Launch, HTTP and selected JUnit checks passed. Full Phase 2 acceptance is pending. | [Phase 2](docs/development-roadmap.md#phase-2--essential-spring-boot-and-junit-debugging) · [Scenarios](docs/spring-boot-debugging-scenarios.md) |
+| **2** | **Essential Spring Boot and Spring Boot/JUnit:** discovery, safe launch/config, readiness, HTTP reproduction, controller/service tracing, context tests | Core HTTP/JUnit workflows and local SB-08/SB-09 subset passed; **full acceptance pending** | [Phase 2](docs/development-roadmap.md#phase-2--essential-spring-boot-and-junit-debugging) · [Scenarios](docs/spring-boot-debugging-scenarios.md) |
 | **3** | Optional, independently replaceable **Java + JUnit + Spring Boot** debugging skill | Research/requirements exist; skill not implemented | [Phase 3](docs/development-roadmap.md#phase-3--unified-agentic-debugging-skill) |
 | **4** | Repeatable no-skill / stable / candidate **skill A/B evaluation** | Baseline observations exist; runner and replicated comparisons pending | [Phase 4](docs/development-roadmap.md#phase-4--skill-evaluation-and-optimization) |
 | **5** | Advanced Java + Boot: remote attach, watchpoints, run-to-line, HCR, mutation, JPA/transactions | Deferred; individual feasibility required | [Phase 5](docs/development-roadmap.md#phase-5--advanced-java-and-spring-boot-capabilities) |
 
-**Current evidence boundary:** On installed candidate `1.5.0.20261121184224374`, the repo records 7/7 direct Java feature checks, 7/7 explicit Claude runs and 32/32 ownership checks. In **seven trials (one per symptom prompt, with relevant fixture source supplied)**, Claude selected the intended mechanism in 6/7 and provided complete answers in 5/7. Trace output completeness and choosing a restart were the two partial cases; this is a skill-evaluation baseline, **not** evidence that the Phase 1 tools failed. [Details](docs/phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
+**Current evidence boundary:** On installed candidate `1.5.0.20261121184224374`, the repo records 7/7 direct Java feature checks, 7/7 explicit Claude runs and 32/32 ownership checks. In **seven single-run, symptom-only sessions with relevant fixture source supplied**, Claude selected the intended mechanism in 6/7 and provided complete answers in 5/7. Trace output completeness and choosing a restart were the two partial cases; this is a skill-evaluation baseline, **not** evidence that the Phase 1 tools failed. [Details](docs/phase1-claude-scenarios.md#symptom-prompt-results-22-november-2026).
 
-**Implementation order:** [Phase 1 distribution verified](docs/phase1-implementation-status.md#verified-distribution-zip) → complete the remaining Boot acceptance scenarios → establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
+**Implementation order:** Preserve reproducible Phase 1/2 release evidence → complete remaining Boot acceptance and establish skill-free Java/JUnit/Boot baselines → implement the optional unified skill → conduct A/B evaluation → reconsider advanced features. **All debugger functionality must work without the skill.** [Exact Codex tasks](docs/codex-implementation-backlog.md).
 
 ## 1. Install and use (end users)
 
@@ -132,7 +145,7 @@ Use `scripts/windows/deploy-eclipse-plugin.bat` to **build, uninstall the curren
    mvn verify -Pinstalled-e2e
    ```
 
-**Phase 1 feature verification (Java only).** The default `dev.bat` workflow imports `examples/phase-one-debugging` and runs the direct checks automatically. If you prepared the Eclipse workspace yourself and the fixture is missing, import it with **File → Import → Maven → Existing Maven Projects** and confirm it builds. To run the direct checks separately in either workspace, use this command from the repository root:
+**Phase 1 feature verification (Java only):** After the new Eclipse starts, import `examples/phase-one-debugging` with **File → Import → Maven → Existing Maven Projects** and ensure it builds. Then run from the repository root:
 
 ```cmd
 scripts\windows\verify-phase1-eclipse.bat
@@ -162,7 +175,11 @@ The script does not edit Claude Code's `.claude.json` and does not uninstall oth
 
 ## 6. Current verification boundary
 
-Candidate `1.5.0.20261121184224374` passed the installed Claude calculator regression, all seven direct Phase 1 bridge scenarios, all seven explicit Claude feature scenarios, and 32 ownership/failure checks. Fresh-workspace setup and repeat deployment passed on Windows. Seven *single-trial* natural-language prompts produced five complete and two partial outcomes; do not treat these as a robust success rate. A rebuild of `ff28455` reproduced the installed plug-in contents. The newly versioned distribution `1.5.0.20261121194127738` passed installed acceptance from its exact ZIP. Publication is pending. [Exact verification record and gaps](docs/phase1-implementation-status.md).
+**Phase 1:** The earlier candidate `1.5.0.20261121184224374` passed the calculator regression, seven direct Phase 1 bridge scenarios, seven explicit Claude scenarios, and 32 ownership/failure checks. Single-trial symptom prompts produced five complete and two partial results; this is not a robust success-rate estimate. Distribution source/artifact verification and publication are tracked separately in [Phase 1 Implementation Status](docs/phase1-implementation-status.md).
+
+**Phase 2:** Historical installed runs verified Boot main/test discovery, launch configuration reuse, startup/readiness, an authorized local HTTP request with the actual wrong calculation, single-method ordinary and Spring-context JUnit debugging, and JUnit negative cases. On local candidate `1.5.0.20261122084229515`, SB-08 stopped at `OrderService.java:17` and `OrderController.java:27`, returned HTTP 400 with `Quantity must be positive`, and cleaned up. The same candidate passed SB-09's borrowed-session, stale investigation ID, and unapproved-POST subset. All seven Phase 1 direct regression scenarios passed afterward, as did the Maven reactor build. These are **direct bridge checks**; they do not establish current-candidate natural-language Claude success or the full Spring Tools and multi-service matrix. [Full evidence and remaining gates](docs/phase2-verification-consolidation.md).
+
+**Current status:** Core Java, Boot, and individual JUnit workflows are usable as verified in their respective scopes; full Phase 2 sign-off, more extensive agent-behavior evaluation, and public release remain open.
 
 ## Phase 1 candidate — advanced core-Java debugging
 
@@ -176,7 +193,8 @@ Use [Phase 1 status](docs/phase1-implementation-status.md), [Java verification](
 |---|---|
 | [Development Roadmap — Phases 0–5](docs/development-roadmap.md) | Phase milestones, dependencies, pending work and release gates |
 | [Feature Roadmap and Decision Tracker](docs/feature-roadmap.md) | Feature-level status, developer benefit, feasibility, test evidence and decisions |
-| [Implemented Capabilities and Verification](docs/capabilities.md) | Existing core-Java features, evidence boundaries, and regression requirements |
+| [Phase 2 Verification Consolidation](docs/phase2-verification-consolidation.md) | Recent installed SB-08/SB-09 results, earlier Spring Boot/JUnit tests and remaining acceptance gates |
+| [Supported Debugging Capabilities — Java, Spring Boot and JUnit](docs/capabilities.md) | Cross-context capability matrix, real verified workflows, limitations, and evidence boundaries |
 | [External Research and Feature Mapping](docs/research-sources.md) | What IntelliJ, DebugMCP, Microsoft Java Debug Agent, Debug2Fix and other sources offer, and what applies here |
 | [Regression and Skill Evaluation Plan](docs/evaluation-plan.md) | Java/JUnit/Boot scenarios EV-01–EV-16, no-skill baseline, repeatable A/B design and safety gates |
 | [Architecture Decisions and Documentation Rules](docs/decisions.md) | Replaceable-skill boundary and maintenance rules |
@@ -185,30 +203,6 @@ Use [Phase 1 status](docs/phase1-implementation-status.md), [Java verification](
 | [Phase 1 Implementation Status](docs/phase1-implementation-status.md) | Exact new tools, confidence level, caveats, and release checklist |
 | [Phase 1 Claude Prompt Scenarios](docs/phase1-claude-scenarios.md) | Explicit/implicit agent prompts, direct test fixtures and quantitative/qualitative criteria |
 
-These documents separate **what is implemented**, **what a source suggests**, **what may be feasible**, and **what has actually been verified**. The debugging skill and its repeatable A/B evaluation runner are proposals, not installed product features. The latest release candidate has verified Phase 1 tests but remains unpublished.
+These documents separate **what is implemented**, **what a source suggests**, **what may be feasible**, and **what has actually been verified**. The debugging skill and its repeatable A/B evaluation runner are proposals, not installed product features. Installed Phase 1 regressions and selected Phase 2 tests have passed, but broad Phase 2 acceptance and publication remain pending.
 
 For Java-only verification prerequisites, scenario selection, and report format, see [Phase 1 Java verification](docs/phase1-java-test-runner.md).
-
-
-# Phase 2 documentation reconciliation package
-
-All files relate to the **same existing repository**. No new checkout, Git command or plugin installation is required.
-
-This package includes:
-- `docs/phase2-verification-consolidation.md`: the new evidence-based acceptance report.
-- `scripts/windows/apply-phase2-documentation.ps1`: a local, idempotent reconciliation that updates the **existing** README and six docs in place, preserving Codex edits already present in the workspace and making backup copies under the Windows TEMP directory first.
-
-**Why an updater instead of seven wholesale replacement files?** The latest GitHub documents changed after the earlier downloadable roadmap archive. The updater works on your exact current files and does not roll those changes back.
-
-## Apply (Windows CMD)
-
-1. Extract this ZIP into `C:\All_GitHub_Desktop\agentic-debugger-for-eclipse`, merging directories.
-2. Run the updater from that repository root:
-
-```cmd
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\windows\apply-phase2-documentation.ps1
-```
-
-3. Review `README.md`, `docs/phase2-verification-consolidation.md` and the other files listed in the script output.
-
-The script does not run Maven, Eclipse, Claude or Git. Existing development tools can remain open. It does not claim full Phase 2 acceptance.
