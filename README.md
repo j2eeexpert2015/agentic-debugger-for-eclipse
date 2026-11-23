@@ -79,8 +79,8 @@ java dev-e2e/DevE2E.java test --groups acceptance,boot-gaps
 :: Build, deploy and test (dedicated Eclipse instance must be closed)
 java dev-e2e/DevE2E.java all --approve-fixture-post
 
-:: Bridge stability (CORE-13): unit tests (no Eclipse needed), then fault injection on the dedicated Eclipse
-java dev-e2e/BridgeUnitTests.java
+:: Unit tests run inside the build (JUnit 5, no Eclipse needed); then bridge fault injection on the dedicated Eclipse (CORE-13)
+mvn clean package
 java dev-e2e/DevE2E.java test --groups bridge
 ```
 
@@ -110,7 +110,7 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 
 | ID | Priority | Item | Status | Done when | Feature IDs / details |
 |---|---|---|---|---|---|
-| OPEN-17 | **Plan 1** | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests (live Eclipse) and Claude trials stay out of the build and run only through the test runner | Not started | `mvn clean package` fails when a unit test fails | — |
+| OPEN-17 | **Plan 1** | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests (live Eclipse) and Claude trials stay out of the build and run only through the test runner | Partly done: step A done (unit tests in the build); step B next (`testing` module, grader self-test as JUnit) | `mvn clean package` fails when a unit test fails | — |
 | OPEN-18 | **Plan 1** | **Test reorganization by feature:** one integration group per feature, `--feature` / `--suite` selection, old runners removed | Not started | Same results before and after the move | — |
 | OPEN-22 | **Plan 2** | **Demo sample applications** in a new top-level `sample-applications/` folder: **one plain Java application** (`java-debugging-demo`) and **one Spring Boot application** (`spring-boot-debugging-demo`). Scenarios are chosen because they are easy to show visually on screen, starting from the scenarios the test fixtures already prove (for example: a value wrong for only one record in a large loop, found with a conditional breakpoint; an exception swallowed inside a stream or lambda; a wrong discount in a REST call traced from controller to service; a request rejected with HTTP 400; a failing JUnit test). Each scenario has a symptom-only prompt, the expected root cause and a short demo script. Only scenarios that work with the current features are included. **`examples/` is not changed**: it remains the test-fixture set | Not started | Both applications import cleanly into Eclipse; every scenario is found by the agent with the expected root cause (graded automatically where possible); each application has a README with the demo steps | New; reuses the trial runner and grader (EVAL-05/06); `examples/` stays the test fixtures |
 | OPEN-23 | **Plan 3** | **GitHub Copilot integration in Eclipse:** register the existing MCP server with GitHub Copilot (agent mode) in Eclipse, verify tool use and safety rules, document setup, and run the demo scenarios with Copilot | Not started | Setup documented; the OPEN-22 scenarios run with Copilot; differences from Claude Code recorded | Same MCP server; no Copilot-specific debugger code expected (to be verified) |
@@ -146,6 +146,7 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 | **Bridge stability (CORE-13):** parallel reads, ordered state changes, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, operation tracking, timing log; root cause of earlier timeouts fixed (console output blocking on an unread pipe). Follow-ups: OPEN-10 | 23 Nov 2026 | 3 consecutive uninterrupted 23/23 runs, `bridge` 4/4, unit 13/13 ([ADR-006](docs/decisions.md)) |
 | **Event-based stop waiting (CORE-14)** and **process output head+tail (CORE-15).** Follow-ups: OPEN-11 | 23 Nov 2026 | `stops` 6/6, unit 18/18, regression 23/23 |
 | **Repeated-exception dialog never blocks agents; cleanup verifies the JVM ended (CORE-16)** | 23 Nov 2026 | `stops` 6/6 with `SKIP_RECURRENCES`, validation trials 8/8 after the fix (1/6 before) ([ADR-007](docs/decisions.md)) |
+| **Unit tests as JUnit 5 in the Maven build (OPEN-17 step A):** 49 unit tests run by `mvn clean package` (plugin 41 through Tycho and Surefire, mcp-server 8); a failing test fails the build; integration tests and Claude trials stay out of the build; `dev-e2e/BridgeUnitTests.java` removed | 24 Nov 2026 | `mvn clean package`: plugin 41/41, mcp-server 8/8; regression 23/23 afterwards |
 | **Cleanup of abandoned investigations (CORE-17):** MCP disconnect, 10-minute idle lease, leftover breakpoints after an Eclipse restart, IDs attached automatically | 24 Nov 2026 | `lease` 5/5, unit 30/30, regression 23/23 ([ADR-008](docs/decisions.md)) |
 | **Automatic Claude verdicts (EVAL-05)** from actual debugger results plus before/after Eclipse inventory | 23 Nov 2026 | Self-test 19/19; first trial graded PASS with independent cleanup |
 | **Repeated trials and skill comparison on explicit prompts (EVAL-06)** | 23 Nov 2026 | With skill 9/9, without 17/18; no accuracy gain from the skill on explicit prompts ([evidence](docs/claude-acceptance-2026-11-23.md)) |

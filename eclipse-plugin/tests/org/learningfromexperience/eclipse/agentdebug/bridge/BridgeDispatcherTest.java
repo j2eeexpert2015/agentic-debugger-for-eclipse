@@ -17,35 +17,62 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
 /**
- * Dependency-free checks for the bridge dispatcher (BR-U1 to BR-U12). No Eclipse needed.
- *
- * <p>Run from the repository root: {@code java dev-e2e/BridgeUnitTests.java}
- * Optional argument: path to EclipseAgentOperations.java for the classification check.
+ * JUnit 5 unit tests for the bridge dispatcher (BR-U1 to BR-U13). No Eclipse needed: run by
+ * {@code mvn clean package} (maven-surefire-plugin, see eclipse-plugin/pom.xml). The display names
+ * keep the BR-U IDs used in the docs and acceptance records.
  *
  * @author Ayan Dutta
  */
 public final class BridgeDispatcherTest {
 
-    private static int passed;
+    /** Sources are read relative to the module directory, which is surefire's working directory. */
+    private static final Path OPERATIONS_SOURCE =
+            Path.of("src/org/learningfromexperience/eclipse/agentdebug/debug/EclipseAgentOperations.java");
+    private static final Path MCP_SOURCE =
+            Path.of("../mcp-server/src/main/java/org/learningfromexperience/eclipse/agentdebug/mcp/DebugMcpServer.java");
 
-    public static void main(String[] args) throws Exception {
-        Path operationsSource = args.length > 0 ? Path.of(args[0]) : null;
-        run("BR-U1 slow state change does not block reads", BridgeDispatcherTest::slowMutateDoesNotBlockReads);
-        run("BR-U2 deadline returns BRIDGE_TIMEOUT on time", BridgeDispatcherTest::deadlineReturnsTimeout);
-        run("BR-U3 GET_OPERATION returns the late result", BridgeDispatcherTest::lateResultIsRetrievable);
-        run("BR-U4 second state change gets BRIDGE_BUSY", BridgeDispatcherTest::secondMutateIsBusy);
-        run("BR-U5 state changes keep arrival order", BridgeDispatcherTest::mutationsKeepOrder);
-        run("BR-U6 exceptions become error replies", BridgeDispatcherTest::exceptionBecomesError);
-        run("BR-U7 log has names and timings, never arguments", BridgeDispatcherTest::logNeverContainsArguments);
-        run("BR-U8 every Eclipse command is classified", () -> classification(operationsSource));
-        run("BR-U9 50 parallel reads succeed and leave no leftovers", BridgeDispatcherTest::parallelReads);
-        run("BR-U10 slow command is logged with a stack trace", BridgeDispatcherTest::slowCommandLogged);
-        run("BR-U11 stuck command releases its lane", BridgeDispatcherTest::stuckCommandReleasesLane);
-        run("BR-U12 test hook only works when enabled", BridgeDispatcherTest::testHookGated);
-        run("BR-U13 deadline includes time spent waiting for the lane", BridgeDispatcherTest::deadlineIncludesQueueTime);
-        System.out.println("PASS: " + passed + " bridge dispatcher checks");
-    }
+    @Test @DisplayName("BR-U1 slow state change does not block reads")
+    void brU1() throws Exception { slowMutateDoesNotBlockReads(); }
+
+    @Test @DisplayName("BR-U2 deadline returns BRIDGE_TIMEOUT on time")
+    void brU2() throws Exception { deadlineReturnsTimeout(); }
+
+    @Test @DisplayName("BR-U3 GET_OPERATION returns the late result")
+    void brU3() throws Exception { lateResultIsRetrievable(); }
+
+    @Test @DisplayName("BR-U4 second state change gets BRIDGE_BUSY")
+    void brU4() throws Exception { secondMutateIsBusy(); }
+
+    @Test @DisplayName("BR-U5 state changes keep arrival order")
+    void brU5() throws Exception { mutationsKeepOrder(); }
+
+    @Test @DisplayName("BR-U6 exceptions become error replies")
+    void brU6() throws Exception { exceptionBecomesError(); }
+
+    @Test @DisplayName("BR-U7 log has names and timings, never arguments")
+    void brU7() throws Exception { logNeverContainsArguments(); }
+
+    @Test @DisplayName("BR-U8 every Eclipse command is classified; MCP long-running list matches")
+    void brU8() throws Exception { classification(OPERATIONS_SOURCE, MCP_SOURCE); }
+
+    @Test @DisplayName("BR-U9 50 parallel reads succeed and leave no leftovers")
+    void brU9() throws Exception { parallelReads(); }
+
+    @Test @DisplayName("BR-U10 slow command is logged with a stack trace")
+    void brU10() throws Exception { slowCommandLogged(); }
+
+    @Test @DisplayName("BR-U11 stuck command releases its lane")
+    void brU11() throws Exception { stuckCommandReleasesLane(); }
+
+    @Test @DisplayName("BR-U12 test hook only works when enabled")
+    void brU12() throws Exception { testHookGated(); }
+
+    @Test @DisplayName("BR-U13 deadline includes time spent waiting for the lane")
+    void brU13() throws Exception { deadlineIncludesQueueTime(); }
 
     // ---------------------------------------------------------------- tests
 
@@ -164,7 +191,7 @@ public final class BridgeDispatcherTest {
         }
     }
 
-    private static void classification(Path operationsSource) throws Exception {
+    private static void classification(Path operationsSource, Path mcpSource) throws Exception {
         require(BridgeCommands.lane("SOMETHING_NEW") == BridgeCommands.Lane.MUTATE, "unknown commands are MUTATE");
         require(BridgeCommands.lane("GET_THREADS") == BridgeCommands.Lane.READ, "GET_THREADS is READ");
         require(BridgeCommands.lane("EVALUATE_EXPRESSION") == BridgeCommands.Lane.MUTATE, "evaluation is MUTATE");
@@ -176,10 +203,7 @@ public final class BridgeDispatcherTest {
         require(BridgeCommands.deadlineMillis("WAIT_FOR_STOP") == BridgeCommands.WAIT_DEADLINE_MS
                 && BridgeCommands.WAIT_DEADLINE_MS > 60_000 && BridgeCommands.WAIT_DEADLINE_MS < 75_000,
                 "WAIT_FOR_STOP deadline covers a 60 s wait and stays below the MCP 75 s socket timeout");
-        if (operationsSource == null) {
-            System.out.println("  (source scan skipped: no EclipseAgentOperations.java path given)");
-            return;
-        }
+        require(Files.isRegularFile(operationsSource), "EclipseAgentOperations.java found at " + operationsSource.toAbsolutePath());
         // Only the command switch inside execute(); other switches (e.g. CONTROL_DEBUG actions) are not commands.
         String source = Files.readString(operationsSource);
         int start = source.indexOf("public String execute(String command)");
@@ -195,12 +219,8 @@ public final class BridgeDispatcherTest {
         require(seen >= 20, "found the command switch (" + seen + " commands)");
 
         // The MCP server waits longer for long-running commands; its list must match the plugin's.
-        Path mcpSource = operationsSource.getParent() == null ? null : Path.of(operationsSource.toString()
-                .replace("eclipse-plugin/src/org/learningfromexperience/eclipse/agentdebug/debug/EclipseAgentOperations.java",
-                        "mcp-server/src/main/java/org/learningfromexperience/eclipse/agentdebug/mcp/DebugMcpServer.java")
-                .replace("eclipse-plugin\\src\\org\\learningfromexperience\\eclipse\\agentdebug\\debug\\EclipseAgentOperations.java",
-                        "mcp-server\\src\\main\\java\\org\\learningfromexperience\\eclipse\\agentdebug\\mcp\\DebugMcpServer.java"));
-        if (mcpSource != null && Files.isRegularFile(mcpSource)) {
+        require(Files.isRegularFile(mcpSource), "DebugMcpServer.java found at " + mcpSource.toAbsolutePath());
+        {
             Matcher set = Pattern.compile("LONG_RUNNING_COMMANDS = java\\.util\\.Set\\.of\\(([^)]*)\\)", Pattern.DOTALL)
                     .matcher(Files.readString(mcpSource));
             require(set.find(), "LONG_RUNNING_COMMANDS found in DebugMcpServer.java");
@@ -209,8 +229,6 @@ public final class BridgeDispatcherTest {
             while (names.find()) mcpLong.add(names.group(1));
             require(mcpLong.equals(new java.util.TreeSet<>(BridgeCommands.LONG_RUNNING)),
                     "MCP LONG_RUNNING_COMMANDS " + mcpLong + " must equal plugin LONG_RUNNING " + BridgeCommands.LONG_RUNNING);
-        } else {
-            System.out.println("  (MCP timeout list check skipped: DebugMcpServer.java not found)");
         }
     }
 
@@ -335,14 +353,6 @@ public final class BridgeDispatcherTest {
 
     private static void sleep(long ms) {
         try { Thread.sleep(ms); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-    }
-
-    private interface Check { void run() throws Exception; }
-
-    private static void run(String name, Check check) throws Exception {
-        check.run();
-        passed++;
-        System.out.println("PASS " + name);
     }
 
     private static void require(boolean condition, String message) {

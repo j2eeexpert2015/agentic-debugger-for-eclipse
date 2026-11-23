@@ -19,7 +19,6 @@ java dev-e2e/DevE2E.java test --approve-fixture-post
 java dev-e2e/DevE2E.java test --groups phase1,boot-gaps
 java dev-e2e/DevE2E.java test --tests boot-gaps:startup-failure,boot-gaps:port-conflict
 java dev-e2e/DevE2E.java all --approve-fixture-post
-java dev-e2e/BridgeUnitTests.java
 java dev-e2e/DevE2E.java test --groups bridge
 ```
 
@@ -42,8 +41,11 @@ The opt-in `bridge` group (4 scenarios) and `stops` group (6 scenarios) are run 
 Two levels, both separate from the 23-scenario regression (the `bridge` group is **not** included in a plain `test` run):
 
 ```cmd
-:: 1. Unit tests — no Eclipse, no Maven, about 15 s (BR-U1..BR-U13, OUT-U1..OUT-U5, LE-U1..LE-U7, TR-U1..TR-U5)
-java dev-e2e/BridgeUnitTests.java
+:: 1. Unit tests — JUnit 5, run by the normal build, no Eclipse needed
+::    eclipse-plugin (41): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4
+::    mcp-server (8):      TR-U1..U5, TO-U1..U3
+::    A failing unit test fails the build. Integration tests and Claude trials are never run by Maven.
+mvn clean package
 
 :: 2. Fault injection against the installed bridge in the dedicated Eclipse (about 45 s)
 java dev-e2e/DevE2E.java test --groups bridge
@@ -69,7 +71,7 @@ The `bridge` group uses the test-only `BRIDGE_TEST_SLEEP` command. The bridge ac
 
 Record a **baseline before deploying** a bridge change: 3 full `test --approve-fixture-post` runs on the current build, keeping the reports. Then, on the new build:
 
-- [ ] `BridgeUnitTests` — 13/13
+- [ ] `mvn clean package` — all unit tests pass (surefire reports 41 in eclipse-plugin, 8 in mcp-server)
 - [ ] `test --groups bridge` — 4/4, plus the manual shutdown check
 - [ ] **3 consecutive uninterrupted 23/23 runs**, all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
 - [ ] Every scenario that passed in the baseline still passes; no scenario more than ~20 % slower
