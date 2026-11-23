@@ -14,6 +14,7 @@ public class DevE2E {
     private final int port;
     private final String mode;
     private final boolean approval;
+    private boolean claudeApproval;
     private static final String IU = "org.learningfromexperience.eclipse.agentdebug.feature.feature.group";
 
     private DevE2E(Path source, String mode, boolean approval) throws Exception {
@@ -330,10 +331,19 @@ public class DevE2E {
             if (Files.isRegularFile(sourceFile)) compile.add(sourceFile.toString());
         }
         runProcess(compile, repo, Map.of(), 120);
+        if(selection.containsKey("claude")) {
+            if(!claudeApproval) throw new IllegalArgumentException("Claude token usage requires --approve-claude");
+            Path claudeSource=repo.resolve("dev-e2e/ClaudeSymptomTrial.java");
+            check(Files.isRegularFile(claudeSource),"Missing Claude trial capture Java source");
+            runProcess(List.of(javaBin("javac"),"--release","21","-encoding","UTF-8",
+                    "-d",classes.toString(),claudeSource.toString()),repo,Map.of(),60);
+        }
         startAndWait();
         Map<String,String> env = Map.of("AGENTDEBUG_PORT", Integer.toString(port));
         List<String> failures = new ArrayList<>();
         for (var entry : selection.entrySet()) for (String scenario : entry.getValue()) {
+            if(entry.getKey().equals("claude") && scenario.equals("all"))
+                throw new IllegalArgumentException("Use --groups claude for three trials, or --tests claude:boot-quote,claude:junit,claude:validation");
             String group=entry.getKey();
             String reportKey=(group.equals("boot") ? "boot-direct" : group)
                     + ("all".equals(scenario) ? "" : "-" + scenario);
@@ -365,6 +375,13 @@ public class DevE2E {
                         "--root",repo.toString(),"--workspace",workspace.toString(),
                         "--scenario",scenario,"--output",report.toString()));
                 }
+                case "claude" -> {
+                    if(!approval && !scenario.equals("junit"))
+                        throw new IllegalArgumentException("Claude HTTP trials require --approve-fixture-post");
+                    args.addAll(List.of("ClaudeSymptomTrial",repo.toString(),scenario,
+                            repo.resolve("evaluation/reports/claude-trials").toString(),"--approve-claude"));
+                    if(approval) args.add("--approve-fixture-post");
+                }
                 case "boot-gaps" -> {
                     args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BootGapVerifier",
                         "--root",repo.toString(),"--workspace",workspace.toString(),
@@ -374,12 +391,12 @@ public class DevE2E {
             }
             System.out.println("== Java E2E: " + group + "/" + scenario + " ==");
             try {
-                runProcess(args,repo,env,360);
-                System.out.println("PASS: "+report);
+                runProcess(args,repo,env,group.equals("claude")?530:360);
+                System.out.println(group.equals("claude")?"CAPTURED: Claude transcript requires independent review":"PASS: "+report);
             } catch (Exception error) { failures.add(group+"/"+scenario+": "+error.getMessage()); }
         }
         if (!failures.isEmpty()) throw new IllegalStateException("E2E failures: " + String.join(" | ",failures));
-        System.out.println("PASS: all requested Java E2E suites");
+        System.out.println(selection.containsKey("claude")?"Completed requested runs; Claude trial outcomes require transcript review":"PASS: all requested Java E2E suites");
     }
     private static final Map<String,Set<String>> SCENARIOS = Map.of(
         "phase1", Set.of("all","conditional","exception","junit","variables","trace","pause-restart","filters"),
@@ -387,14 +404,15 @@ public class DevE2E {
         "boot", Set.of("all","discovery","readiness"),
         "boot-quote", Set.of("all","quote"),
         "acceptance", Set.of("all","core-step-into-out","sb01-target-selection","sb09-borrowed-session","sb09-expired-owner"),
-        "boot-gaps", Set.of("all","two-mains","junit-invalid-method","two-services"));
+        "boot-gaps", Set.of("all","two-mains","junit-invalid-method","two-services","startup-failure","readiness-timeout","port-conflict","owned-isolation"),
+        "claude", Set.of("all","boot-quote","junit","validation"));
     private static LinkedHashMap<String,List<String>> select(String[] args) {
         LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
         String groups=null, tests=null;
         for (int i=1;i<args.length;i++) {
             if (args[i].equals("--groups") && i+1<args.length) groups=args[++i];
             else if (args[i].equals("--tests") && i+1<args.length) tests=args[++i];
-            else if (!args[i].equals("--approve-fixture-post")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
+            else if (!args[i].equals("--approve-fixture-post") && !args[i].equals("--approve-claude")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
         }
         if (groups != null && tests != null) throw new IllegalArgumentException("Use --groups OR --tests");
         if (tests != null) {
@@ -410,7 +428,7 @@ public class DevE2E {
             for(String raw:list) {
                 String g=raw.strip();
                 if (!SCENARIOS.containsKey(g)) throw new IllegalArgumentException("Unknown group: "+g);
-                selected.put(g,List.of("all"));
+                selected.put(g,g.equals("claude")?List.of("boot-quote","junit","validation"):List.of("all"));
             }
         }
         if (selected.isEmpty()) throw new IllegalArgumentException("No scenarios selected");
@@ -433,10 +451,11 @@ public class DevE2E {
         Path root=Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         boolean approved=Arrays.asList(args).contains("--approve-fixture-post");
         DevE2E x=new DevE2E(root,args[0],approved);
+        x.claudeApproval=Arrays.asList(args).contains("--approve-claude");
         x.describe();
         if (args[0].equals("config")) return;
         if (args[0].equals("list")) {
-            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps")) {
+            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","claude")) {
                 System.out.println(group + ": " + String.join(", ", new TreeSet<>(SCENARIOS.get(group))));
             }
             return;

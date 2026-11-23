@@ -21,9 +21,10 @@ public final class BootGapVerifier {
     private static final String PROJECT = "spring-boot-debugging";
     private static final String ORDER_MAIN = "org.learningfromexperience.bootfixture.orders.OrdersApplication";
     private static final String INVENTORY_MAIN = "org.learningfromexperience.bootfixture.inventory.InventoryApplication";
+    private static final String FAILURE_PKG = "org.learningfromexperience.bootfixture.failures.";
     private static final String ORDER_TEST = "org.learningfromexperience.bootfixture.orders.OrderServiceTest";
     private static final Pattern PORT = Pattern.compile("Tomcat started on port (\\d+)");
-    private static final List<String> ALL = List.of("two-mains", "junit-invalid-method", "two-services");
+    private static final List<String> ALL = List.of("two-mains", "junit-invalid-method", "two-services", "startup-failure", "readiness-timeout", "port-conflict", "owned-isolation");
     private final Path root, workspace, output;
     private final PhaseOneBridgeVerifier.Bridge bridge;
     private final Map<String,Object> results = new LinkedHashMap<>();
@@ -75,6 +76,10 @@ public final class BootGapVerifier {
                     case "two-mains" -> twoMains(evidence);
                     case "junit-invalid-method" -> junitInvalid(evidence);
                     case "two-services" -> twoServices(evidence);
+                    case "startup-failure" -> failureMode("StartupFailureApplication", "AGENTDEBUG_EXPECTED_STARTUP_FAILURE", evidence);
+                    case "port-conflict" -> failureMode("PortConflictApplication", "AGENTDEBUG_EXPECTED_PORT_CONFLICT", evidence);
+                    case "readiness-timeout" -> readinessTimeout(evidence);
+                    case "owned-isolation" -> ownedIsolation(evidence);
                     default -> throw new IllegalArgumentException(scenario);
                 }
                 evidence.put("status",Boolean.TRUE.equals(evidence.get("cleanup"))?"PASS":"FAIL");
@@ -167,6 +172,173 @@ public final class BootGapVerifier {
         }
     }
 
+    /** Failure cases require independent PID lifecycle evidence, not just JDI target state.
+     * If Eclipse suspends a thread after the expected marker, resume only this investigation's
+     * fixture JVM. Never resume a borrowed launch or treat an unknown state as termination.
+     */
+    private void failureMode(String main, String marker, Map<String,Object> evidence) throws Exception {
+        String owner = begin();
+        boolean cleaned = false;
+        String launch = "";
+        boolean markerObserved = false;
+        boolean unexpectedSuccess = false;
+        boolean exited = false;
+        boolean observedLive = false;
+        long fixturePid = -1;
+        int controlledResumes = 0;
+        String lastState = "not-queried";
+        String outputSample = "";
+        String lastSuspension = "none";
+        try {
+            launch = startOwned(owner, FAILURE_PKG + main);
+            evidence.put("launchName", launch);
+            long deadline = System.nanoTime() + Duration.ofSeconds(45).toNanos();
+            while (System.nanoTime() < deadline) {
+                String current = processOutput(launch);
+                markerObserved |= current.contains(marker);
+                unexpectedSuccess |= current.contains("AGENTDEBUG_UNEXPECTED_")
+                        || current.contains("Tomcat started on port");
+                if (!current.isBlank()) outputSample = current.substring(Math.max(0,current.length()-1200));
+                if (fixturePid <= 0) {
+                    Matcher match = Pattern.compile("AGENTDEBUG_FIXTURE_PID=(\\d+)").matcher(current);
+                    if (match.find()) fixturePid = Long.parseLong(match.group(1));
+                }
+                Map<String,Object> state = bridge.call("GET_DEBUG_STATE", true, launch);
+                lastState = s(state.get("status")) + " terminated=" + s(state.get("terminated"))
+                        + " suspended=" + s(state.get("suspended"))
+                        + " disconnected=" + s(state.get("disconnected"));
+                boolean debugTerminated = Boolean.TRUE.equals(state.get("terminated"));
+                if (fixturePid > 0) {
+                    var handle = ProcessHandle.of(fixturePid);
+                    observedLive |= handle.isPresent() && handle.get().isAlive();
+                    exited = handle.isEmpty() || !handle.get().isAlive();
+                }
+                if (markerObserved && !exited && Boolean.TRUE.equals(state.get("suspended"))) {
+                    Map<String,Object> threads = bridge.call("GET_THREADS", true, launch);
+                    if ("success".equals(threads.get("status"))) {
+                        for (Map<String,Object> thread : rows(threads.get("threads"))) {
+                            if (!Boolean.TRUE.equals(thread.get("suspended"))) continue;
+                            int index = ((Number)thread.get("index")).intValue();
+                            Map<String,Object> stack = bridge.call("GET_STACK", true, launch, Integer.toString(index));
+                            List<Map<String,Object>> frames = rows(stack.get("frames"));
+                            String top = frames.isEmpty() ? "unavailable" : s(frames.get(0).get("className"))
+                                    + "." + s(frames.get(0).get("methodName")) + ":"
+                                    + s(frames.get(0).get("lineNumber"));
+                            lastSuspension = "thread=" + s(thread.get("name")) + ", top=" + top;
+                            evidence.put("lastSuspension", lastSuspension);
+                            // Strictly own investigation; finite controlled resumes after the exact
+                            // failure marker; never change an unrelated session or breakpoint.
+                            if (controlledResumes < 3) {
+                                Map<String,Object> answer = bridge.call("CONTROL_DEBUG", true,
+                                        launch, Integer.toString(index), "RESUME", owner);
+                                if ("success".equals(answer.get("status"))) controlledResumes++;
+                                else evidence.put("resumeError", answer);
+                            }
+                            break; // one thread per polling iteration, bounded by resume count
+                        }
+                    }
+                }
+                if (unexpectedSuccess || (markerObserved && exited && fixturePid > 0)) break;
+                // A JDI event alone is not proof of OS termination; keep observing if PID unknown.
+                if (debugTerminated && fixturePid <= 0 && markerObserved) break;
+                Thread.sleep(200);
+            }
+            evidence.put("markerObserved", markerObserved);
+            evidence.put("fixturePid", fixturePid > 0 ? fixturePid : null);
+            evidence.put("osProcessExitObserved", exited && fixturePid > 0);
+            evidence.put("osProcessLiveObserved", observedLive);
+            evidence.put("controlledResumes", controlledResumes);
+            evidence.put("unexpectedSuccessObserved", unexpectedSuccess);
+            evidence.put("lastDebugState", lastState);
+            evidence.put("lastSuspension", lastSuspension);
+            require(!unexpectedSuccess, "Failed Boot fixture unexpectedly reported success: " + main);
+            require(markerObserved, "Expected failure marker never observed for " + main
+                    + " (state=" + lastState + "; output=" + outputSample + ")");
+            require(fixturePid > 0, "Could not identify fixture JVM PID; refusing to infer termination: " + main
+                    + " (state=" + lastState + "; output=" + outputSample + ")");
+            require(exited, "Expected Boot failure observed but fixture JVM is still alive: " + main
+                    + " PID=" + fixturePid + " (state=" + lastState + "; suspension=" + lastSuspension
+                    + "; output=" + outputSample + ")");
+            evidence.put("expectedMarker", marker);
+            evidence.put("startupSucceeded", false);
+            evidence.put("jvmTerminated", true);
+            evidence.put("scope", "Installed Eclipse failure with independent OS PID exit confirmation; no Claude evaluation");
+        } finally {
+            try { cleaned = "success".equals(bridge.call("FINISH_INVESTIGATION", true, owner).get("status")); }
+            finally { evidence.put("cleanup", cleaned); }
+        }
+    }
+
+    /** Bounded negative readiness assertion; tests the direct verifier, not an MCP readiness API. */
+    private void readinessTimeout(Map<String,Object> evidence) throws Exception {
+        String owner=begin();
+        boolean cleaned=false;
+        try {
+            String launch=startOwned(owner, FAILURE_PKG + "NeverReadyApplication");
+            long start=System.nanoTime();
+            long until=start+Duration.ofSeconds(6).toNanos();
+            boolean marker=false;
+            while(System.nanoTime()<until) {
+                String out=processOutput(launch);
+                marker |= out.contains("AGENTDEBUG_NONWEB_STARTED");
+                require(!out.contains("Tomcat started on port"),"A non-web fixture started a listening web server");
+                Thread.sleep(200);
+            }
+            require(marker,"Non-web Spring application never reached running fixture state");
+            require(alive(launch),"Never-ready fixture terminated before timeout");
+            evidence.put("timeoutMillis",Duration.ofNanos(System.nanoTime()-start).toMillis());
+            evidence.put("readinessDetected",false);
+            evidence.put("jvmAliveUntilCleanup",true);
+            evidence.put("scope","Bounded absence of HTTP readiness; no false success from Java launch");
+        } finally {
+            try { cleaned="success".equals(bridge.call("FINISH_INVESTIGATION",true,owner).get("status")); }
+            finally { evidence.put("cleanup",cleaned); }
+        }
+    }
+
+    /** Stronger two-owner isolation: finishing one owned JVM cannot terminate the other.
+     * Does not mutate or inspect any developer-owned breakpoint markers. */
+    private void ownedIsolation(Map<String,Object> evidence) throws Exception {
+        String first=null, second=null;
+        boolean cleanedFirst=false,cleanedSecond=false;
+        try {
+            Object before=sessionSnapshot();
+            first=begin();
+            String firstLaunch=startOwned(first, ORDER_MAIN);
+            int firstPort=waitReady(firstLaunch,Duration.ofSeconds(100));
+            second=begin();
+            String secondLaunch=startOwned(second, INVENTORY_MAIN);
+            int secondPort=waitReady(secondLaunch,Duration.ofSeconds(100));
+            require(firstPort!=secondPort,"Both fixtures share the same HTTP port");
+            require(alive(firstLaunch) && alive(secondLaunch),"One JVM was not alive before cleanup");
+            cleanedSecond="success".equals(bridge.call("FINISH_INVESTIGATION",true,second).get("status"));
+            require(cleanedSecond,"Inventory cleanup failed"); second=null;
+            require(alive(firstLaunch),"Inventory cleanup terminated the Orders JVM");
+            evidence.put("ordersPreservedAfterInventoryCleanup",true);
+            evidence.put("baselineSessions",before instanceof List<?> l ? l.size() : -1);
+            evidence.put("scope","Two NORMAL-owned fixture JVMs; user-owned breakpoints not exercised");
+        } finally {
+            if(second!=null) try { cleanedSecond="success".equals(bridge.call("FINISH_INVESTIGATION",true,second).get("status")); }
+                catch(Exception e) {evidence.put("secondCleanupError",e.toString());}
+            if(first!=null) try { cleanedFirst="success".equals(bridge.call("FINISH_INVESTIGATION",true,first).get("status")); }
+                catch(Exception e) {evidence.put("firstCleanupError",e.toString());}
+            evidence.put("cleanupFirst",cleanedFirst);
+            evidence.put("cleanupSecond",cleanedSecond);
+            evidence.put("cleanup",cleanedFirst && cleanedSecond);
+        }
+    }
+
+    private String processOutput(String launch) throws Exception {
+        Map<String,Object> response=bridge.call("GET_PROCESS_OUTPUT",true,launch);
+        if(!"success".equals(response.get("status"))) return "";
+        StringBuilder sb=new StringBuilder();
+        for(Map<String,Object> item:rows(response.get("processes"))) {
+            sb.append(s(item.get("stdout"))).append('\n').append(s(item.get("stderr")))
+                .append('\n').append(s(item.get("console")));
+        }
+        return sb.toString();
+    }
+
     private String begin() throws Exception {
         String owner=s(bridge.call("BEGIN_INVESTIGATION",false,"NORMAL").get("investigationId"));
         require(!owner.isBlank(),"Investigation ID missing");return owner;
@@ -204,7 +376,7 @@ public final class BootGapVerifier {
     private static String required(Map<String,String> m,String k) {
         String v=m.get(k); if(v==null || v.isBlank())throw new IllegalArgumentException("Missing --"+k);return v;
     }
-    private static String usage() {return "--root REPO --workspace DISPOSABLE_WORKSPACE --port BRIDGE_PORT --scenario all|two-mains|junit-invalid-method|two-services --output REPORT";}
+    private static String usage() {return "--root REPO --workspace DISPOSABLE_WORKSPACE --port BRIDGE_PORT --scenario all|two-mains|junit-invalid-method|two-services|startup-failure|readiness-timeout|port-conflict|owned-isolation --output REPORT";}
     private static String s(Object v) {return v==null?"":v.toString();}
     private static void require(boolean condition,String message) {if(!condition)throw new IllegalStateException(message);}
     @SuppressWarnings("unchecked") private static Map<String,Object> map(Object obj) {return (Map<String,Object>)obj;}
