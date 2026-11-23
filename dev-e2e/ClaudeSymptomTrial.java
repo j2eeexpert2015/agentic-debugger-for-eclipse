@@ -37,20 +37,41 @@ public final class ClaudeSymptomTrial {
         return port;
     }
 
-    /** Use the plugin-managed MCP runtime for a test-local registration, never change user settings. */
-    private static Path mcpJar() throws Exception {
-        Path folder = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug");
-        Path marker = folder.resolve("claude-registration.properties");
-        require(Files.isRegularFile(marker), "Plugin-managed Claude registration missing: " + marker
-                + ". Configure Claude Code from the Eclipse plugin Preferences first.");
-        Properties props = new Properties();
-        try (var in = Files.newInputStream(marker)) { props.load(in); }
-        require("eclipse-debugger".equals(props.getProperty("server")), "Unexpected MCP registration owner");
-        Path jar = Path.of(Objects.requireNonNull(props.getProperty("jar"), "No JAR path in registration"))
+    /**
+     * The acceptance test must launch the freshly built repository MCP runtime,
+     * NOT the user-scoped staged runtime that Eclipse/Claude may not have refreshed.
+     * This never changes ~/.claude.json or ~/.eclipse-agentdebug.
+     * Fail before consuming tokens if Maven has not built the new tool registrations.
+     */
+    private static Path mcpJar(Path root, boolean httpScenario) throws Exception {
+        Path jar = root.resolve("mcp-server/target/agentic-debugger-mcp-1.0.0-SNAPSHOT.jar")
                 .toAbsolutePath().normalize();
-        require(Files.isRegularFile(jar), "Plugin MCP JAR not found: " + jar);
-        require(jar.equals(folder.resolve("agentic-debugger-mcp.jar").toAbsolutePath().normalize()),
-                "Refusing unrecognized MCP runtime: " + jar);
+        require(Files.isRegularFile(jar), "Missing built MCP JAR: " + jar
+                + ". Close Eclipse, then run java dev-e2e/DevE2E.java all --approve-fixture-post");
+        try (java.util.jar.JarFile archive = new java.util.jar.JarFile(jar.toFile())) {
+            String base = "org/learningfromexperience/eclipse/agentdebug/mcp/";
+            require(archive.getEntry(base + "DebugMcpServer.class") != null,
+                    "The selected JAR does not contain DebugMcpServer: " + jar);
+            require(archive.getEntry("io/modelcontextprotocol/server/McpServer.class") != null,
+                    "The selected JAR is not the runnable shaded MCP distribution: " + jar);
+            if (httpScenario) {
+                var fixture = archive.getJarEntry(base + "FixtureHttpTools.class");
+                var main = archive.getJarEntry(base + "DebugMcpServer.class");
+                require(fixture != null, "Built MCP JAR lacks FixtureHttpTools. Rebuild before Claude acceptance: " + jar);
+                byte[] fixtureCode;
+                byte[] mainCode;
+                try (var input = archive.getInputStream(fixture)) { fixtureCode = input.readAllBytes(); }
+                try (var input = archive.getInputStream(main)) { mainCode = input.readAllBytes(); }
+                String registrations = new String(fixtureCode, StandardCharsets.ISO_8859_1);
+                String mainRegistration = new String(mainCode, StandardCharsets.ISO_8859_1);
+                for (String tool : List.of("start_fixture_http_request", "get_fixture_http_request", "cancel_fixture_http_request")) {
+                    require(registrations.contains(tool),
+                            "Built MCP JAR is missing tool registration " + tool + ". Rebuild before Claude acceptance: " + jar);
+                }
+                require(mainRegistration.contains("FixtureHttpTools"),
+                        "Built MCP server does not register FixtureHttpTools. Rebuild before Claude acceptance: " + jar);
+            }
+        }
         return jar;
     }
 
@@ -97,7 +118,7 @@ public final class ClaudeSymptomTrial {
         Path workspace = Path.of(rawWorkspace).toRealPath();
         require(Files.isRegularFile(workspace.resolve("spring-boot-debugging/.agentdebug-fixture")),
                 "Configured workspace does not contain the disposable Spring Boot fixture");
-        Path jar = mcpJar();
+        Path jar = mcpJar(root, !scenario.equals("junit"));
         // Do not spend Claude tokens when the dedicated test bridge is unreachable.
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress("127.0.0.1", port), 1500);
