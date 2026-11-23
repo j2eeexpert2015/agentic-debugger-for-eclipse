@@ -72,7 +72,7 @@ Keep these stable IDs aligned with the [feature roadmap](feature-roadmap.md), wh
 | CORE-10 | Source and installed binary integrity checks | Historical candidate checks passed; recheck source/artifact match for release |
 | CORE-11 | Windows build/deploy/doctor/test scripts | Local installed deployment, doctor and regression passed; keep isolated test workspace |
 | CORE-14 | Event-based stop waiting (`wait_for_stop`): reason, thread, location, frames and locals in one call; `TERMINATED`/`TIMEOUT` explicit | **Verified on installed Windows build, 23 Nov 2026** (`stops` group 5/5 stop scenarios, 23/23 regression). See [feature roadmap](feature-roadmap.md#phase-0--core-eclipse-mcp) |
-| CORE-15 | Process output keeps beginning and end (first/last 4000 characters, total sizes) | **Verified on installed Windows build, 23 Nov 2026** (`stops:output`); unit OUT-U1..U5 |
+| CORE-15 | Process output keeps beginning and end (first/last 4000 characters, total sizes) | **Verified on installed Windows build, 23 Nov 2026** (`stops:output`); unit checks OUT-U1..U5 5/5 |
 | CORE-12 | Optional agent debugging skill | Skill source exists; live activation/comparative acceptance incomplete; core debugger independent |
 | JAVA-01 | Conditional breakpoints | Phase 1 direct and explicit Claude verified |
 | JAVA-02 | Caught/uncaught exception breakpoints | Phase 1 verified; Spring exception handler tested separately with line stops |

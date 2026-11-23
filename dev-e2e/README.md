@@ -103,7 +103,7 @@ java dev-e2e/DevE2E.java test --tests stops:step
 | `terminated` | ST-E5 | A program with no breakpoints gives `TERMINATED` well before the timeout |
 | `output` | OUT-E1 | Stopped at `OrderBatchApplication` `Thread.sleep(3000)`: `Order 1057 total` appears in `stdout` or `console` (Eclipse usually keeps it only in `console`); `stdoutChars`, `stderrChars`, `consoleChars` present; short output returned whole |
 
-**CORE-14/15 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** after deploying the build with the native-frame fix, `all --approve-fixture-post` 23/23 and `test --groups stops` 6/6, all `cleanup=true`. Breakpoint stop reported in 0.65 s; `TERMINATED` reported 6 ms after resume and 0.5 s after a run without breakpoints; output found in `console` (`stdoutChars=0`, `consoleChars=26`). First run before the fix: 4/6 (pause failed reading locals of `Thread.sleep`; output test expected `stdout`).
+**CORE-14/15 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** unit tests 18/18 (`BridgeUnitTests`: BR-U1..U13 and OUT-U1..U5); after deploying the build with the native-frame fix, `all --approve-fixture-post` 23/23 and `test --groups stops` 6/6, all `cleanup=true`. Breakpoint stop reported in 0.65 s; `TERMINATED` reported 6 ms after resume and 0.5 s after a run without breakpoints; output found in `console` (`stdoutChars=0`, `consoleChars=26`). First run before the fix: 4/6 (pause failed reading locals of `Thread.sleep`; output test expected `stdout`).
 
 ## Claude trial captures — separate from direct regression
 

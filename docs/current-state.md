@@ -24,7 +24,7 @@ See [capabilities](capabilities.md) for verified feature scope, [decisions](deci
 | Area | Verified evidence | Unverified boundary |
 |---|---|---|
 | Direct Java E2E | **23/23 PASS in 3 consecutive uninterrupted runs** on the CORE-13 build (23 Nov 2026), all `cleanup=true` | Overnight loop; Linux/macOS |
-| Event-based stops / output (CORE-14, CORE-15) | `stops` group **6/6** and unchanged regression **23/23** on the installed Windows build (23 Nov 2026), all `cleanup=true` | Several threads stopping at once; Spring Boot request threads; Claude trial using `wait_for_stop`; repeated runs |
+| Event-based stops / output (CORE-14, CORE-15) | Unit checks **18/18**, `stops` group **6/6** and unchanged regression **23/23** on the installed Windows build (23 Nov 2026), all `cleanup=true` | Several threads stopping at once; Spring Boot request threads; Claude trial using `wait_for_stop`; repeated runs |
 | Bridge stability (CORE-13) | Bridge fault injection **4/4**, unit checks **13/13**; earlier timeout cause found (console pipe) and fixed | Legacy-mode comparison run; 32 ownership checks |
 | Claude JUnit | Single-method discount diagnosis supported by Claude final-result capture | Independent full event verification; repeated reliability |
 | Claude Boot quote | Single event-verified trial: owned HTTP request breakpoint, `percent=10`, `rate=0`, HTTP 200, total `120.00`, cleanup response | Independent post-cleanup inventory and repeats |
