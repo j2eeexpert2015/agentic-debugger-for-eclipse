@@ -19,6 +19,8 @@ java dev-e2e/DevE2E.java test --approve-fixture-post
 java dev-e2e/DevE2E.java test --groups phase1,boot-gaps
 java dev-e2e/DevE2E.java test --tests boot-gaps:startup-failure,boot-gaps:port-conflict
 java dev-e2e/DevE2E.java all --approve-fixture-post
+java dev-e2e/BridgeUnitTests.java
+java dev-e2e/DevE2E.java test --groups bridge
 ```
 
 `--groups` and `--tests` are alternative selectors. `--approve-fixture-post` explicitly authorizes the local test fixture HTTP requests. Tests record JSON under ignored `evaluation/reports/`.
@@ -32,6 +34,52 @@ java dev-e2e/DevE2E.java all --approve-fixture-post
 | `acceptance` | 4: sb01-target-selection, sb09-expired-owner, sb09-borrowed-session, core-step-into-out |
 | `boot-gaps` | 7: two-mains, junit-invalid-method, two-services, startup-failure, readiness-timeout, port-conflict, owned-isolation |
 | **Total** | **23** |
+
+The opt-in `bridge` group (4 scenarios) is run separately; see [Bridge stability tests](#bridge-stability-tests-core-13).
+
+## Bridge stability tests (CORE-13)
+
+Two levels, both separate from the 23-scenario regression (the `bridge` group is **not** included in a plain `test` run):
+
+```cmd
+:: 1. Unit tests — no Eclipse, no Maven, about 15 s (BR-U1..BR-U13)
+java dev-e2e/BridgeUnitTests.java
+
+:: 2. Fault injection against the installed bridge in the dedicated Eclipse (about 45 s)
+java dev-e2e/DevE2E.java test --groups bridge
+java dev-e2e/DevE2E.java test --tests bridge:busy
+```
+
+The `bridge` group uses the test-only `BRIDGE_TEST_SLEEP` command. The bridge accepts it only when the dedicated Eclipse was started **by DevE2E**, which sets `AGENTDEBUG_E2E=1`; a normal Eclipse never enables it. If the group reports *"Test hook disabled"*, close the dedicated Eclipse and rerun so DevE2E starts it. It launches nothing and changes no project, breakpoint or launch configuration.
+
+| Scenario | Checks | Pass if |
+|---|---|---|
+| `slow-command` | BR-E1, E2, E4, E5 | PING / `LIST_DEBUG_SESSIONS` / `GET_E2E_INFO` / `LIST_BREAKPOINTS` answer in < 1 s while a 27 s state change runs; `BRIDGE_TIMEOUT` with an operation ID after ~25 s; `GET_OPERATION` returns the real result; diagnostics list the command; log has `SLOW`/`TIMEOUT` lines and never the token |
+| `busy` | BR-E3 | A real `BEGIN_INVESTIGATION` gets `BRIDGE_BUSY` naming the running command after ~5 s, then succeeds once the lane is free; its investigation is cleaned up |
+| `parallel-load` | BR-E9 | 20 parallel reads all succeed |
+| `auth` | BR-E7 | Missing and wrong tokens are rejected exactly as before |
+
+**Manual (BR-E8):** close Eclipse while a slow command runs → clean shutdown; after restart the bridge starts and `BRIDGE_START` appears in the log.
+
+**Legacy comparison:** close the dedicated Eclipse, then run with `AGENTDEBUG_BRIDGE_MODE=legacy` set in the same command prompt (`set AGENTDEBUG_BRIDGE_MODE=legacy`), so DevE2E starts Eclipse in the previous single-threaded mode. Close Eclipse again and clear the variable afterwards.
+
+**Bridge log:** `%USERPROFILE%\.eclipse-agentdebug\bridge-<port>.log` (rolls over at 1 MB). One line per command — name, lane, queue and run time, outcome — plus `SLOW`, `TIMEOUT`, `ABANDONED`, `BRIDGE_START/STOP` events. Never arguments or tokens. Tuning (rarely needed): `AGENTDEBUG_BRIDGE_BUSY_WAIT_MS` (default 5000), `AGENTDEBUG_BRIDGE_ABANDON_MS` (default 300000).
+
+### Go / no-go checklist for bridge changes
+
+Record a **baseline before deploying** a bridge change: 3 full `test --approve-fixture-post` runs on the current build, keeping the reports. Then, on the new build:
+
+- [ ] `BridgeUnitTests` — 13/13
+- [ ] `test --groups bridge` — 4/4, plus the manual shutdown check
+- [ ] **3 consecutive uninterrupted 23/23 runs**, all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
+- [ ] Every scenario that passed in the baseline still passes; no scenario more than ~20 % slower
+- [ ] One full run in `legacy` mode on the same build gives the same results (apart from timeouts that disappear in concurrent mode)
+- [ ] Ownership checks 32/32 (`e2e-runner/ownership-tests/`)
+- [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass
+- [ ] Manual: Preferences → Configure/Verify; one real Claude investigation; your own breakpoints and session untouched while Claude debugs
+- [ ] Record commit, bundle, JDK and date in `docs/current-state.md`
+
+Rollback: `AGENTDEBUG_BRIDGE_MODE=legacy` (no reinstall), or revert the single CORE-13 commit.
 
 ## Claude trial captures — separate from direct regression
 

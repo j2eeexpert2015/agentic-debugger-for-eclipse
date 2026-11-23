@@ -34,7 +34,7 @@ Raw `.claude.jsonl`, manifests and direct JSON reports are under ignored `evalua
 
 ## Next priority and safe continuation
 
-1. **First:** rerun uninterrupted 23-scenario direct E2E on the updated installed bundle. On timeout, capture the first failed bridge operation and timing before patching anything.
+1. **First — CORE-13 bridge stability** (implemented in source, not yet installed-verified). Likely cause of the six `boot-gaps` timeouts: the bridge served one connection at a time while synchronous launches of failing fixtures ran, so queued commands exceeded the 30 s client timeout and then ran late. Sequence: (a) record a **baseline on the current build** — 3 full runs, keep reports; (b) deploy, run `java dev-e2e/BridgeUnitTests.java` and `DevE2E test --groups bridge`; (c) **3 consecutive uninterrupted 23/23 runs**, plus one legacy-mode run (`AGENTDEBUG_BRIDGE_MODE=legacy`) for comparison and the 32 ownership checks; (d) read `~/.eclipse-agentdebug/bridge-<port>.log` to confirm which command was slow; on any later timeout, use that log and `GET_BRIDGE_DIAGNOSTICS` before patching anything. Full checklist: [dev-e2e/README.md](../dev-e2e/README.md#bridge-stability-tests-core-13).
 2. Build an independent Java Claude-transcript evaluator for PASS/PARTIAL/FAIL/UNSAFE based on actual MCP events and post-cleanup session/marker inventories.
 3. Repeat no-skill trials with controlled fixture revision, model and permissions before estimating reliability or comparing optional skill A/B. Claude trials require explicit authorization and can consume usage.
 4. Continue safe fixture sync, event-correlated pause waiting and user-resource isolation as prioritized in the [development roadmap](development-roadmap.md).

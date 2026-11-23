@@ -42,92 +42,8 @@ public class EclipseDebugService {
 
         ILaunch[] launches = launchManager.getLaunches();
 
-        // -----------------------------------------------------
-        // Diagnostic logging
-        // -----------------------------------------------------
-
-        System.out.println(
-                "[Eclipse Agentic Debugger] DIAGNOSTIC: Total launches = "
-                + launches.length
-        );
-
-        for (ILaunch launch : launches) {
-
-            System.out.println(
-                    "[Eclipse Agentic Debugger] DIAGNOSTIC: Launch mode = "
-                    + launch.getLaunchMode()
-            );
-
-            System.out.println(
-                    "[Eclipse Agentic Debugger] DIAGNOSTIC: Launch terminated = "
-                    + launch.isTerminated()
-            );
-
-            System.out.println(
-                    "[Eclipse Agentic Debugger] DIAGNOSTIC: Debug targets = "
-                    + launch.getDebugTargets().length
-            );
-
-            for (IDebugTarget target : launch.getDebugTargets()) {
-
-                System.out.println(
-                        "[Eclipse Agentic Debugger] DIAGNOSTIC: Target class = "
-                        + target.getClass().getName()
-                );
-
-                System.out.println(
-                        "[Eclipse Agentic Debugger] DIAGNOSTIC: Is Java target = "
-                        + (target instanceof IJavaDebugTarget)
-                );
-
-                System.out.println(
-                        "[Eclipse Agentic Debugger] DIAGNOSTIC: Terminated = "
-                        + target.isTerminated()
-                );
-
-                System.out.println(
-                        "[Eclipse Agentic Debugger] DIAGNOSTIC: Target suspended = "
-                        + target.isSuspended()
-                );
-
-                System.out.println(
-                        "[Eclipse Agentic Debugger] DIAGNOSTIC: Disconnected = "
-                        + target.isDisconnected()
-                );
-
-                // -------------------------------------------------
-                // NEW: Thread-level suspension diagnostics
-                // -------------------------------------------------
-
-                try {
-
-                    IThread[] threads = target.getThreads();
-
-                    System.out.println(
-                            "[Eclipse Agentic Debugger] DIAGNOSTIC: Thread count = "
-                            + threads.length
-                    );
-
-                    for (IThread thread : threads) {
-
-                        System.out.println(
-                                "[Eclipse Agentic Debugger] DIAGNOSTIC: Thread = "
-                                + thread.getName()
-                                + ", suspended = "
-                                + thread.isSuspended()
-                        );
-                    }
-
-                } catch (DebugException e) {
-
-                    System.err.println(
-                            "[Eclipse Agentic Debugger] "
-                            + "Unable to inspect threads: "
-                            + e.getMessage()
-                    );
-                }
-            }
-        }
+        // No console output here: this runs on every LIST_DEBUG_SESSIONS call, and writing many
+        // lines per launch to System.out can block when Eclipse's stdout is an unread pipe.
 
         // -----------------------------------------------------
         // Filter active Java debugging sessions
@@ -186,12 +102,6 @@ public class EclipseDebugService {
                 }
             }
         }
-
-        System.out.println(
-                "[Eclipse Agentic Debugger] DIAGNOSTIC: "
-                + "Filtered active Java sessions = "
-                + sessions.size()
-        );
 
         return sessions;
     }

@@ -7,16 +7,17 @@
 
 | Order | Priority | Target / evidence gate |
 |---|---|---|
-| **1** | **P0** | **Automated transcript grading and independent post-cleanup evidence**, plus an uninterrupted updated 23/23 regression |
-| 2 | P0 | Safe fixture synchronization into marker-verified disposable workspace |
-| 3 | P0 | Event-correlated debugger stop: exact launch/thread/reason, no stale matches |
-| 4 | P0 | Full user-resource isolation under concurrent sessions, markers and configurations |
-| 5 | P1 | Repeat controlled no-skill Claude trials, then optional skill activation and A/B comparison |
-| 6 | P1 | Run to Line and consent-gated Change Variable Value, each with negative cases |
-| 7 | P1 | Interoperability testing for Codex and other MCP clients |
-| 8 | P2 | Spring Tools, expanded Spring/JUnit and cross-platform testing |
-| 9 | P2 | Thread dumps, local attach, watchpoints and related feasibility |
-| 10 | P3 | Remote/Docker attach and Hot Code Replace after demand/safety review |
+| **1** | **P0** | **CORE-13 bridge stability** — parallel reads, ordered state changes, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, operation tracking and timing log. Comes first because trial and regression results are not trustworthy while one slow command can stall the bridge (likely cause of the six `boot-gaps` timeouts). Gate: 3 consecutive uninterrupted 23/23 runs |
+| 2 | P0 | **Automated transcript grading and independent post-cleanup evidence**, plus an uninterrupted updated 23/23 regression |
+| 3 | P0 | Safe fixture synchronization into marker-verified disposable workspace |
+| 4 | P0 | Event-correlated debugger stop: exact launch/thread/reason, no stale matches |
+| 5 | P0 | Full user-resource isolation under concurrent sessions, markers and configurations |
+| 6 | P1 | Repeat controlled no-skill Claude trials, then optional skill activation and A/B comparison |
+| 7 | P1 | Run to Line and consent-gated Change Variable Value, each with negative cases |
+| 8 | P1 | Interoperability testing for Codex and other MCP clients |
+| 9 | P2 | Spring Tools, expanded Spring/JUnit and cross-platform testing |
+| 10 | P2 | Thread dumps, local attach, watchpoints and related feasibility |
+| 11 | P3 | Remote/Docker attach and Hot Code Replace after demand/safety review |
 
 **Status policy:** a CLI exit code and `REVIEW_REQUIRED` do not imply acceptance. Preserve raw MCP responses, exact JVM/thread/frame/locals, HTTP response, and ownership-safe cleanup. One successful trial is not a success rate. Historical phase plans below remain dated records.
 <!-- CLAUDE-FIRST-PRIORITY:END -->

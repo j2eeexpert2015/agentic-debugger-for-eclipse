@@ -288,12 +288,24 @@ public class DevE2E {
         // Do not create a competing Eclipse for an existing running installation.
         ensureNoRunningEclipseForDeploy();
         Files.createDirectories(workspace);
-        Map<String,String> env=Map.of("AGENTDEBUG_PORT",Integer.toString(port),
-            "AGENTDEBUG_FIXTURE_SOURCE",repo.resolve("examples/phase-one-debugging")+File.pathSeparator+repo.resolve("examples/spring-boot-debugging"));
+        // AGENTDEBUG_E2E=1 enables the test-only bridge fault-injection hook (BRIDGE_TEST_SLEEP)
+        // in this dedicated Eclipse only; a normal Eclipse never sets it.
+        Map<String,String> env=new LinkedHashMap<>(Map.of("AGENTDEBUG_PORT",Integer.toString(port),
+            "AGENTDEBUG_FIXTURE_SOURCE",repo.resolve("examples/phase-one-debugging")+File.pathSeparator+repo.resolve("examples/spring-boot-debugging"),
+            "AGENTDEBUG_E2E","1"));
+        // Comparison runs: AGENTDEBUG_BRIDGE_MODE=legacy in the runner's environment reaches the dedicated Eclipse.
+        String bridgeMode=System.getenv("AGENTDEBUG_BRIDGE_MODE");
+        if (bridgeMode != null && !bridgeMode.isBlank()) env.put("AGENTDEBUG_BRIDGE_MODE", bridgeMode);
         ProcessBuilder pb=new ProcessBuilder(eclipseExe().toString(),"-clean","-data",workspace.toString());
         pb.directory(eclipse.toFile());pb.environment().putAll(env);
+        // Eclipse's console output must go to a file. Left as an unread pipe, it fills up and any
+        // System.out.println inside Eclipse (including the debugger plugin) blocks indefinitely.
+        Path consoleLog=repo.resolve("e2e-runner/target/eclipse-console.log");
+        Files.createDirectories(consoleLog.getParent());
+        pb.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.appendTo(consoleLog.toFile()));
         pb.start();
         System.out.println("Started Eclipse automatically in dedicated workspace: "+workspace);
+        System.out.println("Eclipse console output: "+consoleLog);
         long until=System.nanoTime()+Duration.ofMinutes(5).toNanos();
         while(System.nanoTime()<until) {
             try {
@@ -322,10 +334,11 @@ public class DevE2E {
         for (String file : List.of("PhaseOneBridgeVerifier.java", "PhaseTwoBridgeVerifier.java",
                 "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java"))
             compile.add(sources.resolve(file).toString());
-        for (String optional : List.of("PendingAcceptanceVerifier.java", "BootGapVerifier.java")) {
+        for (String optional : List.of("PendingAcceptanceVerifier.java", "BootGapVerifier.java", "BridgeFaultVerifier.java")) {
             Path sourceFile = sources.resolve(optional);
             boolean required = (optional.startsWith("Pending") && selection.containsKey("acceptance"))
-                    || (optional.startsWith("BootGap") && selection.containsKey("boot-gaps"));
+                    || (optional.startsWith("BootGap") && selection.containsKey("boot-gaps"))
+                    || (optional.startsWith("BridgeFault") && selection.containsKey("bridge"));
             if (required) check(Files.isRegularFile(sourceFile),
                     "Missing " + optional + ". Update the repository to the current source before running this group.");
             if (Files.isRegularFile(sourceFile)) compile.add(sourceFile.toString());
@@ -382,6 +395,11 @@ public class DevE2E {
                             repo.resolve("evaluation/reports/claude-trials").toString(),"--approve-claude"));
                     if(approval) args.add("--approve-fixture-post");
                 }
+                case "bridge" -> {
+                    // CORE-13 bridge stability fault injection; needs the E2E-started Eclipse (AGENTDEBUG_E2E=1).
+                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BridgeFaultVerifier",
+                        "--port",Integer.toString(port),"--scenario",scenario,"--output",report.toString()));
+                }
                 case "boot-gaps" -> {
                     args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BootGapVerifier",
                         "--root",repo.toString(),"--workspace",workspace.toString(),
@@ -405,7 +423,8 @@ public class DevE2E {
         "boot-quote", Set.of("all","quote"),
         "acceptance", Set.of("all","core-step-into-out","sb01-target-selection","sb09-borrowed-session","sb09-expired-owner"),
         "boot-gaps", Set.of("all","two-mains","junit-invalid-method","two-services","startup-failure","readiness-timeout","port-conflict","owned-isolation"),
-        "claude", Set.of("all","boot-quote","junit","validation"));
+        "claude", Set.of("all","boot-quote","junit","validation"),
+        "bridge", Set.of("all","slow-command","busy","parallel-load","auth"));
     private static LinkedHashMap<String,List<String>> select(String[] args) {
         LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
         String groups=null, tests=null;
@@ -440,7 +459,7 @@ public class DevE2E {
     }
     public static void main(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
-            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps] [--tests acceptance:core-step-into-out,boot-gaps:two-mains] [--approve-fixture-post]");
+            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps|bridge] [--tests acceptance:core-step-into-out,boot-gaps:two-mains,bridge:busy] [--approve-fixture-post]");
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
             System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
@@ -455,7 +474,7 @@ public class DevE2E {
         x.describe();
         if (args[0].equals("config")) return;
         if (args[0].equals("list")) {
-            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","claude")) {
+            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","bridge","claude")) {
                 System.out.println(group + ": " + String.join(", ", new TreeSet<>(SCENARIOS.get(group))));
             }
             return;

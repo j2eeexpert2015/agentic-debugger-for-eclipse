@@ -328,6 +328,17 @@ public class DebugMcpServer {
                 "Select the agent-controlled suspended session in Eclipse Debug view and open its source at the current line. Does not step or resume.",
                 Map.of("launchName",str()), List.of("launchName"),
                 a -> "SHOW_DEBUG_LOCATION " + enc(arg(a,"launchName"))));
+        allTools.add(bridgeTool("get_bridge_operation",
+                "Check a command that Eclipse reported as BRIDGE_TIMEOUT (still running). Returns its state "
+                        + "(RUNNING, COMPLETED, ABANDONED) and, once finished, its actual result. Read-only. "
+                        + "Use this instead of repeating a launch, step or cleanup that timed out.",
+                Map.of("operationId",integer()), List.of("operationId"),
+                a -> "GET_OPERATION " + intArg(a,"operationId")));
+        allTools.add(bridgeTool("get_bridge_diagnostics",
+                "Troubleshooting only: list commands Eclipse is currently processing, how long each has "
+                        + "been running, and bridge counters (timeouts, busy replies). Read-only.",
+                Map.of(), List.of(),
+                a -> "GET_BRIDGE_DIAGNOSTICS"));
         allTools.add(bridgeTool("get_debug_status", "Get current debug target and suspension state.",
                 Map.of("launchName",str()), List.of("launchName"),
                 a -> "GET_DEBUG_STATE " + enc(arg(a,"launchName"))));
@@ -509,6 +520,22 @@ public class DebugMcpServer {
                 }).build();
     }
 
+    /**
+     * Commands that launch, restart or terminate JVMs. Eclipse gives these up to 120 s before
+     * replying BRIDGE_TIMEOUT, so the client waits slightly longer. Must match
+     * BridgeCommands.LONG_RUNNING in the Eclipse plugin.
+     */
+    private static final java.util.Set<String> LONG_RUNNING_COMMANDS = java.util.Set.of(
+            "START_JUNIT_TEST", "START_JAVA_APPLICATION", "START_DEBUG",
+            "RESTART_DEBUG", "FINISH_INVESTIGATION", "PREPARE_SMOKE_TEST");
+
+    /** Socket read timeout: always longer than the matching Eclipse-side deadline. */
+    static int readTimeoutMillis(String command) {
+        int space = command.indexOf(' ');
+        String name = space < 0 ? command : command.substring(0, space);
+        return LONG_RUNNING_COMMANDS.contains(name) ? 125_000 : 30_000;
+    }
+
     private static String sendToEclipse(
             String command,
             boolean authenticate
@@ -544,7 +571,7 @@ public class DebugMcpServer {
                     3000
             );
 
-            socket.setSoTimeout(30000);
+            socket.setSoTimeout(readTimeoutMillis(command));
 
             try (
                     PrintWriter writer = new PrintWriter(

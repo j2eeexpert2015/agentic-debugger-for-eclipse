@@ -69,6 +69,10 @@ java dev-e2e/DevE2E.java test --groups acceptance,boot-gaps
 
 :: Build, deploy and test (dedicated Eclipse instance must be closed)
 java dev-e2e/DevE2E.java all --approve-fixture-post
+
+:: Bridge stability (CORE-13): unit tests (no Eclipse needed), then fault injection on the dedicated Eclipse
+java dev-e2e/BridgeUnitTests.java
+java dev-e2e/DevE2E.java test --groups bridge
 ```
 
 **First agent baseline trial (requires Claude CLI/MCP, may consume usage):**
@@ -89,18 +93,19 @@ Review generated transcripts under `evaluation/reports/claude-trials/`; they are
 
 | Order | Priority | Work and acceptance outcome |
 |---|---|---|
-| **1** | **P0** | **Automated Claude acceptance verdicts and independent cleanup evidence:** preserve event-level MCP observations; revalidate full combined regression; repeat controlled no-skill trials (initial JUnit/Boot smoke completed) |
-| 2 | P0 | **Automatic fixture synchronization:** marker-verified disposable workspace; no manual source copying or destructive project changes |
-| 3 | P0 | **Event-correlated pause waiting:** exact launch/thread/stop cause; no stale or unrelated stop accepted |
-| 4 | P0 | **User-resource safety:** preserve user-owned breakpoints, launch configurations and unrelated JVMs under concurrent debugging |
-| 5 | P1 | **Run to Line:** scoped operation, correct thread and cleanup |
-| 6 | P1 | **Change Variable Value:** explicit consent, owned session and safe failure behavior |
-| 7 | P1 | **Claude regression and skill evaluation:** compare without versus with skill after reliable no-skill baseline |
-| 8 | P1 | **Multiple MCP clients:** verify Codex and compatible clients before promising support |
-| 9 | P2 | **Thread dumps, local JVM attach, method breakpoints/watchpoints:** individual API feasibility and safety tests |
-| 10 | P2 | **Spring Tools and extended JUnit compatibility:** verify real installed variants |
-| 11 | P2 | **Cross-platform and remaining PowerShell parity:** preserve historical test coverage |
-| 12 | P3 | **Remote/Docker attach and Hot Code Replace:** defer pending demand, feasibility and safety review |
+| **1** | **P0** | **Bridge stability (CORE-13):** parallel read-only commands, ordered state changes, per-command deadlines with explicit `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, tracked operations (`get_bridge_operation`), timing and slow-command log; `AGENTDEBUG_BRIDGE_MODE=legacy` fallback. **Implemented in source; installed acceptance pending:** 3 consecutive uninterrupted 23/23 runs, legacy-mode parity and ownership checks ([checklist](dev-e2e/README.md#bridge-stability-tests-core-13)) |
+| 2 | P0 | **Automated Claude acceptance verdicts and independent cleanup evidence:** preserve event-level MCP observations; revalidate full combined regression; repeat controlled no-skill trials (initial JUnit/Boot smoke completed) |
+| 3 | P0 | **Automatic fixture synchronization:** marker-verified disposable workspace; no manual source copying or destructive project changes |
+| 4 | P0 | **Event-correlated pause waiting:** exact launch/thread/stop cause; no stale or unrelated stop accepted |
+| 5 | P0 | **User-resource safety:** preserve user-owned breakpoints, launch configurations and unrelated JVMs under concurrent debugging |
+| 6 | P1 | **Run to Line:** scoped operation, correct thread and cleanup |
+| 7 | P1 | **Change Variable Value:** explicit consent, owned session and safe failure behavior |
+| 8 | P1 | **Claude regression and skill evaluation:** compare without versus with skill after reliable no-skill baseline |
+| 9 | P1 | **Multiple MCP clients:** verify Codex and compatible clients before promising support |
+| 10 | P2 | **Thread dumps, local JVM attach, method breakpoints/watchpoints:** individual API feasibility and safety tests |
+| 11 | P2 | **Spring Tools and extended JUnit compatibility:** verify real installed variants |
+| 12 | P2 | **Cross-platform and remaining PowerShell parity:** preserve historical test coverage |
+| 13 | P3 | **Remote/Docker attach and Hot Code Replace:** defer pending demand, feasibility and safety review |
 
 Release hygiene runs across these priorities: retain the **23/23 direct regression** and record source commit, bundle identity, environment, reports and deviations. The ordering may change based on actual Claude trial failures; do not implement features just to match a competitor's checklist.
 
