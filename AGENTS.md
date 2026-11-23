@@ -2,6 +2,25 @@
 
 Applies to this repository and to **any** coding assistant operating on it. Read [the development workflow](docs/development-workflow.md) before source changes; use [the architecture decisions](docs/decisions.md) and [Java E2E guide](dev-e2e/README.md) for detailed contracts. The repository's current files and tests override earlier chat summaries or old milestone reports.
 
+## New-agent orientation: reading order
+
+Before changing code, check the current branch/revision and read the relevant documents. Current evidence outranks historical milestone reports.
+
+| Read | Purpose |
+|---|---|
+| [README](README.md) | Product, architecture and quickstart |
+| [Current state](docs/current-state.md) | Latest evidence, blocker and next safe action |
+| [Capabilities](docs/capabilities.md) | What is implemented versus verified |
+| [Feature roadmap](docs/feature-roadmap.md) | Open capability gaps |
+| [Development workflow](docs/development-workflow.md) | Investigation, changes, testing and handoff |
+| [Architecture decisions](docs/decisions.md) | Safety and ownership contracts |
+| [Java E2E](dev-e2e/README.md) | Test commands, environment and approvals |
+| [Claude evidence](docs/claude-acceptance-2026-11-23.md) | Reviewed single-trial observations and limits |
+| [Evaluation plan](docs/evaluation-plan.md) | Agent scoring and experiments |
+| [Development roadmap](docs/development-roadmap.md) | Prioritized next actions |
+
+Read task-relevant files, not every historical report. Raw evaluation/reports/ is ignored by Git; never invent missing evidence or run paid Claude trials without approval.
+
 ## Before changing anything
 
 - Inspect `git status --short` and the current branch/commit. Respect uncommitted user edits. Understand the reproducer, acceptance oracle, minimal change, and rollback plan.

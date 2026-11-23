@@ -4,6 +4,8 @@
 
 This is the **current engineering procedure** for changing *Agentic Debugger for Eclipse IDE*. Follow it whether work is performed by a human, ChatGPT, Claude Code, Codex, or another coding agent. It governs a **change**, not a specific editor, agent, or temporary chat session. The repository and verified evidence—not prior chat summaries—are authoritative.
 
+At the start of a new session, consult the [current-state handoff](current-state.md) for the latest verified milestone, blocker and next task. Update it after materially new evidence, not each minor edit.
+
 ## 1. Non-negotiable principles
 
 1. **Evidence before modification.** Confirm the actual symptom, intended behavior, affected code, and a falsifiable diagnosis. Do not patch a guessed cause. Identify whether the defect is in the Eclipse plugin, MCP server, test fixture, Java E2E harness, deployment, permissions, or documentation.

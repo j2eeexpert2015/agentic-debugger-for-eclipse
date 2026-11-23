@@ -4,7 +4,6 @@ Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude C
 
 **Evidence snapshot — 23 November 2026:** A historical single-run **23/23 direct Java E2E PASS** baseline exists. Following the fixture HTTP MCP change, the first 16 direct cases passed in a combined run, the Boot-gap group later passed **7/7** separately, but a fresh uninterrupted 23/23 pass on that exact updated build remains pending. Three single-session Claude investigations were reviewed (JUnit diagnosis; Boot quote and HTTP 400 event-level runtime PASS). See [acceptance evidence](docs/claude-acceptance-2026-11-23.md); do not infer repeated reliability or skill A/B success.
 
-## Next development priority: Claude symptom-only acceptance
 ## Current milestone and next development priority
 
 **P0 single-trial symptom-driven acceptance is demonstrated** for the three implemented scenarios: one JUnit investigation (reported diagnostic evidence) and two Spring Boot HTTP investigations (event-level MCP evidence). See [Claude acceptance results, evidence boundaries and exact commands](docs/claude-acceptance-2026-11-23.md). The optional skill's activation, repeated no-skill reliability and with-skill A/B benefit have **not** been established.
@@ -36,7 +35,7 @@ Example symptom-only request: *“My orders API returns 120.00, but I expect 108
 
 **Implemented:** Java main discovery and launch; line, conditional and exception breakpoints; tracepoints; Step Into/Over/Out; pause/resume/restart; step filters; thread/stack/variable inspection; selected JUnit tests; Boot launch and HTTP request investigation; authenticated MCP bridge; investigation ownership and cleanup. `wait_for_debug_pause` exists but **polls**, rather than correlating the precise debugger stop event.
 
-**Installed Windows direct tests, 23 November 2026:**
+**Historical uninterrupted Windows direct-test baseline (23 November 2026):**
 
 | Suite | PASS | Scope |
 |---|---:|---|
@@ -107,12 +106,17 @@ Release hygiene runs across these priorities: retain the **23/23 direct regressi
 
 ## Development workflow
 
+Coding agents should begin with [AGENTS.md](AGENTS.md) and the [current-state handoff](docs/current-state.md) before changing code.
+
 Changes follow an **evidence-first, reviewable process**: reproduce and isolate the issue; prepare a minimal, reversible change (with dry-run/backups for source migrations); compile and test the affected scenario; run broader regression; independently review Claude MCP evidence when applicable; then update verified status, documentation and repository hygiene. **Do not treat `REVIEW_REQUIRED` as a PASS or run paid Claude trials without approval.**
 
 See the [complete development workflow](docs/development-workflow.md) and [coding-agent instructions](AGENTS.md). All agents and contributors should read these before modifying the project.
 
 ## Documentation
 
-[Development workflow](docs/development-workflow.md) · [Claude acceptance evidence](docs/claude-acceptance-2026-11-23.md) · [Repository hygiene](docs/repository-hygiene.md) · [Development roadmap](docs/development-roadmap.md) · [Feature tracker](docs/feature-roadmap.md) · [Agent evaluation plan](docs/evaluation-plan.md) · [Capabilities](docs/capabilities.md) · [Spring Boot scenarios](docs/spring-boot-debugging-scenarios.md) · [Java E2E runner](dev-e2e/README.md) · [Architecture decisions](docs/decisions.md). · [Coding-agent instructions](AGENTS.md)
+[Current-state handoff](docs/current-state.md) — latest verified evidence and next safe task.
+
+
+[Development workflow](docs/development-workflow.md) · [Claude acceptance evidence](docs/claude-acceptance-2026-11-23.md) · [Repository hygiene](docs/repository-hygiene.md) · [Development roadmap](docs/development-roadmap.md) · [Feature tracker](docs/feature-roadmap.md) · [Agent evaluation plan](docs/evaluation-plan.md) · [Capabilities](docs/capabilities.md) · [Spring Boot scenarios](docs/spring-boot-debugging-scenarios.md) · [Java E2E runner](dev-e2e/README.md) · [Architecture decisions](docs/decisions.md) · [Coding-agent instructions](AGENTS.md)
 
 Older phase reports in [`docs/`](docs/) preserve dated test evidence. The current README and actual test records define current status, not older planning snapshots.
