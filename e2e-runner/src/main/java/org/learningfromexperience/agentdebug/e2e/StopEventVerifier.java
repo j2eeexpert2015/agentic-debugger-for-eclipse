@@ -77,8 +77,11 @@ public final class StopEventVerifier {
             } finally {
                 if (investigation != null) {
                     try {
-                        evidence.put("cleanup", "success".equals(str(
-                                bridge.call("FINISH_INVESTIGATION", false, investigation).get("status"))));
+                        Map<String, Object> finish = bridge.call("FINISH_INVESTIGATION", false, investigation);
+                        // processesEnded=false means the owned JVM survived terminate (CORE-16).
+                        evidence.put("cleanup", "success".equals(str(finish.get("status")))
+                                && !Boolean.FALSE.equals(finish.get("processesEnded")));
+                        if (finish.get("terminationSteps") != null) evidence.put("terminationSteps", finish.get("terminationSteps"));
                     } catch (Exception cleanup) {
                         evidence.put("cleanup", false);
                         evidence.put("cleanupError", cleanup.toString());
@@ -153,7 +156,13 @@ public final class StopEventVerifier {
     /** ST-E3: an exception breakpoint stop is reported as EXCEPTION with the exception type. */
     private void exception(String investigation, Map<String, Object> evidence) throws Exception {
         String type = "java.lang.IllegalStateException";
-        bridge.call("SET_EXCEPTION_BREAKPOINT", false, type, true, true, investigation);
+        Map<String, Object> created = bridge.call("SET_EXCEPTION_BREAKPOINT", false, type, true, true, investigation);
+        // CORE-16: an agent exception breakpoint must never leave JDT's modal "Repeated exception
+        // occurrence" dialog enabled (RECURRENCE_UNCONFIGURED).
+        String recurrence = str(created.get("repeatedException"));
+        require(!recurrence.isBlank() && !recurrence.equals("RECURRENCE_UNCONFIGURED"),
+                "repeated-exception handling is not interactive: " + created);
+        evidence.put("repeatedException", recurrence);
         String launch = start("ExceptionApplication", investigation);
         // The JVM itself may throw the same type internally before the fixture does; skip those stops.
         for (int attempt = 0; attempt < 5; attempt++) {

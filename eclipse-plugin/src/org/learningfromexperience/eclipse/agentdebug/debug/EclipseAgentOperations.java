@@ -58,6 +58,8 @@ public final class EclipseAgentOperations {
     public void close() {
         ui.close();
         stops.close();
+        // Never leave the user's repeated-exception setting changed after Eclipse/the bridge stops.
+        ExceptionRecurrencePolicy.restoreIfUnused(false);
     }
 
     public String execute(String command) {
@@ -199,16 +201,23 @@ public final class EclipseAgentOperations {
                         + "pause the owned session before finishing");
             }
         }
+        String termination = "";
+        boolean ended = true;
         if (investigation.mode() == DebugInvestigationPolicy.Mode.NORMAL) {
-            Object owned = investigation.ownedLaunch();
-            if (owned instanceof ILaunch launch && !launch.isTerminated()) {
-                launch.terminate();
-            }
+            // Remove breakpoints first, so nothing can suspend the JVM again while it shuts down.
             for (var bp : investigation.breakpoints()) {
                 breakpoints.removeInvestigationBreakpoint(bp.typeName(), bp.lineNumber(), id);
             }
             for (var exception : investigation.exceptions()) {
                 breakpoints.removeInvestigationException(exception, id);
+            }
+            restoreRecurrencePolicyIfUnused();
+            Object owned = investigation.ownedLaunch();
+            if (owned instanceof ILaunch launch) {
+                List<String> steps = new ArrayList<>();
+                ended = terminateAndVerify(launch, steps);
+                termination = ",\"processesEnded\":" + ended + ",\"terminationSteps\":["
+                        + String.join(",", steps.stream().map(EclipseAgentOperations::q).toList()) + "]";
             }
         }
         investigations.finish(id);
@@ -217,7 +226,97 @@ public final class EclipseAgentOperations {
                 + ",\"action\":" + q(action)
                 + ",\"launchName\":" + q(investigation.launchName())
                 + ",\"ownedSession\":" + (investigation.ownedLaunch() != null)
-                + ",\"completed\":true");
+                + termination
+                + ",\"completed\":" + ended
+                + (ended ? "" : ",\"warning\":" + q("The owned JVM is still running after terminate, process "
+                        + "terminate and OS kill. Check the Eclipse window for an open dialog.")));
+    }
+
+    /**
+     * Ends the owned launch and checks that its JVM processes really exited. Steps, each only if
+     * the previous one did not end every process within 5 s: Eclipse terminate, process terminate,
+     * OS kill by PID. Success is judged by the OS processes, not by Eclipse's debug-target state,
+     * which can lag (for example while a modal dialog blocks JDT's event handling).
+     */
+    private static boolean terminateAndVerify(ILaunch launch, List<String> steps) {
+        if (processesEnded(launch)) {
+            steps.add("already-ended");
+            return true;
+        }
+        try {
+            launch.terminate();
+            steps.add("launch-terminate");
+        } catch (Exception e) {
+            steps.add("launch-terminate-failed: " + e.getMessage());
+        }
+        if (waitForEnd(launch, 5_000)) return true;
+        for (IProcess process : launch.getProcesses()) {
+            try {
+                if (!process.isTerminated()) process.terminate();
+            } catch (Exception e) {
+                steps.add("process-terminate-failed: " + e.getMessage());
+            }
+        }
+        steps.add("process-terminate");
+        if (waitForEnd(launch, 5_000)) return true;
+        for (IProcess process : launch.getProcesses()) {
+            String pid = process.getAttribute("org.eclipse.debug.core.ATTR_PROCESS_ID");
+            if (pid == null || process.isTerminated()) continue;
+            try {
+                ProcessHandle.of(Long.parseLong(pid.trim())).ifPresent(handle -> {
+                    handle.descendants().forEach(ProcessHandle::destroyForcibly);
+                    handle.destroyForcibly();
+                });
+                steps.add("os-kill pid " + pid.trim());
+            } catch (Exception e) {
+                steps.add("os-kill-failed pid " + pid + ": " + e.getMessage());
+            }
+        }
+        boolean ended = waitForEnd(launch, 5_000) || osProcessesGone(launch);
+        if (!ended) steps.add("still-running");
+        return ended;
+    }
+
+    private static boolean waitForEnd(ILaunch launch, long millis) {
+        long deadline = System.currentTimeMillis() + millis;
+        while (System.currentTimeMillis() < deadline) {
+            if (processesEnded(launch)) return true;
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return processesEnded(launch);
+            }
+        }
+        return processesEnded(launch);
+    }
+
+    private static boolean processesEnded(ILaunch launch) {
+        IProcess[] processes = launch.getProcesses();
+        if (processes.length == 0) return launch.isTerminated();
+        for (IProcess process : processes) if (!process.isTerminated()) return false;
+        return true;
+    }
+
+    /** Final check straight against the OS, in case Eclipse has not noticed the exit yet. */
+    private static boolean osProcessesGone(ILaunch launch) {
+        for (IProcess process : launch.getProcesses()) {
+            String pid = process.getAttribute("org.eclipse.debug.core.ATTR_PROCESS_ID");
+            if (pid == null) return false;
+            try {
+                if (ProcessHandle.of(Long.parseLong(pid.trim())).map(ProcessHandle::isAlive).orElse(false)) return false;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Puts the user's repeated-exception setting back once no agent exception breakpoint is left. */
+    private void restoreRecurrencePolicyIfUnused() throws CoreException {
+        boolean remain = false;
+        for (var item : breakpoints.listExceptionBreakpoints()) if ("agent".equals(item.owner())) remain = true;
+        ExceptionRecurrencePolicy.restoreIfUnused(remain);
     }
 
     private String listBreakpoints() throws CoreException {
@@ -268,14 +367,18 @@ public final class EclipseAgentOperations {
         boolean uncaught = Boolean.parseBoolean(require(p, 3));
         String id = optionalInvestigation(p, 4);
         var investigation = id == null ? null : investigations.require(id);
+        // Avoid JDT's modal "Repeated exception occurrence" dialog (see ExceptionRecurrencePolicy).
+        String recurrence = ExceptionRecurrencePolicy.beforeAgentExceptionBreakpoint();
         var result = breakpoints.setExceptionBreakpoint(type, caught, uncaught, id);
         if (investigation != null && result.created()) investigation.recordException(type);
         if (!result.created()) {
+            restoreRecurrencePolicyIfUnused();
             return error("An exception breakpoint already exists for " + type
                     + "; existing markers are never modified");
         }
         return ok(",\"exceptionName\":" + q(type) + ",\"caught\":" + caught
-                + ",\"uncaught\":" + uncaught + ",\"created\":true");
+                + ",\"uncaught\":" + uncaught + ",\"created\":true"
+                + ",\"repeatedException\":" + q(recurrence));
     }
 
     private String listExceptionBreakpoints() throws CoreException {
@@ -290,7 +393,9 @@ public final class EclipseAgentOperations {
     }
 
     private String removeExceptionBreakpoint(String[] p) throws CoreException {
-        return ok(",\"removed\":" + breakpoints.removeAgentExceptionBreakpoint(require(p, 1)));
+        boolean removed = breakpoints.removeAgentExceptionBreakpoint(require(p, 1));
+        restoreRecurrencePolicyIfUnused();
+        return ok(",\"removed\":" + removed);
     }
 
     /** Discover JUnit 4/5 method candidates without requiring test execution. */

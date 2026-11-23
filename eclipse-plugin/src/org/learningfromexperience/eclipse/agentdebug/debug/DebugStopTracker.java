@@ -57,6 +57,13 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
     private final AtomicLong sequence = new AtomicLong();
     private final Map<ILaunch, Deque<Stop>> pending = new LinkedHashMap<>();
     private final Map<ILaunch, Boolean> terminated = new LinkedHashMap<>();
+    /** Threads whose current suspension was already reported; cleared when the thread resumes. */
+    private final java.util.Set<IThread> reported =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+    /** Suspended threads with no SUSPEND event yet, and since when (System.nanoTime). */
+    private final Map<IThread, Long> suspendedWithoutEvent = new java.util.WeakHashMap<>();
+    /** How long a thread must stay suspended without an event before the fallback reports it. */
+    static final long FALLBACK_AFTER_MS = 1_500;
 
     public DebugStopTracker() {
         DebugPlugin.getDefault().addDebugEventListener(this);
@@ -84,6 +91,8 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
                 if (launch == null) return;
                 Stop stop = describe(thread, event.getDetail());
                 synchronized (this) {
+                    suspendedWithoutEvent.remove(thread);
+                    if (reported.contains(thread)) return;   // already reported by the fallback
                     Deque<Stop> queue = queue(launch);
                     queue.removeIf(old -> old.thread() == thread);   // newest stop per thread wins
                     queue.addLast(stop);
@@ -96,6 +105,8 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
                 synchronized (this) {
                     Deque<Stop> queue = pending.get(thread.getLaunch());
                     if (queue != null) queue.removeIf(old -> old.thread() == thread);
+                    reported.remove(thread);
+                    suspendedWithoutEvent.remove(thread);
                 }
             }
             case DebugEvent.TERMINATE -> {
@@ -150,15 +161,33 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
      */
     public Outcome waitForStop(ILaunch launch, long timeoutMillis) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
-        synchronized (this) {
-            while (true) {
+        while (true) {
+            // Read the model outside the lock: never hold this monitor while calling into JDT.
+            java.util.List<IThread> suspendedNow = suspendedThreads(launch);
+            synchronized (this) {
                 Deque<Stop> queue = pending.get(launch);
                 if (queue != null) {
                     for (Iterator<Stop> it = queue.iterator(); it.hasNext(); ) {
                         Stop stop = it.next();
                         it.remove();
-                        if (stop.thread().isSuspended() && !stop.thread().isTerminated()) return new Outcome(stop, false);
+                        if (stop.thread().isSuspended() && !stop.thread().isTerminated()) {
+                            reported.add(stop.thread());
+                            return new Outcome(stop, false);
+                        }
                     }
+                }
+                // Fallback: a thread is suspended but no SUSPEND event arrived (seen when JDT holds the
+                // event, e.g. a repeated exception occurrence). Report it once, as SUSPENDED or with
+                // the breakpoint it is stopped at.
+                long now = System.nanoTime();
+                for (IThread thread : suspendedNow) {
+                    if (reported.contains(thread)) continue;
+                    Long since = suspendedWithoutEvent.putIfAbsent(thread, now);
+                    if (since == null || TimeUnit.NANOSECONDS.toMillis(now - since) < FALLBACK_AFTER_MS) continue;
+                    suspendedWithoutEvent.remove(thread);
+                    reported.add(thread);
+                    Stop stop = describe(thread, thread.getBreakpoints().length > 0 ? DebugEvent.BREAKPOINT : DebugEvent.UNSPECIFIED);
+                    return new Outcome(stop, false);
                 }
                 if (launch.isTerminated() || Boolean.TRUE.equals(terminated.get(launch))) return Outcome.TERMINATED;
                 long remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
@@ -166,6 +195,21 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
                 wait(Math.min(remaining, 500));   // re-check periodically, e.g. for termination
             }
         }
+    }
+
+    private static java.util.List<IThread> suspendedThreads(ILaunch launch) {
+        java.util.List<IThread> result = new java.util.ArrayList<>();
+        try {
+            for (IDebugTarget target : launch.getDebugTargets()) {
+                if (target.isTerminated()) continue;
+                for (IThread thread : target.getThreads()) {
+                    if (thread.isSuspended() && !thread.isTerminated()) result.add(thread);
+                }
+            }
+        } catch (Exception unreadable) {
+            // Target ending or not readable: rely on events only.
+        }
+        return result;
     }
 
     private Deque<Stop> queue(ILaunch launch) {
@@ -186,6 +230,8 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
         synchronized (this) {
             pending.clear();
             terminated.clear();
+            reported.clear();
+            suspendedWithoutEvent.clear();
             notifyAll();
         }
     }

@@ -98,6 +98,27 @@ public final class ClaudeSymptomTrial {
      * debug sessions, line breakpoints and exception breakpoints with their owner.
      * Returns a JSON object; on failure an object with "error".
      */
+    /** One authenticated bridge command; string arguments are URL-safe Base64, numbers plain. */
+    private static String bridge(int port, String command, Object... args) throws Exception {
+        Path tokenFile = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug",
+                port == 8765 ? "bridge.token" : "bridge-" + port + ".token");
+        String token = Files.readString(tokenFile, StandardCharsets.UTF_8).trim();
+        StringBuilder line = new StringBuilder("AUTH ").append(token).append(' ').append(command);
+        for (Object arg : args) line.append(' ').append(arg instanceof Number ? arg.toString()
+                : Base64.getUrlEncoder().withoutPadding().encodeToString(arg.toString().getBytes(StandardCharsets.UTF_8)));
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress("127.0.0.1", port), 3000);
+            socket.setSoTimeout(30_000);
+            var writer = new java.io.OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8);
+            writer.write(line.append('\n').toString());
+            writer.flush();
+            String reply = new java.io.BufferedReader(new java.io.InputStreamReader(
+                    socket.getInputStream(), StandardCharsets.UTF_8)).readLine();
+            require(reply != null && reply.contains("\"status\":\"success\""), command + " failed: " + reply);
+            return reply;
+        }
+    }
+
     private static String inventory(int port) {
         try {
             Path tokenFile = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug",
@@ -126,14 +147,96 @@ public final class ClaudeSymptomTrial {
         }
     }
 
+    /** Main classes of the disposable fixture JVMs; only these are ever stopped by the harness. */
+    private static final List<String> FIXTURE_PREFIXES = List.of(
+            "org.learningfromexperience.bootfixture.", "org.learningfromexperience.debugfixtures.");
+
+    /**
+     * Test-only isolation between trials: a fixture JVM left running by an earlier run would be
+     * reused by the next run and spoil it. Finds fixture JVMs with jps, stops them, and waits until
+     * Eclipse no longer shows a live "Agentic Debugger - " session. Returns what was stopped.
+     * Throws (before any Claude usage) if Eclipse still shows one, e.g. because a dialog is open.
+     */
+    private static List<String> clearLeftoverFixtures(int port) throws Exception {
+        // Returns everything removed: fixture JVMs ("pid mainClass") and agent-owned breakpoints.
+        List<String> stopped = new ArrayList<>();
+        Path jps = Path.of(System.getProperty("java.home"), "bin",
+                System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "jps.exe" : "jps");
+        if (Files.isRegularFile(jps)) {
+            Process p = new ProcessBuilder(jps.toString(), "-l").redirectErrorStream(true).start();
+            String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            p.waitFor(20, TimeUnit.SECONDS);
+            for (String line : out.split("\\R")) {
+                String[] parts = line.trim().split("\\s+", 2);
+                if (parts.length < 2 || FIXTURE_PREFIXES.stream().noneMatch(parts[1]::startsWith)) continue;
+                try {
+                    long pid = Long.parseLong(parts[0]);
+                    ProcessHandle.of(pid).ifPresent(ProcessHandle::destroyForcibly);
+                    stopped.add(pid + " " + parts[1]);
+                } catch (NumberFormatException ignored) {
+                    // not a jps process line
+                }
+            }
+        }
+        // Agent-owned breakpoints left by an interrupted run would make the next run stop unexpectedly.
+        // Only markers owned by the agent are removed; user breakpoints are never touched.
+        try {
+            var snapshot = ClaudeTranscriptEvaluator.Json.parse(inventory(port));
+            var root = ClaudeTranscriptEvaluator.Json.obj(snapshot);
+            for (var bp : ClaudeTranscriptEvaluator.Json.objectsWith(root.get("breakpoints"), "typeName", "lineNumber", "owner")) {
+                if (!"agent".equals(bp.get("owner"))) continue;
+                String type = ClaudeTranscriptEvaluator.Json.str(bp.get("typeName"));
+                int line = ClaudeTranscriptEvaluator.Json.num(bp.get("lineNumber"));
+                bridge(port, "REMOVE_BREAKPOINT", type, line);
+                stopped.add("agent breakpoint " + type + ":" + line);
+            }
+            for (var bp : ClaudeTranscriptEvaluator.Json.objectsWith(root.get("exceptionBreakpoints"), "exceptionName", "owner")) {
+                if (!"agent".equals(bp.get("owner"))) continue;
+                String name = ClaudeTranscriptEvaluator.Json.str(bp.get("exceptionName"));
+                bridge(port, "REMOVE_EXCEPTION_BREAKPOINT", name);
+                stopped.add("agent exception breakpoint " + name);
+            }
+        } catch (Exception e) {
+            System.out.println("Could not remove leftover agent breakpoints: " + e.getMessage());
+        }
+        // Give Eclipse time to notice the exits, then require a clean session list.
+        String live = "";
+        for (int i = 0; i < 40; i++) {
+            String sessions = inventory(port);
+            live = liveAgentSessions(sessions);
+            if (live.isEmpty()) return stopped;
+            Thread.sleep(250);
+        }
+        throw new IllegalStateException("DIRTY_START: Eclipse still shows a running test session (" + live
+                + ") although no fixture JVM is running. A dialog may be open in the test Eclipse; "
+                + "click it, or close the test Eclipse, then rerun. No Claude usage was spent on this run.");
+    }
+
+    /** Names of live (not terminated, not disconnected) "Agentic Debugger - " sessions in an inventory. */
+    private static String liveAgentSessions(String inventoryJson) {
+        var sessions = ClaudeTranscriptEvaluator.Json.objectsWith(
+                ClaudeTranscriptEvaluator.Json.parse(inventoryJson), "launchName", "terminated");
+        List<String> live = new ArrayList<>();
+        for (var session : sessions) {
+            String name = ClaudeTranscriptEvaluator.Json.str(session.get("launchName"));
+            if (name.startsWith("Agentic Debugger - ") && !Boolean.TRUE.equals(session.get("terminated"))
+                    && !Boolean.TRUE.equals(session.get("disconnected"))) live.add(name);
+        }
+        return String.join(", ", live);
+    }
+
     public static void main(String[] args) throws Exception {
-        require(args.length>=3,"Usage: ClaudeSymptomTrial REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post]");
+        require(args.length>=3,"Usage: ClaudeSymptomTrial REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post] [--batch ID] [--no-skill]");
         Path root=Path.of(args[0]).toRealPath();
         String scenario=args[1];
         Path reports=Path.of(args[2]).toAbsolutePath();
         require(PROMPTS.containsKey(scenario),"Unknown Claude scenario: " + scenario);
         boolean consent=Arrays.asList(args).contains("--approve-claude");
         boolean post=Arrays.asList(args).contains("--approve-fixture-post");
+        // --no-skill: Claude may not invoke any skill (the Skill tool is disallowed), giving a controlled baseline.
+        boolean noSkill=Arrays.asList(args).contains("--no-skill");
+        int batchAt=Arrays.asList(args).indexOf("--batch");
+        String batch=batchAt >= 0 && batchAt + 1 < args.length ? args[batchAt + 1] : "single";
         require(consent,"Claude CLI execution requires --approve-claude (may consume tokens)");
         require(post || scenario.equals("junit"),"Fixture HTTP trial requires --approve-fixture-post");
         require(Files.isRegularFile(root.resolve("pom.xml")),"Not a repository checkout");
@@ -178,16 +281,25 @@ public final class ClaudeSymptomTrial {
                 StandardOpenOption.CREATE_NEW);
         // Approve only this installed debugger's tools, not Bash/Write/Edit/other MCP servers.
         // No dangerously-skip-permissions and no broad user configuration changes.
-        List<String> command=List.of("claude","-p",PROMPTS.get(scenario),
+        List<String> command=new ArrayList<>(List.of("claude","-p",PROMPTS.get(scenario),
                 "--mcp-config",mcpConfig.toString(),"--strict-mcp-config",
                 "--allowedTools","mcp__eclipse-debugger__*",
-                "--output-format","stream-json","--verbose","--max-turns","25");
+                "--output-format","stream-json","--verbose","--max-turns","25"));
+        if (noSkill) command.addAll(List.of("--disallowedTools","Skill"));
+        // Start from a clean Eclipse: no fixture JVM left over from an earlier trial.
+        List<String> leftoversStopped = clearLeftoverFixtures(port);
+        if (!leftoversStopped.isEmpty())
+            System.out.println("Removed leftovers of an earlier run: " + leftoversStopped);
         // Snapshot Eclipse before Claude starts, so cleanup and user resources can be checked afterwards.
         String inventoryBefore = inventory(port);
         Process p=null;
         int exit=-1; boolean timedOut=false; String failure="";
         try {
+            // Empty stdin: otherwise the CLI waits 3 s for piped input on every run.
+            java.io.File noInput = new java.io.File(
+                    System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "NUL" : "/dev/null");
             p=new ProcessBuilder(command).directory(root.toFile()).redirectError(stderr.toFile())
+                    .redirectInput(ProcessBuilder.Redirect.from(noInput))
                     .redirectOutput(transcript.toFile()).start();
             if(!p.waitFor(480,TimeUnit.SECONDS)) {
                 timedOut=true;p.destroy();
@@ -223,6 +335,9 @@ public final class ClaudeSymptomTrial {
                 "  \"transcriptFormat\": \"stream-json\",\n"+
                 "  \"stderr\": "+json(stderr.toString())+",\n"+
                 "  \"permissionMode\": \"allowedTools: mcp__eclipse-debugger__* (no bypass)\",\n"+
+                "  \"batch\": "+json(batch)+",\n"+
+                "  \"leftoversRemovedBeforeRun\": "+jsonArray(leftoversStopped)+",\n"+
+                "  \"skillMode\": "+json(noSkill ? "disabled" : "allowed")+",\n"+
                 "  \"bridgePort\": "+port+",\n"+
                 "  \"mcpConfig\": "+json(mcpConfig.toString())+",\n"+
                 "  \"permissionDenialsObserved\": "+permissionDenied+",\n"+
@@ -236,14 +351,20 @@ public final class ClaudeSymptomTrial {
                 "  \"cleanupVerified\": false\n}";
         Files.writeString(metadata,manifest,StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
         System.out.println(scenario+" => "+outcome+"; transcript="+transcript+"; manifest="+metadata);
-        if (outcome.equals("REVIEW_REQUIRED") || outcome.equals("BLOCKED_PERMISSIONS")) {
+        // Grade every run that produced a transcript, including CLI failures and timeouts: a failed
+        // run must count as FAIL in the batch summary, never silently disappear from it.
+        if (Files.isRegularFile(transcript) && Files.size(transcript) > 0) {
             // Automatic grade from the debugger's actual results plus the independent inventory.
             var expectations = ClaudeTranscriptEvaluator.Json.obj(ClaudeTranscriptEvaluator.Json.parse(
                     Files.readString(root.resolve("evaluation/claude-grading/expectations.json"), StandardCharsets.UTF_8)));
             var verdict = ClaudeTranscriptEvaluator.gradeFile(transcript, scenario, expectations);
+            verdict.put("batch", batch);
+            verdict.put("skillMode", noSkill ? "disabled" : "allowed");
             Path verdictFile = reports.resolve(stem + ".verdict.json");
             Files.writeString(verdictFile, ClaudeTranscriptEvaluator.Json.stringify(verdict) + "\n", StandardCharsets.UTF_8);
             System.out.println("VERDICT " + ClaudeTranscriptEvaluator.summary(verdict) + "; verdict=" + verdictFile);
+            if (!outcome.equals("REVIEW_REQUIRED")) System.out.println("Claude CLI outcome " + outcome + ": " + verdict.get("reason")
+                    + " (" + ClaudeTranscriptEvaluator.Json.str(((java.util.List<?>) verdict.get("checks")).get(0)) + ")");
         }
         if(!outcome.equals("REVIEW_REQUIRED")) throw new IllegalStateException("Claude trial not captured successfully: "+outcome+" "+failure);
     }

@@ -38,3 +38,13 @@ The bridge previously handled one connection at a time on its accept thread, so 
 ## Change protocol
 
 For a feature change: update capability/roadmap status, add or extend the corresponding REG/EV scenario, run tests, note verification boundary. For new external research: create an RS entry with source URL and proven claim; link to candidates without declaring implementation. For a skill change: preserve core suite and compare stable/no-skill/candidate results.
+
+## ADR-007 — Agent exception breakpoints and JDT's repeated-exception dialog (CORE-16)
+
+**Context.** JDT (since 2019, Bug 284158) asks with a modal dialog what to do when the same exception instance hits an exception breakpoint again, unless the user chose a strategy (`org.eclipse.jdt.debug.PREF_SUSPEND_ON_RECURRENCE_STRATEGY`). The dialog runs while JDT's event thread for that JVM waits. On 23 Nov 2026 a Claude validation trial (Spring rethrows the `IllegalArgumentException`) left it open for 9 minutes: stops were not reported, terminate had no visible effect, and later runs inherited the JVM.
+
+**Decision.** (1) Only if the user never chose (`RECURRENCE_UNCONFIGURED`), the plugin sets `SKIP_RECURRENCES` while agent exception breakpoints exist and restores the original value afterwards and on bridge stop; an explicit user choice is never touched. (2) Cleanup is judged by the OS processes, not by Eclipse's debug-target state, and escalates terminate → process terminate → OS kill; failure is reported (`completed=false`) instead of claimed. (3) `wait_for_stop` falls back to reporting a thread suspended without an event for 1.5 s.
+
+**Consequences.** Agents never wait on a dialog nobody can see. A crash of Eclipse while an agent exception breakpoint exists could leave `SKIP_RECURRENCES` set (the default JDT setting would otherwise ask); this is visible on the Java > Debug preference page.
+
+**Outcome (23 Nov 2026).** Installed build: `stops` 6/6 with `repeatedException=SKIP_RECURRENCES`, every cleanup ended the JVM on the first step (`launch-terminate`), regression 23/23, Claude validation trials 8/8 PASS (1/6 before the fix).

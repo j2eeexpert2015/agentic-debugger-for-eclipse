@@ -15,6 +15,9 @@ public class DevE2E {
     private final String mode;
     private final boolean approval;
     private boolean claudeApproval;
+    /** Claude trials only: runs per scenario (--repeat N) and skill mode (--no-skill). */
+    private int claudeRepeat = 1;
+    private boolean claudeNoSkill;
     private static final String IU = "org.learningfromexperience.eclipse.agentdebug.feature.feature.group";
 
     private DevE2E(Path source, String mode, boolean approval) throws Exception {
@@ -358,7 +361,13 @@ public class DevE2E {
         startAndWait();
         Map<String,String> env = Map.of("AGENTDEBUG_PORT", Integer.toString(port));
         List<String> failures = new ArrayList<>();
-        for (var entry : selection.entrySet()) for (String scenario : entry.getValue()) {
+        // One batch ID for all Claude runs of this command, so the summary covers exactly this batch.
+        String batch = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+                .withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now())
+                + (claudeNoSkill ? "-noskill" : "-skill");
+        Path classesDir = classes;
+        for (var entry : selection.entrySet()) for (String scenario : entry.getValue())
+        for (int run = 1; run <= (entry.getKey().equals("claude") ? claudeRepeat : 1); run++) {
             if(entry.getKey().equals("claude") && scenario.equals("all"))
                 throw new IllegalArgumentException("Use --groups claude for three trials, or --tests claude:boot-quote,claude:junit,claude:validation");
             String group=entry.getKey();
@@ -396,8 +405,10 @@ public class DevE2E {
                     if(!approval && !scenario.equals("junit"))
                         throw new IllegalArgumentException("Claude HTTP trials require --approve-fixture-post");
                     args.addAll(List.of("ClaudeSymptomTrial",repo.toString(),scenario,
-                            repo.resolve("evaluation/reports/claude-trials").toString(),"--approve-claude"));
+                            repo.resolve("evaluation/reports/claude-trials").toString(),"--approve-claude",
+                            "--batch",batch));
                     if(approval) args.add("--approve-fixture-post");
+                    if(claudeNoSkill) args.add("--no-skill");
                 }
                 case "bridge" -> {
                     // CORE-13 bridge stability fault injection; needs the E2E-started Eclipse (AGENTDEBUG_E2E=1).
@@ -416,11 +427,19 @@ public class DevE2E {
                 }
                 default -> throw new IllegalArgumentException("Unknown suite: " + group);
             }
-            System.out.println("== Java E2E: " + group + "/" + scenario + " ==");
+            System.out.println("== Java E2E: " + group + "/" + scenario
+                    + (group.equals("claude") ? " (run " + run + " of " + claudeRepeat + ", " + (claudeNoSkill ? "skill disabled" : "skill allowed") + ")" : "") + " ==");
             try {
                 runProcess(args,repo,env,group.equals("claude")?530:360);
                 System.out.println(group.equals("claude")?"CAPTURED and graded: see the VERDICT line above (*.verdict.json)":"PASS: "+report);
             } catch (Exception error) { failures.add(group+"/"+scenario+": "+error.getMessage()); }
+        }
+        if (selection.containsKey("claude")) {
+            // Pass rate, tool calls, turns, time and cost across the runs of this batch.
+            try {
+                runProcess(List.of(javaBin("java"),"-cp",classesDir.toString(),"ClaudeTranscriptEvaluator","--summary",
+                        "--batch",batch,repo.resolve("evaluation/reports/claude-trials").toString()),repo,Map.of(),60);
+            } catch (Exception error) { failures.add("claude summary: "+error.getMessage()); }
         }
         if (!failures.isEmpty()) throw new IllegalStateException("E2E failures: " + String.join(" | ",failures));
         System.out.println(selection.containsKey("claude")?"Completed requested runs; Claude verdicts are in evaluation/reports/claude-trials/*.verdict.json":"PASS: all requested Java E2E suites");
@@ -441,7 +460,9 @@ public class DevE2E {
         for (int i=1;i<args.length;i++) {
             if (args[i].equals("--groups") && i+1<args.length) groups=args[++i];
             else if (args[i].equals("--tests") && i+1<args.length) tests=args[++i];
-            else if (!args[i].equals("--approve-fixture-post") && !args[i].equals("--approve-claude")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
+            else if (args[i].equals("--repeat") && i+1<args.length) i++;
+            else if (!args[i].equals("--approve-fixture-post") && !args[i].equals("--approve-claude")
+                    && !args[i].equals("--no-skill")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
         }
         if (groups != null && tests != null) throw new IllegalArgumentException("Use --groups OR --tests");
         if (tests != null) {
@@ -470,6 +491,7 @@ public class DevE2E {
     public static void main(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
             System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps|bridge|stops] [--tests acceptance:core-step-into-out,boot-gaps:two-mains,bridge:busy,stops:step] [--approve-fixture-post]");
+            System.out.println("Claude trials (use Claude usage): test --groups claude|--tests claude:boot-quote --approve-claude [--approve-fixture-post] [--repeat N] [--no-skill]");
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
             System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
@@ -481,6 +503,12 @@ public class DevE2E {
         boolean approved=Arrays.asList(args).contains("--approve-fixture-post");
         DevE2E x=new DevE2E(root,args[0],approved);
         x.claudeApproval=Arrays.asList(args).contains("--approve-claude");
+        x.claudeNoSkill=Arrays.asList(args).contains("--no-skill");
+        int repeatAt=Arrays.asList(args).indexOf("--repeat");
+        if (repeatAt >= 0) {
+            x.claudeRepeat=Integer.parseInt(args[repeatAt+1]);
+            if (x.claudeRepeat < 1 || x.claudeRepeat > 20) throw new IllegalArgumentException("--repeat must be 1-20");
+        }
         x.describe();
         if (args[0].equals("config")) return;
         if (args[0].equals("list")) {
