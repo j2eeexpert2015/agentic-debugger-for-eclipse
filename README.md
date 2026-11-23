@@ -113,31 +113,40 @@ java dev-e2e/DevE2E.java all --approve-fixture-post
 java dev-e2e/DevE2E.java deploy --approve-fixture-post
 
 :: Integration tests only, against the plugin already installed (starts the test Eclipse if needed)
+:: No selector = the 23-scenario regression (same as --suite regression)
 java dev-e2e/DevE2E.java test --approve-fixture-post
 
-:: Selected groups, or single scenarios
-java dev-e2e/DevE2E.java test --groups phase1,boot-gaps --approve-fixture-post
+:: A suite: regression (23), extended (15: stop events, abandoned-investigation cleanup, bridge), full (38)
+java dev-e2e/DevE2E.java test --suite full --approve-fixture-post
+
+:: One or more features
+java dev-e2e/DevE2E.java test --feature spring-boot --approve-fixture-post
+java dev-e2e/DevE2E.java test --feature breakpoints,junit
+
+:: Single scenarios (group:scenario)
 java dev-e2e/DevE2E.java test --tests boot-gaps:port-conflict,acceptance:core-step-into-out
 
-:: All groups and scenario names
+:: Every suite, feature, group and scenario name
 java dev-e2e/DevE2E.java list
 ```
 
-`--approve-fixture-post` allows HTTP requests to the local test Spring Boot application only; groups without HTTP requests do not need it.
+Use one selector at a time. `--approve-fixture-post` allows HTTP requests to the local test Spring Boot application only; selections without HTTP requests do not need it.
 
-| Group | Scenarios | In the 23-scenario regression |
-|---|---:|---|
-| `phase1` | 7 | Yes |
-| `phase2` | 2 | Yes |
-| `boot` | 2 | Yes |
-| `boot-quote` | 1 | Yes |
-| `acceptance` | 4 | Yes |
-| `boot-gaps` | 7 | Yes |
-| `stops` | 6 | No, run with `test --groups stops` |
-| `lease` | 5 | No, run with `test --groups lease` |
-| `bridge` | 4 | No, run with `test --groups bridge` |
+| Feature (`--feature`) | Scenarios | What it tests | Suite |
+|---|---:|---|---|
+| `breakpoints` | 3 | Conditional breakpoint, exception breakpoint, tracepoint | regression |
+| `execution-control` | 3 | Pause, resume and restart; step filters; Step Into / Step Out | regression |
+| `inspection` | 1 | Threads, stack frames, variables | regression |
+| `junit` | 2 | Debugging one JUnit method; an invalid method is rejected | regression |
+| `spring-boot` | 10 | Discovery, readiness, wrong quote over HTTP, HTTP 400, target selection, two mains, two services, failed startup, readiness timeout, port conflict | regression |
+| `ownership` | 4 | Expired owner rejected, borrowed session kept, unapproved HTTP rejected, isolated cleanup of two owned JVMs | regression |
+| `stop-events` | 6 | `wait_for_stop` for breakpoint, step, exception, pause, program end; process output | extended |
+| `abandoned-cleanup` | 5 | Idle lease, long waits kept alive, CONTROLLED kept, MCP disconnect, ambiguous ownership | extended |
+| `bridge` | 4 | Slow command, busy, parallel reads, authentication | extended |
 
-The group names will change to feature names (`--feature`, `--suite regression`) with OPEN-18. Automatic fixture synchronization is not implemented yet (OPEN-01). Older PowerShell scripts still support specialized paths and must not be deleted without parity checks. Details: [Java runner](dev-e2e/README.md).
+Suites: `regression` = the first six features (23), `extended` = the last three (15), `full` = all nine (38). Claude trials are not in any suite (below).
+
+The older selector `--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps,stops,lease,bridge` still works; it selects the verifier programs that run the scenarios. `test --suite regression` runs the same six verifier runs as a plain `test`. Automatic fixture synchronization is not implemented yet (OPEN-01). Older PowerShell scripts still support specialized paths and must not be deleted without parity checks. Details: [Java runner](dev-e2e/README.md).
 
 ### Claude trials (use Claude usage)
 
@@ -168,7 +177,7 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 | ID | Priority | Item | Status | Done when | Feature IDs / details |
 |---|---|---|---|---|---|
 | OPEN-17 | **Plan 1** | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests (live Eclipse) and Claude trials stay out of the build and run only through the test runner | Partly done: step A done (unit tests in the build); step B in progress (`testing` module with the grader tests EV-U1..U18; setup utility `installer` added to the build with its tests IP-U1..U4, CD-U1..U3; waiting for build check) | `mvn clean package` fails when a unit test fails | — |
-| OPEN-18 | **Plan 1** | **Test reorganization by feature:** one integration group per feature, `--feature` / `--suite` selection, old runners removed. Later in this item: integration tests rewritten as JUnit 5 test classes (still started only by `DevE2E`, never by the Maven build) | Not started | Same results before and after the move | — |
+| OPEN-18 | **Plan 1** | **Test reorganization by feature.** Step A: integration tests selected by feature and suite (`--feature`, `--suite regression|extended|full`, nine features, `list` shows all), old `--groups` kept. Step B (later): integration tests rewritten as JUnit 5 test classes, one per feature (still started only by `DevE2E`, never by the Maven build), then the old verifier programs removed | In progress (step A delivered, waiting for test check) | Step A: `--suite regression` 23/23 and `--suite extended` 15/15; step B: same results with the JUnit classes | — |
 | OPEN-30 | **Plan 2** | **Debugging session report:** every step of an investigation recorded and written as an HTML report: investigation and mode, launches (project, main class or test method), breakpoints set or removed (source file, line, condition, the code on that line), stops (reason, thread, top frames, local variables with secrets masked), steps and resumes, HTTP requests and responses, exceptions, cleanup result or "ended without finish", the agent's conclusion (new optional `summary` argument of `finish_debug_investigation`), optional screenshots of the Eclipse window at stops (taken by the plugin). **Architecture rules ([ADR-009](docs/decisions.md)):** (1) *dependency direction*: modules `report-model` (events, `DebugReportListener`, no third-party dependencies) and `report-chaintest` (depends on the model); `mcp-server` uses the ChainTest writer only at runtime scope through `ServiceLoader`; (2) *runtime isolation*: a step is only queued (bounded, non-blocking), rendering runs on a background thread in the MCP server process, never in Eclipse; screenshots asynchronous with a time limit; (3) *failure isolation*: writer errors never reach the command result or the investigation lifecycle, go to stderr, and disable the writer after repeated failures; reporting `off` uses a no-op listener and is the default until R1a passes. Steps: **R1a** ChainTest prototype (ChainTest core engine driven by our own listener, no TestNG/JUnit; must show nested steps and a screenshot, nothing written to stdout, offline report, acceptable jar size with the Azure/AWS SDKs excluded); **R1** recorder and report at finish and on abandonment; **R2** agent conclusion, on/off and folder setting, `get_investigation_report` tool, skill update; **R3** optional screenshots | Not started | Unit tests for recording and rendering in the build, including the isolation tests in ADR-009 (slow writer, failing writer, missing writer, full queue); integration group `report` checks the report content of a real investigation; regression 23/23 with reporting `off` and with `chaintest` | New; fallback writer: own HTML through the same interface if R1a fails |
 | OPEN-22 | **Plan 3** | **Demo sample applications** in a new top-level `sample-applications/` folder: **one plain Java application** (`java-debugging-demo`) and **one Spring Boot application** (`spring-boot-debugging-demo`). Scenarios are chosen because they are easy to show visually on screen, starting from the scenarios the test fixtures already prove (for example: a value wrong for only one record in a large loop, found with a conditional breakpoint; an exception swallowed inside a stream or lambda; a wrong discount in a REST call traced from controller to service; a request rejected with HTTP 400; a failing JUnit test). Each scenario has a symptom-only prompt, the expected root cause and a short demo script. Only scenarios that work with the current features are included. **`examples/` is not changed**: it remains the test-fixture set | Not started | Both applications import cleanly into Eclipse; every scenario is found by the agent with the expected root cause (graded automatically where possible); each application has a README with the demo steps | New; reuses the trial runner and grader (EVAL-05/06); `examples/` stays the test fixtures |
 | OPEN-23 | **Plan 4** | **GitHub Copilot integration in Eclipse:** register the existing MCP server with GitHub Copilot (agent mode) in Eclipse, verify tool use and safety rules, document setup, and run the demo scenarios with Copilot | Not started | Setup documented; the OPEN-22 scenarios run with Copilot; differences from Claude Code recorded | Same MCP server; no Copilot-specific debugger code expected (to be verified) |

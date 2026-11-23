@@ -16,13 +16,15 @@
 ```cmd
 java dev-e2e/DevE2E.java list
 java dev-e2e/DevE2E.java test --approve-fixture-post
+java dev-e2e/DevE2E.java test --suite full --approve-fixture-post
+java dev-e2e/DevE2E.java test --feature spring-boot,ownership --approve-fixture-post
 java dev-e2e/DevE2E.java test --groups phase1,boot-gaps
 java dev-e2e/DevE2E.java test --tests boot-gaps:startup-failure,boot-gaps:port-conflict
 java dev-e2e/DevE2E.java all --approve-fixture-post
 java dev-e2e/DevE2E.java test --groups bridge
 ```
 
-`--groups` and `--tests` are alternative selectors. `--approve-fixture-post` explicitly authorizes the local test fixture HTTP requests. Tests record JSON under ignored `evaluation/reports/`.
+`--suite`, `--feature`, `--groups` and `--tests` are alternative selectors (one at a time; none = the 23-scenario regression). Features and suites are defined in `DevE2E.java` (`FEATURES`, `SUITES`) on top of the verifier groups below; every regression scenario belongs to exactly one feature, which `DevE2E` checks before each run. The feature table is in the [main README](../README.md#integration-tests-dedicated-test-eclipse). `--approve-fixture-post` explicitly authorizes the local test fixture HTTP requests. Tests record JSON under ignored `evaluation/reports/`.
 
 | Group | Direct tests |
 |---|---|

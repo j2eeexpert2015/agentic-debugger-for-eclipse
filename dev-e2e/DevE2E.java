@@ -462,17 +462,107 @@ public class DevE2E {
         "bridge", Set.of("all","slow-command","busy","parallel-load","auth"),
         "stops", Set.of("all","breakpoint","step","exception","pause","terminated","output"),
         "lease", Set.of("all","idle-expiry","wait-keeps-alive","controlled-kept","mcp-disconnect","mcp-several"));
-    private static LinkedHashMap<String,List<String>> select(String[] args) {
+    /** Execution order of the verifier groups; also the order of a run selected by feature or suite. */
+    private static final List<String> GROUP_ORDER = List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps",
+            "stops","lease","bridge","claude");
+    /** The six groups of the 23-scenario regression (the default when nothing is selected). */
+    private static final List<String> REGRESSION_GROUPS = List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps");
+    /**
+     * Integration tests by product feature (OPEN-18). Each entry is "group:scenario", or "group:all" for a whole group.
+     * The verifier groups stay as they are; a feature only selects scenarios from them. Every regression scenario
+     * belongs to exactly one feature (checked by {@link #checkFeatureCatalog()}).
+     */
+    private static final LinkedHashMap<String,List<String>> FEATURES = new LinkedHashMap<>();
+    static {
+        FEATURES.put("breakpoints", List.of("phase1:conditional","phase1:exception","phase1:trace"));
+        FEATURES.put("execution-control", List.of("phase1:pause-restart","phase1:filters","acceptance:core-step-into-out"));
+        FEATURES.put("inspection", List.of("phase1:variables"));
+        FEATURES.put("junit", List.of("phase1:junit","boot-gaps:junit-invalid-method"));
+        FEATURES.put("spring-boot", List.of("boot:discovery","boot:readiness","boot-quote:quote","phase2:validation",
+                "acceptance:sb01-target-selection","boot-gaps:two-mains","boot-gaps:two-services",
+                "boot-gaps:startup-failure","boot-gaps:readiness-timeout","boot-gaps:port-conflict"));
+        FEATURES.put("ownership", List.of("phase2:ownership","acceptance:sb09-expired-owner",
+                "acceptance:sb09-borrowed-session","boot-gaps:owned-isolation"));
+        FEATURES.put("stop-events", List.of("stops:all"));
+        FEATURES.put("abandoned-cleanup", List.of("lease:all"));
+        FEATURES.put("bridge", List.of("bridge:all"));
+        FEATURES.put("claude", List.of("claude:all"));
+    }
+    /** Named sets of features. "regression" runs the six regression groups whole, exactly as before OPEN-18. */
+    private static final LinkedHashMap<String,List<String>> SUITES = new LinkedHashMap<>();
+    static {
+        SUITES.put("regression", List.of("breakpoints","execution-control","inspection","junit","spring-boot","ownership"));
+        SUITES.put("extended", List.of("stop-events","abandoned-cleanup","bridge"));
+        SUITES.put("full", List.of("breakpoints","execution-control","inspection","junit","spring-boot","ownership",
+                "stop-events","abandoned-cleanup","bridge"));
+    }
+    /** Every regression scenario is in exactly one feature, and every feature entry names a real scenario. */
+    private static void checkFeatureCatalog() {
+        Map<String,String> owner=new HashMap<>();
+        for (var feature : FEATURES.entrySet()) for (String entry : feature.getValue()) {
+            String[] parts=entry.split(":",2);
+            check(SCENARIOS.containsKey(parts[0]) && SCENARIOS.get(parts[0]).contains(parts[1]),
+                    "Feature " + feature.getKey() + " names an unknown scenario: " + entry);
+            String previous=owner.put(entry, feature.getKey());
+            check(previous == null, entry + " is in two features: " + previous + ", " + feature.getKey());
+        }
+        for (String group : REGRESSION_GROUPS) for (String scenario : SCENARIOS.get(group)) {
+            if (!scenario.equals("all")) check(owner.containsKey(group + ":" + scenario),
+                    "Regression scenario " + group + ":" + scenario + " belongs to no feature");
+        }
+    }
+    /**
+     * Turns features into the group/scenario selection the runner executes. A group whose scenarios are all selected
+     * runs as one "all" invocation, so a suite that covers whole groups behaves exactly like selecting those groups.
+     */
+    private static LinkedHashMap<String,List<String>> byFeatures(List<String> features) {
+        Map<String,Set<String>> wanted=new HashMap<>();
+        for (String raw : features) {
+            String feature=raw.strip();
+            if (!FEATURES.containsKey(feature))
+                throw new IllegalArgumentException("Unknown feature: " + feature + ". Features: " + String.join(", ", FEATURES.keySet()));
+            for (String entry : FEATURES.get(feature)) {
+                String[] parts=entry.split(":",2);
+                wanted.computeIfAbsent(parts[0], ignored->new LinkedHashSet<>()).add(parts[1]);
+            }
+        }
         LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
-        String groups=null, tests=null;
+        for (String group : GROUP_ORDER) {
+            Set<String> cases=wanted.get(group);
+            if (cases == null) continue;
+            Set<String> every=new TreeSet<>(SCENARIOS.get(group));
+            every.remove("all");
+            boolean whole=cases.contains("all") || cases.containsAll(every);
+            if (group.equals("claude")) selected.put(group, whole ? List.of("boot-quote","junit","validation") : new ArrayList<>(cases));
+            else selected.put(group, whole ? List.of("all") : scenariosInOrder(group, cases));
+        }
+        return selected;
+    }
+    /** Selected scenarios of one group in a stable order. */
+    private static List<String> scenariosInOrder(String group, Set<String> cases) {
+        return new ArrayList<>(new TreeSet<>(cases));
+    }
+    private static LinkedHashMap<String,List<String>> select(String[] args) {
+        checkFeatureCatalog();
+        LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
+        String groups=null, tests=null, features=null, suite=null;
         for (int i=1;i<args.length;i++) {
             if (args[i].equals("--groups") && i+1<args.length) groups=args[++i];
             else if (args[i].equals("--tests") && i+1<args.length) tests=args[++i];
+            else if (args[i].equals("--feature") && i+1<args.length) features=args[++i];
+            else if (args[i].equals("--suite") && i+1<args.length) suite=args[++i];
             else if (args[i].equals("--repeat") && i+1<args.length) i++;
             else if (!args[i].equals("--approve-fixture-post") && !args[i].equals("--approve-claude")
                     && !args[i].equals("--no-skill")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
         }
-        if (groups != null && tests != null) throw new IllegalArgumentException("Use --groups OR --tests");
+        long selectors=java.util.stream.Stream.of(groups,tests,features,suite).filter(Objects::nonNull).count();
+        if (selectors > 1) throw new IllegalArgumentException("Use only one of --suite, --feature, --groups, --tests");
+        if (suite != null) {
+            if (!SUITES.containsKey(suite.strip()))
+                throw new IllegalArgumentException("Unknown suite: " + suite + ". Suites: " + String.join(", ", SUITES.keySet()));
+            return byFeatures(SUITES.get(suite.strip()));
+        }
+        if (features != null) return byFeatures(Arrays.asList(features.split(",")));
         if (tests != null) {
             for (String entry:tests.split(",")) {
                 String[] parts=entry.strip().split(":",2);
@@ -482,7 +572,8 @@ public class DevE2E {
                 if (!cases.contains(parts[1])) cases.add(parts[1]);
             }
         } else {
-            String[] list=groups == null ? new String[]{"phase1","phase2","boot","boot-quote","acceptance","boot-gaps"} : groups.split(",");
+            // No selector: the 23-scenario regression (same as --suite regression).
+            String[] list=groups == null ? REGRESSION_GROUPS.toArray(String[]::new) : groups.split(",");
             for(String raw:list) {
                 String g=raw.strip();
                 if (!SCENARIOS.containsKey(g)) throw new IllegalArgumentException("Unknown group: "+g);
@@ -492,13 +583,28 @@ public class DevE2E {
         if (selected.isEmpty()) throw new IllegalArgumentException("No scenarios selected");
         return selected;
     }
+    /** Scenarios behind a feature; a whole group counts all of its scenarios. */
+    private static int scenarioCount(String feature) {
+        int count=0;
+        for (String entry : FEATURES.get(feature)) {
+            String[] parts=entry.split(":",2);
+            count += parts[1].equals("all") ? (parts[0].equals("claude") ? 3 : SCENARIOS.get(parts[0]).size() - 1) : 1;
+        }
+        return count;
+    }
     private void describe() {
         System.out.printf("Mode: %s%nRepository: %s%nEclipse: %s%nWorkspace: %s%nBridge port: %d%n",
                 mode,repo,eclipse,workspace,port);
     }
     public static void main(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
-            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps|bridge|stops|lease] [--tests acceptance:core-step-into-out,boot-gaps:two-mains,bridge:busy,stops:step] [--approve-fixture-post]");
+            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [selector] [--approve-fixture-post]");
+            System.out.println("Selectors (one at most; none = the 23-scenario regression):");
+            System.out.println("  --suite regression|extended|full");
+            System.out.println("  --feature breakpoints,execution-control,inspection,junit,spring-boot,ownership,stop-events,abandoned-cleanup,bridge");
+            System.out.println("  --groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps,stops,lease,bridge   (verifier groups)");
+            System.out.println("  --tests acceptance:core-step-into-out,boot-gaps:two-mains,stops:step             (single scenarios)");
+            System.out.println("'list' shows every suite, feature, group and scenario.");
             System.out.println("Claude trials (use Claude usage): test --groups claude|--tests claude:boot-quote --approve-claude [--approve-fixture-post] [--repeat N] [--no-skill]");
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
@@ -520,7 +626,18 @@ public class DevE2E {
         x.describe();
         if (args[0].equals("config")) return;
         if (args[0].equals("list")) {
-            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","bridge","stops","lease","claude")) {
+            checkFeatureCatalog();
+            System.out.println("== Suites (--suite) ==");
+            for (var suite : SUITES.entrySet()) {
+                int count=0;
+                for (String feature : suite.getValue()) count += scenarioCount(feature);
+                System.out.println(suite.getKey() + " (" + count + "): " + String.join(", ", suite.getValue()));
+            }
+            System.out.println("== Features (--feature) ==");
+            for (var feature : FEATURES.entrySet())
+                System.out.println(feature.getKey() + " (" + scenarioCount(feature.getKey()) + "): " + String.join(", ", feature.getValue()));
+            System.out.println("== Verifier groups (--groups) and scenarios (--tests group:scenario) ==");
+            for (String group : GROUP_ORDER) {
                 System.out.println(group + ": " + String.join(", ", new TreeSet<>(SCENARIOS.get(group))));
             }
             return;
