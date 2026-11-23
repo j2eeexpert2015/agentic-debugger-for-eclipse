@@ -6,7 +6,13 @@ Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude C
 
 ## Current status and next step
 
-All open work is tracked in **one table: [Status and tracking](#status-and-tracking)**. Next P0 item: **automatic fixture synchronization** (OPEN-01).
+The debugger features are sufficient for demonstrations of Java and Spring Boot applications. **Current plan (24 Nov 2026), in this order:**
+
+1. **Test structure:** unit tests as JUnit 5 in the Maven build, integration tests reorganized by feature (OPEN-17, OPEN-18).
+2. **Demo sample applications** in a new `sample-applications/` folder: **one plain Java application and one Spring Boot application**, built from the scenarios that are easy to show visually, for videos and live demos (OPEN-22). The existing `examples/` projects stay **unchanged**: they are the test fixtures that all direct tests and Claude trials are written against.
+3. **GitHub Copilot integration** in Eclipse through the same MCP server (OPEN-23).
+
+All other work follows these steps. Everything open is tracked in **one table: [Status and tracking](#status-and-tracking)**.
 
 ## Install and use
 
@@ -58,7 +64,7 @@ The failing-startup and port-conflict tests confirmed fixture JVM exit using OS 
 
 ## Developer quickstart
 
-Architecture: **Claude Code → MCP stdio server → authenticated localhost bridge → Eclipse JDT → Java/JUnit/Spring Boot JVM**. Core locations: [`eclipse-plugin/`](eclipse-plugin/), [`mcp-server/`](mcp-server/), [`dev-e2e/`](dev-e2e/), [`e2e-runner/`](e2e-runner/), [`examples/`](examples/), [`skills/eclipse-debugger/`](skills/eclipse-debugger/).
+Architecture: **Claude Code → MCP stdio server → authenticated localhost bridge → Eclipse JDT → Java/JUnit/Spring Boot JVM**. Core locations: [`eclipse-plugin/`](eclipse-plugin/), [`mcp-server/`](mcp-server/), [`dev-e2e/`](dev-e2e/), [`e2e-runner/`](e2e-runner/), [`examples/`](examples/) (test fixtures; kept unchanged because the direct tests and Claude trials depend on them), `sample-applications/` (planned demo applications, OPEN-22), [`skills/eclipse-debugger/`](skills/eclipse-debugger/).
 
 Configure the untracked `dev-e2e/e2e.properties` from [the example](dev-e2e/e2e.properties.example), using a **dedicated Eclipse installation**, **disposable workspace**, and **nondefault bridge port**. From the repository root:
 
@@ -96,30 +102,39 @@ Each Claude run is graded automatically (`*.verdict.json` under `evaluation/repo
 
 **This is the single tracking list.** Every open item is in the first table, every finished item in the second. Details and evidence live in the linked docs, but an item that is not in this section is not tracked. When an item is finished, move it to **Done** with its date and evidence; when new work is found (a bug, a gap, a follow-up), add it to **Open** with an ID.
 
+Priority values: **Plan 1/2/3** (the current plan, in order) · **P1** (next after the plan) · **P2**, **P3** (later) · **Eng** (engineering work without a fixed slot).
+
 Status values: **Not started** · **Partly done** (some of it works and is tested; the rest is listed in "Done when") · **Parked** (decided to do later) · **Deferred** (waits for demand or a feasibility review).
 
 ### Open
 
 | ID | Priority | Item | Status | Done when | Feature IDs / details |
 |---|---|---|---|---|---|
-| OPEN-01 | **P0** | **Automatic fixture synchronization:** copy changed test projects into the disposable test workspace, marker-verified, never touching other projects | Not started | New or changed fixture classes reach the test workspace without manual copying; blocks OPEN-11 and new Claude scenarios | [Runner](dev-e2e/README.md) |
-| OPEN-02 | **P0** | **User-resource safety matrix:** tests with real user breakpoints, exception breakpoints and custom launch configurations present; nothing of the user's is changed or removed | Partly done | Direct group passes with user markers/configurations present (so far the workspace had none, so preservation was not really exercised) | CORE-03, CORE-04, BOOT-10 |
-| OPEN-03 | **P0** | **Ownership checks:** port the 32 PowerShell ownership/failure checks to a Java direct-test group and rerun them on the current build | Partly done | 32/32 in Java on the current build; PowerShell copy removed | CORE-08; `e2e-runner/ownership-tests/run.ps1` |
-| OPEN-04 | **P0** | **Spring Boot scenario acceptance gaps:** agent chooses between two Boot apps without guessing; launch keeps profile, arguments, environment and working directory; `@SpringBootTest` method debugging | Partly done | Direct checks for each; currently discovery, readiness, HTTP quote, HTTP 400 and one Spring-context JUnit method pass | BOOT-01, BOOT-02, BOOT-06 ([scenarios](docs/spring-boot-debugging-scenarios.md)) |
+| OPEN-17 | **Plan 1** | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests (live Eclipse) and Claude trials stay out of the build and run only through the test runner | Not started | `mvn clean package` fails when a unit test fails | — |
+| OPEN-18 | **Plan 1** | **Test reorganization by feature:** one integration group per feature, `--feature` / `--suite` selection, old runners removed | Not started | Same results before and after the move | — |
+| OPEN-22 | **Plan 2** | **Demo sample applications** in a new top-level `sample-applications/` folder: **one plain Java application** (`java-debugging-demo`) and **one Spring Boot application** (`spring-boot-debugging-demo`). Scenarios are chosen because they are easy to show visually on screen, starting from the scenarios the test fixtures already prove (for example: a value wrong for only one record in a large loop, found with a conditional breakpoint; an exception swallowed inside a stream or lambda; a wrong discount in a REST call traced from controller to service; a request rejected with HTTP 400; a failing JUnit test). Each scenario has a symptom-only prompt, the expected root cause and a short demo script. Only scenarios that work with the current features are included. **`examples/` is not changed**: it remains the test-fixture set | Not started | Both applications import cleanly into Eclipse; every scenario is found by the agent with the expected root cause (graded automatically where possible); each application has a README with the demo steps | New; reuses the trial runner and grader (EVAL-05/06); `examples/` stays the test fixtures |
+| OPEN-23 | **Plan 3** | **GitHub Copilot integration in Eclipse:** register the existing MCP server with GitHub Copilot (agent mode) in Eclipse, verify tool use and safety rules, document setup, and run the demo scenarios with Copilot | Not started | Setup documented; the OPEN-22 scenarios run with Copilot; differences from Claude Code recorded | Same MCP server; no Copilot-specific debugger code expected (to be verified) |
+| OPEN-01 | P1 | **Automatic fixture synchronization:** copy changed test projects into the disposable test workspace, marker-verified, never touching other projects | Not started | New or changed fixture classes reach the test workspace without manual copying; blocks OPEN-11 and new Claude scenarios | [Runner](dev-e2e/README.md) |
+| OPEN-02 | P1 | **User-resource safety matrix:** tests with real user breakpoints, exception breakpoints and custom launch configurations present; nothing of the user's is changed or removed | Partly done | Direct group passes with user markers/configurations present (so far the workspace had none, so preservation was not really exercised) | CORE-03, CORE-04, BOOT-10 |
+| OPEN-03 | P1 | **Ownership checks:** port the 32 PowerShell ownership/failure checks to a Java direct-test group and rerun them on the current build | Partly done | 32/32 in Java on the current build; PowerShell copy removed | CORE-08; `e2e-runner/ownership-tests/run.ps1` |
+| OPEN-04 | P1 | **Spring Boot scenario acceptance gaps:** agent chooses between two Boot apps without guessing; launch keeps profile, arguments, environment and working directory; `@SpringBootTest` method debugging | Partly done | Direct checks for each; currently discovery, readiness, HTTP quote, HTTP 400 and one Spring-context JUnit method pass | BOOT-01, BOOT-02, BOOT-06 ([scenarios](docs/spring-boot-debugging-scenarios.md)) |
 | OPEN-05 | P1 | **Skill evaluation on symptom-only prompts:** vague prompts ("the total is wrong") with and without the skill; plus skill install/remove invariants and the Boot JUnit scenarios | Partly done | Repeated batches both ways on symptom-only prompts; base tests pass with no skill and after skill removal | SKILL-01..03, EVAL-03, EVAL-04; explicit-prompt comparison done (see Done) |
 | OPEN-06 | P1 | **Run to Line** | Not started | Scoped operation, correct thread, cleanup; direct test | JAVA-11 |
 | OPEN-07 | P1 | **Change Variable Value** with explicit consent | Not started | Owned session only, consent enforced, safe failure; direct and negative tests | JAVA-10B |
-| OPEN-08 | P1 | **Other MCP clients** (Codex, GitHub Copilot and other compatible clients) | Not started | Each client verified before support is claimed | — |
 | OPEN-09 | P1 | **Claude MCP registration preservation:** installing/configuring never changes other entries in the user's Claude MCP configuration | Not started | Installed test with unrelated registrations present | CORE-09 |
 | OPEN-10 | P1 | **Bridge stability follow-ups:** one comparison run in legacy mode (`AGENTDEBUG_BRIDGE_MODE=legacy`); overnight loop of 10+ regression runs | Partly done | Legacy run 23/23; overnight loop without failure | CORE-13 ([checklist](dev-e2e/README.md#bridge-stability-tests-core-13)) |
 | OPEN-11 | P1 | **Stop-waiting follow-ups:** several threads stopping at the same breakpoint; Spring Boot request threads; output of a launch that already ended | Not started | Direct tests (needs a multi-thread fixture, so OPEN-01 first) | CORE-14, CORE-15 |
 | OPEN-12 | P1 | **Execution-control negatives:** operations on ended, stale or invalid threads fail safely; stepping in Spring Boot and JUnit contexts | Partly done | Direct negative tests; Step Into/Out already pass for plain Java | CORE-05-06 |
+| OPEN-08 | P2 | **Other MCP clients** (Codex and other compatible clients; GitHub Copilot is OPEN-23) | Not started | Each client verified before support is claimed | — |
+| OPEN-24 | P2 | **Exception breakpoint package filters:** stop only for exceptions thrown in the application's own packages, not in Spring or the JDK (Spring throws and catches an `IllegalArgumentException` on every startup) | Not started | Filtered exception breakpoint ignores framework throws in a direct test | JAVA-02 follow-up |
+| OPEN-25 | P2 | **JUnit test results:** pass/fail per test, assertion message, expected vs actual, failure location returned to the agent | Not started | Direct test with a failing assertion returns the structured result | JAVA-03 follow-up |
+| OPEN-26 | P2 | **Launch settings:** program and VM arguments, environment variables, Spring profile, in a temporary launch configuration owned by the investigation (the user's configurations never change) | Not started | Direct test: app sees the arguments, environment and active profile; user configuration unchanged | BOOT-02 |
+| OPEN-27 | P2 | **Safe local HTTP request tool for real applications:** localhost only, the user approves the application and URL, asynchronous like the test tool (today the request tool is test-only) | Not started | Safety design reviewed; direct and negative tests (non-localhost, unapproved app rejected) | BOOT-04 follow-up |
+| OPEN-28 | P2 | **Spring step-filter preset:** skip proxies, CGLIB, reflection and AOP frames when stepping | Not started | Stepping through a Spring call stays in application classes in a direct test | JAVA-07 follow-up |
 | OPEN-13 | P2 | **Coverage gaps in implemented features:** bridge port collision and several IDEs (CORE-01); agent choice among ambiguous mains (CORE-02); editor focus with concurrent sessions (CORE-07); release ZIP matches source revision (CORE-10); deploy failure recovery and version changes (CORE-11); failing condition expressions (JAVA-01); tracepoint output after exit (JAVA-05) | Not started | One direct or documented manual test each | [Feature tracker](docs/feature-roadmap.md) |
 | OPEN-14 | P2 | **Thread dumps, local JVM attach, method breakpoints, watchpoints** | Not started | Feasibility and safety test per API | JAVA-08, JAVA-09 |
 | OPEN-15 | P2 | **Spring Tools launch modes and complex JUnit** (parameterized tests, JUnit Platform selection) | Partly done | Installed variants verified; plain Eclipse JDT/JUnit already verified | BOOT-11, JAVA-03 |
 | OPEN-16 | P2 | **Linux/macOS and remaining PowerShell harnesses** | Partly done | Java runner passes on Linux/macOS; PowerShell paths replaced with parity checks | — |
-| OPEN-17 | Eng | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests stay out of the build | Parked | `mvn clean package` fails when a unit test fails | — |
-| OPEN-18 | Eng | **Test reorganization by feature:** one integration group per feature, `--feature` / `--suite` selection, old runners removed | Parked | Same results before and after the move | — |
 | OPEN-19 | Eng | **Docs consolidation:** one roadmap file, `testing.md`, history moved to `docs/archive/` | Parked | Status maintained only here and in one roadmap | — |
 | OPEN-20 | Eng | **Parallel test lanes** (several test Eclipses) | Parked | Opt-in `--parallel N` with identical results | — |
 | OPEN-21 | P3 | **Remote/Docker attach, Hot Code Replace, JPA/transaction diagnostics, concurrent/async Boot requests** | Deferred | Demand, feasibility and safety review first | BOOT-05, JAVA-10A, BOOT-08, BOOT-09 |
