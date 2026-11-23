@@ -42,6 +42,15 @@ java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture
 
 `claude` runs `boot-quote`, `junit` and `validation` as **opt-in real CLI trials** and captures evidence under `evaluation/reports/claude-trials/`. A completed transcript is `REVIEW_REQUIRED` until tool choices, runtime observations, explanations, consent and cleanup are independently checked. Trials may consume Claude usage.
 
+## Reviewed Claude acceptance — 23 November 2026
+
+**Three individual runs were reviewed:** `junit` (successful diagnosis in Claude final-result JSON), `boot-quote` (event-level PASS for request/thread/`rate=0`/HTTP 200/cleanup response), and `validation` (event-level PASS for invalid quantity, application exception, HTTP 400 and cleanup response). These are **single trials, not a reliability percentage**. The optional skill was not independently confirmed disabled or enabled; a controlled A/B evaluation is still pending. The CLI still emits `REVIEW_REQUIRED` for completed captures, not an automatic verdict.
+
+For HTTP Claude trials, the runner uses the fresh repository MCP shaded JAR, an isolated test MCP configuration, test-only `start_fixture_http_request`/`get_fixture_http_request`/`cancel_fixture_http_request` tools and explicit `--approve-fixture-post`. The installed user-scoped MCP JAR can be a different revision; E2E does not update global registration. HTTP is asynchronous because request threads may suspend at breakpoints. Arbitrary URLs/production systems are not supported by these fixture tools. Keep original JSONL/manifest outside Git (ignored report directory).
+
+The updated installation passed all 23 direct scenarios **across separate runs**, but the most recent uninterrupted combined suite encountered six transient Boot-gap timeouts before later 7/7 isolated group success. Reconfirm a single full regression before release. [Detailed acceptance ledger and caveats](../docs/claude-acceptance-2026-11-23.md).
+
+
 ## Retained test infrastructure
 
 Keep the Java verifiers in `e2e-runner/src/main/java/`, the Maven fixture modules, the optional skill under `skills/eclipse-debugger/` and existing Windows specialized scripts. The former PowerShell HTTP fixture client was removed after Java parity; **other PowerShell scripts still provide unported coverage**. `integrate` and `cleanup` commands are migration utilities, not everyday test steps. `UpdateRoadmapDocs.java` is an earlier one-time status updater; the top-level README now records current progress.

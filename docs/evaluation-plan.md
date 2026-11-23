@@ -1,16 +1,13 @@
 # Regression and Unified Debugging Skill Evaluation Plan
 
 <!-- CLAUDE-FIRST-PRIORITY:BEGIN -->
-## Immediate P0 experiment — symptom-only Claude without skill
+## Current P0 evaluation — first three Claude smoke trials reviewed
 
-**Status: NOT YET VERIFIED as a repeated current baseline.** Run the existing opt-in `claude` trial group against the installed Eclipse test fixture **without installing/enabling the optional debugging skill**. The three implemented transcript trials are `junit`, `boot-quote` and `validation`. A plain-Java calculation trial and a concurrent-service safety trial are proposed additions, not currently implemented.
+**23 November 2026 outcome:** `junit` succeeded by the captured Claude final-result account; `boot-quote` and `validation` passed event-level MCP review of owned JVM launch, asynchronous fixture request, suspended HTTP thread, application values, actual HTTP result and cleanup response. These are **one run each**, not a statistical or skills comparison baseline. The optional skill was not independently verified as absent/present in a controlled experiment. [Exact evidence ledger](claude-acceptance-2026-11-23.md).
 
-**Procedure:** one independent session per prompt, same fixture/source visibility, model, MCP configuration, approval policy and timeout. Preserve raw transcripts and inspect real `eclipse-debugger` calls, selected project/launch, breakpoint choice, thread/frame, runtime values, explanation and NORMAL cleanup. Score each `PASS`, `PARTIAL`, `FAIL`, `UNSAFE` or `NOT RUN`. A CLI success status or correct answer without runtime evidence is insufficient for an actual debugger PASS. Record unexpected state changes separately.
+**Next experiment:** Implement a Java event-transcript evaluator; check actual MCP responses and post-cleanup session/marker inventories. Repeat each trial on fresh isolated sessions with controlled model, permissions, fixture revision and skill state; only then report rates and compare optional skill A/B. Add plain Java and concurrent-service agent trials separately. Record both direct regression and agent evidence independently; the updated combined 23-case regression needs rerun because a six-case transient timeout occurred before later isolated Boot-gap PASS.
 
-**Sequence:** smoke-test JUnit alone; then Boot quote and validation; review the actual traces; repeat fresh sessions before reporting rates. Only then conduct with-skill trials and compare like for like. The 23/23 direct tests remain a distinct prerequisite and do not count as Claude trials.
-
-**CLI from repository root:** `java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude`, then `java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture-post`. These can consume Claude usage.
-
+**CLI (from repository root):** `java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude` or `java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture-post`. Use only disposable fixture resources; Claude usage may be charged. `REVIEW_REQUIRED` is a capture status, not an automatic PASS.
 <!-- CLAUDE-FIRST-PRIORITY:END -->
 
 [README](../README.md) · [Development roadmap](development-roadmap.md) · [Feature tracker](feature-roadmap.md) · [Phase 1 Java prompts](phase1-claude-scenarios.md) · [Phase 2 Boot prompts](spring-boot-debugging-scenarios.md) · [Codex backlog](codex-implementation-backlog.md)

@@ -1,32 +1,28 @@
 # Development Roadmap — Phases 0–5
 
 <!-- CLAUDE-FIRST-PRIORITY:BEGIN -->
-## Current implementation order — 23 November 2026
+## Current implementation order — updated 23 November 2026
 
-**First: P0 — Claude Code symptom-only acceptance.** Do not start new debugger features until an actual no-skill agent baseline has been evaluated. The 23/23 installed Java E2E PASS result proves direct debugger scenarios, **not Claude's autonomous choices**.
+**P0 single-run Claude acceptance is completed for JUnit, wrong Boot quote and HTTP 400**, with two event-level HTTP traces. It is **not** a repeated baseline or a verified optional skill comparison. See [reviewed acceptance evidence](claude-acceptance-2026-11-23.md).
 
-| Order | Priority | Target / gate |
+| Order | Priority | Target / evidence gate |
 |---|---|---|
-| **1** | **P0** | **Claude symptom-only no-skill baseline:** JUnit, wrong Boot quote, handled HTTP 400; independently review tool calls, actual frames/values, diagnosis, consent and cleanup; add Java calculation and concurrent-service prompts as *planned* cases |
-| 2 | P0 | Fixture synchronization: marker-verified, safe sync of dedicated Eclipse workspace; preserve unrelated files |
-| 3 | P0 | Event-correlated pause waiting: correct JVM, thread, breakpoint reason, no stale/wrong stop |
-| 4 | P0 | User-resource isolation: user-owned breakpoint/configuration preservation and concurrent launches |
-| 5 | P1 | Run to Line: scoped debug operation, correct thread and cleanup |
-| 6 | P1 | Change Variable Value: explicit permission, owned session and safe failure |
-| 7 | P1 | Repeated Claude trials, skill activation and no-skill/with-skill comparisons |
-| 8 | P1 | Other MCP clients including Codex: verify real interoperability |
-| 9 | P2 | Thread dumps, local attach, method breakpoints and watchpoints: targeted feasibility |
-| 10 | P2 | Spring Tools launch modes and expanded Spring-context JUnit coverage |
-| 11 | P2 | Linux/macOS and remaining PowerShell harness parity |
-| 12 | P3 | Remote/Docker attach and Hot Code Replace, subject to user demand and safety |
+| **1** | **P0** | **Automated transcript grading and independent post-cleanup evidence**, plus an uninterrupted updated 23/23 regression |
+| 2 | P0 | Safe fixture synchronization into marker-verified disposable workspace |
+| 3 | P0 | Event-correlated debugger stop: exact launch/thread/reason, no stale matches |
+| 4 | P0 | Full user-resource isolation under concurrent sessions, markers and configurations |
+| 5 | P1 | Repeat controlled no-skill Claude trials, then optional skill activation and A/B comparison |
+| 6 | P1 | Run to Line and consent-gated Change Variable Value, each with negative cases |
+| 7 | P1 | Interoperability testing for Codex and other MCP clients |
+| 8 | P2 | Spring Tools, expanded Spring/JUnit and cross-platform testing |
+| 9 | P2 | Thread dumps, local attach, watchpoints and related feasibility |
+| 10 | P3 | Remote/Docker attach and Hot Code Replace after demand/safety review |
 
-**Evidence policy:** Existing `claude` Java launcher captures transcript artifacts as `REVIEW_REQUIRED`, never automatic PASS. Start with an individual JUnit smoke trial, then the Boot quote and validation trials. Repeat on fresh sessions before estimating reliability. Keep direct 23/23 as the regression gate; capture exact Git revision, bundle, tools and reports.
-
-**Selection of new features should follow observed agent failure modes**, rather than treating IDE GUI features as proven agent MCP support. See [evaluation plan](evaluation-plan.md) and [README](../README.md#next-development-priority-claude-symptom-only-acceptance).
+**Status policy:** a CLI exit code and `REVIEW_REQUIRED` do not imply acceptance. Preserve raw MCP responses, exact JVM/thread/frame/locals, HTTP response, and ownership-safe cleanup. One successful trial is not a success rate. Historical phase plans below remain dated records.
 <!-- CLAUDE-FIRST-PRIORITY:END -->
 
 <!-- JAVA-E2E-19-STATUS:BEGIN -->
-**Latest installed-Eclipse result (23 November 2026): 23/23 direct Java E2E scenarios PASS in one combined Windows run, with successful cleanup for each scenario.** Groups: Phase 1 Java/JUnit (7), Phase 2 validation/ownership (2), Boot discovery/readiness (2), HTTP quote defect (1), core acceptance (4), Boot failure/isolation acceptance (7). Dedicated startup-failure, readiness-timeout and port-conflict tests passed; startup and port failures were verified using actual JVM PIDs and OS process exit evidence. The combined result was reported from a local working tree, not a separately verified published release. Autonomous Claude, skill activation/comparison, STS-specific launch modes, Linux/macOS and full user-owned marker/configuration preservation remain OPEN. **Current implementation, exact runner commands and prioritized next steps:** [root README](../README.md#next-priorities). Older status tables below describe their dated milestones and must not be interpreted as the latest 23-scenario direct-test status.
+**Current evidence (23 November 2026):** The initial Claude symptom-driven trial set has been reviewed: single JUnit diagnosis (final-result record) and two Spring Boot HTTP investigations (event-level runtime PASS). A historical uninterrupted 23/23 direct JDT regression passed; after the fixture HTTP change, first 16 direct scenarios passed together and all seven Boot-gap scenarios later passed separately, but the newest build has **not** completed a fresh uninterrupted 23/23 run. The opt-in Claude harness still reports `REVIEW_REQUIRED`, not automatic acceptance. Repeated no-skill reliability, optional skill A/B, independent cleanup inventories, STS-specific launch modes, and cross-platform coverage remain open. [Current acceptance evidence and boundaries](claude-acceptance-2026-11-23.md). The dated sections below are historical snapshots; their old `NOT RUN` cells refer to the time they were written, not current overall status. See [README](../README.md).
 <!-- JAVA-E2E-19-STATUS:END -->
 
 

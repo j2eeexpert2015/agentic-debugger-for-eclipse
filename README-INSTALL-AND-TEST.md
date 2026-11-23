@@ -118,7 +118,7 @@ In phase-one-debugging, the JUnit 5 test OrderCalculatorTest.appliesTenPercentDi
 In spring-boot-debugging, OrdersApplication returns 120.00 when a quote for quantity 2, unit price 60 and discount 10 percent should be 108.00. Debug the correct application and trace the actual HTTP execution through relevant source frames to identify the first incorrect value. Do not modify code or disturb unrelated sessions. Before sending any HTTP request, tell me the exact localhost address, method and payload, and obtain my approval. Clean up your own investigation.
 ```
 
-**Expect:** correct Boot main/config, actual readiness, breakpoints before approved HTTP, actual request-thread suspension and values, no unapproved request, proper cleanup. A working local request may need an independent authorized client (our MCP bridge has no general HTTP request tool). **Do not automatically approve** a request without confirming the target is the disposable fixture.
+**Expect:** correct Boot main/config, actual readiness, breakpoints before approved HTTP, actual request-thread suspension and values, no unapproved request, proper cleanup. For dedicated, explicitly approved E2E fixture trials, the Java MCP server now offers constrained asynchronous `start_fixture_http_request`, `get_fixture_http_request`, and `cancel_fixture_http_request`. These tools are NOT enabled for normal use and do not provide arbitrary HTTP requests; a non-E2E debugging session still needs an independently approved client. **Do not automatically approve** a request without confirming the target is the disposable fixture.
 
 ## 5. Specialized decision checks (do not require immediate execution)
 

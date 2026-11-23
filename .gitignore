@@ -27,3 +27,7 @@ evaluation/skill-automation/*-install-backup-*/
 
 # Java E2E paths/settings are specific to each developer machine
 /dev-e2e/e2e.properties
+
+# Captured single-run Eclipse diagnostics should stay outside version control
+/eclipse-bridge-threads.txt
+/eclipse-errors.txt

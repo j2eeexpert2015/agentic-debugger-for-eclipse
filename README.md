@@ -2,19 +2,14 @@
 
 Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude Code** through the Model Context Protocol (MCP). The plugin uses Eclipse Java Debug Tools (JDT) for actual execution control; Claude selects and invokes MCP tools. Safety checks for session ownership, breakpoints and cleanup are implemented in Java, not left solely to prompt instructions.
 
-**Verified baseline — 23 November 2026:** **23/23 direct Java E2E scenarios PASS** in one Windows Eclipse execution, all with `cleanup=true`. These are real installed-debugger checks, **not** evidence that Claude independently chooses the right debugging strategy. See [Implementation and test status](#implementation-and-test-status).
+**Evidence snapshot — 23 November 2026:** A historical single-run **23/23 direct Java E2E PASS** baseline exists. Following the fixture HTTP MCP change, the first 16 direct cases passed in a combined run, the Boot-gap group later passed **7/7** separately, but a fresh uninterrupted 23/23 pass on that exact updated build remains pending. Three single-session Claude investigations were reviewed (JUnit diagnosis; Boot quote and HTTP 400 event-level runtime PASS). See [acceptance evidence](docs/claude-acceptance-2026-11-23.md); do not infer repeated reliability or skill A/B success.
 
 ## Next development priority: Claude symptom-only acceptance
+## Current milestone and next development priority
 
-**P0 / Task 1 — Do this first, before implementing new debugger capabilities.** Establish how well Claude Code investigates real Java, JUnit and Spring Boot problems **without being told which MCP tool, breakpoint or debugger operation to use**.
+**P0 single-trial symptom-driven acceptance is demonstrated** for the three implemented scenarios: one JUnit investigation (reported diagnostic evidence) and two Spring Boot HTTP investigations (event-level MCP evidence). See [Claude acceptance results, evidence boundaries and exact commands](docs/claude-acceptance-2026-11-23.md). The optional skill's activation, repeated no-skill reliability and with-skill A/B benefit have **not** been established.
 
-1. **Baseline without the optional skill.** Use the existing `claude` transcript-trial harness (`boot-quote`, `junit`, `validation`), with isolated sessions, fixed fixtures, permissions and bounded timeouts. Add a plain-Java calculation case and a second-service safety case to the trial catalog; these additional trials are **planned**, not implemented.
-2. **Independently review evidence.** Record the actual selected launch, MCP calls, breakpoint/thread/stack/variables, diagnosis, consent decisions, resource cleanup, tool failures, duration and usage when available. Classify each trial `PASS`, `PARTIAL`, `FAIL`, `UNSAFE` or `NOT RUN`. A completed Claude CLI invocation or plausible static answer is **not** a debugging PASS.
-3. **Repeat and compare.** Begin with individual smoke trials; run repeated no-skill sessions before reporting success rates. Only after establishing that baseline test with the optional skill and compare like for like.
-4. **Use the findings to reprioritize debugger enhancements.** In particular, measure wrong-stop/polling problems before replacing the existing `wait_for_debug_pause`; do not assume feature parity from IDE GUI capabilities.
-
-**Next after this:** automatic safe fixture synchronization; event-correlated pause waiting; preservation of user-owned breakpoints and launch configurations; then Run to Line and consent-gated variable mutation. Full [priority order](#prioritized-development-order) and [detailed roadmap](docs/development-roadmap.md).
-
+**Next P0 gate:** automate evidence-backed verdicts and independent post-cleanup checks; rerun the updated 23-case suite together. Then prioritize safe fixture synchronization, event-correlated pause waiting and user-owned resource isolation. Do not add debugger features merely for checklist parity.
 ## Install and use
 
 ### Which Eclipse IDE?
@@ -55,7 +50,7 @@ Example symptom-only request: *“My orders API returns 120.00, but I expect 108
 
 The failing-startup and port-conflict tests confirmed fixture JVM exit using OS PIDs. This is **local working-tree evidence**; it does not independently certify a published release or other systems. Report files are generated under ignored `evaluation/reports/`. See [Java runner](dev-e2e/README.md).
 
-**Agent behavior:** Selected earlier explicit and symptom-only Claude trials are documented, but **a repeated baseline covering the current Boot/JUnit scenarios, skill activation reliability, and a controlled no-skill/with-skill comparison remain open**. The opt-in `claude` trial runner captures transcripts as `REVIEW_REQUIRED`; it does **not** certify agent success.
+**Agent behavior (23 November 2026):** The JUnit single-method diagnosis was supported by Claude's final-result record; the Spring Boot wrong-quote and invalid-quantity runs have reviewed MCP event-level proof of HTTP reproduction, runtime debugging and cleanup responses. **Three single trials are not a reliability study.** Skill activation, repeated no-skill trials, controlled no-skill/with-skill comparison, and independent post-cleanup inventories remain open. The harness intentionally labels captures `REVIEW_REQUIRED`; see [evidence ledger](docs/claude-acceptance-2026-11-23.md).
 
 **Limits:** Run to Line, variable mutation, field watchpoints, JDWP attach, thread-dump export and Hot Code Replace are not exposed as verified MCP features. STS-specific modes, Linux/macOS runner execution, more complex Spring-context JUnit cases and comprehensive user-marker/configuration isolation require separate tests.
 
@@ -95,7 +90,7 @@ Review generated transcripts under `evaluation/reports/claude-trials/`; they are
 
 | Order | Priority | Work and acceptance outcome |
 |---|---|---|
-| **1** | **P0** | **Claude symptom-only acceptance:** repeatable no-skill trials, actual MCP evidence, safe cleanup, individually reviewed results |
+| **1** | **P0** | **Automated Claude acceptance verdicts and independent cleanup evidence:** preserve event-level MCP observations; revalidate full combined regression; repeat controlled no-skill trials (initial JUnit/Boot smoke completed) |
 | 2 | P0 | **Automatic fixture synchronization:** marker-verified disposable workspace; no manual source copying or destructive project changes |
 | 3 | P0 | **Event-correlated pause waiting:** exact launch/thread/stop cause; no stale or unrelated stop accepted |
 | 4 | P0 | **User-resource safety:** preserve user-owned breakpoints, launch configurations and unrelated JVMs under concurrent debugging |
@@ -110,8 +105,14 @@ Review generated transcripts under `evaluation/reports/claude-trials/`; they are
 
 Release hygiene runs across these priorities: retain the **23/23 direct regression** and record source commit, bundle identity, environment, reports and deviations. The ordering may change based on actual Claude trial failures; do not implement features just to match a competitor's checklist.
 
+## Development workflow
+
+Changes follow an **evidence-first, reviewable process**: reproduce and isolate the issue; prepare a minimal, reversible change (with dry-run/backups for source migrations); compile and test the affected scenario; run broader regression; independently review Claude MCP evidence when applicable; then update verified status, documentation and repository hygiene. **Do not treat `REVIEW_REQUIRED` as a PASS or run paid Claude trials without approval.**
+
+See the [complete development workflow](docs/development-workflow.md) and [coding-agent instructions](AGENTS.md). All agents and contributors should read these before modifying the project.
+
 ## Documentation
 
-[Development roadmap](docs/development-roadmap.md) · [Feature tracker](docs/feature-roadmap.md) · [Agent evaluation plan](docs/evaluation-plan.md) · [Capabilities](docs/capabilities.md) · [Spring Boot scenarios](docs/spring-boot-debugging-scenarios.md) · [Java E2E runner](dev-e2e/README.md) · [Architecture decisions](docs/decisions.md).
+[Development workflow](docs/development-workflow.md) · [Claude acceptance evidence](docs/claude-acceptance-2026-11-23.md) · [Repository hygiene](docs/repository-hygiene.md) · [Development roadmap](docs/development-roadmap.md) · [Feature tracker](docs/feature-roadmap.md) · [Agent evaluation plan](docs/evaluation-plan.md) · [Capabilities](docs/capabilities.md) · [Spring Boot scenarios](docs/spring-boot-debugging-scenarios.md) · [Java E2E runner](dev-e2e/README.md) · [Architecture decisions](docs/decisions.md). · [Coding-agent instructions](AGENTS.md)
 
 Older phase reports in [`docs/`](docs/) preserve dated test evidence. The current README and actual test records define current status, not older planning snapshots.
