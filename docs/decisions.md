@@ -48,3 +48,22 @@ For a feature change: update capability/roadmap status, add or extend the corres
 **Consequences.** Agents never wait on a dialog nobody can see. A crash of Eclipse while an agent exception breakpoint exists could leave `SKIP_RECURRENCES` set (the default JDT setting would otherwise ask); this is visible on the Java > Debug preference page.
 
 **Outcome (23 Nov 2026).** Installed build: `stops` 6/6 with `repeatedException=SKIP_RECURRENCES`, every cleanup ended the JVM on the first step (`launch-terminate`), regression 23/23, Claude validation trials 8/8 PASS (1/6 before the fix).
+
+## ADR-008 — Cleanup of agent resources: four paths (CORE-08, CORE-17)
+
+**Context.** An agent investigation owns the breakpoints it created and the JVM it launched. On 23 Nov 2026 two cases left them behind: the Claude CLI died mid-run (nothing called `finish`), and after the next Eclipse restart that run's `IllegalArgumentException` exception breakpoint paused every Spring Boot start. Investigations live in memory; breakpoint markers live in the workspace and survive restarts, so no single mechanism can see every case.
+
+**Decision.** Four paths, each covering what the earlier ones cannot:
+
+| # | Situation | Cleanup |
+|---|---|---|
+| 1 | Agent finishes | `finish_debug_investigation`: own breakpoints first, then own JVM, verified ended |
+| 2 | Agent exits or crashes, MCP connection closes, Eclipse running | MCP server finishes the investigations its agent left open (stdin end or shutdown) |
+| 3 | Agent hangs or is killed hard, Eclipse running | Idle lease in Eclipse: no command naming the investigation for 10 min (configurable) and none running → same cleanup as 1 |
+| 4 | Eclipse closes or crashes mid-investigation | 5 s after the next start, agent markers whose investigation no longer exists are removed |
+
+Ownership is decided only by labels the plugin wrote (`owner=agent` plus investigation ID on each marker; the launch recorded by the investigation). User breakpoints, borrowed sessions and agent markers without an investigation are never removed. CONTROLLED investigations keep their paused session and breakpoints in paths 1–3. A breakpoint or launch sent without an investigation ID is attached by the MCP server to the session's only open investigation, or rejected if several are open, so nothing the agent creates escapes the four paths.
+
+**Consequences.** A long wait never triggers path 3 (a running command counts as activity). Several agents sharing one MCP server process are not distinguished (one process per agent is the normal setup). The test harness additionally clears leftovers before each Claude trial; that is test isolation, not a product path. Code overview: `DebugInvestigationPolicy` class comment.
+
+**Outcome (24 Nov 2026).** Installed build: `lease` 5/5 (path 3: cleaned up 7 s after a 5 s lease; CONTROLLED kept; path 2: real MCP server disconnect cleaned up immediately; ambiguous ownership rejected); path 4 removed the real leftover from 23 Nov at startup, after which the regression passed 23/23 again; unit checks 30/30.

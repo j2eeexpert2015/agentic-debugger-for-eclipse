@@ -14,7 +14,8 @@ import javax.tools.ToolProvider;
 
 /**
  * Compiles and runs the Eclipse-independent unit tests:
- * bridge dispatcher checks (BR-U1..BR-U13) and process-output checks (OUT-U1..OUT-U5).
+ * bridge dispatcher checks (BR-U1..BR-U13), process-output checks (OUT-U1..OUT-U5) and
+ * investigation lease checks (LE-U1..LE-U7) and MCP investigation tracking checks (TR-U1..TR-U5).
  * No Maven, no Eclipse and no running bridge are needed.
  *
  * <pre>From the repository root:  java dev-e2e/BridgeUnitTests.java</pre>
@@ -34,11 +35,16 @@ public final class BridgeUnitTests {
         // Only classes without Eclipse imports can be compiled here.
         List<String> sources = new ArrayList<>();
         for (String file : List.of("bridge/BridgeCommands.java", "bridge/BridgeLog.java",
-                "bridge/BridgeDispatcher.java", "debug/TextWindow.java")) {
+                "bridge/BridgeDispatcher.java", "debug/TextWindow.java", "debug/DebugInvestigationPolicy.java")) {
             sources.add(src.resolve(file).toString());
         }
         sources.add(tests.resolve("bridge/BridgeDispatcherTest.java").toString());
         sources.add(tests.resolve("debug/TextWindowTest.java").toString());
+        sources.add(tests.resolve("debug/InvestigationLeaseTest.java").toString());
+        Path mcp = repo.resolve("mcp-server/src/main/java/org/learningfromexperience/eclipse/agentdebug/mcp");
+        Path mcpTests = repo.resolve("mcp-server/tests/org/learningfromexperience/eclipse/agentdebug/mcp");
+        sources.add(mcp.resolve("InvestigationTracker.java").toString());
+        sources.add(mcpTests.resolve("InvestigationTrackerTest.java").toString());
 
         Path classes = Files.createTempDirectory("agentdebug-unit-tests");
         try {
@@ -55,6 +61,8 @@ public final class BridgeUnitTests {
                 run(loader, "org.learningfromexperience.eclipse.agentdebug.bridge.BridgeDispatcherTest",
                         new String[]{operations.toString()});
                 run(loader, "org.learningfromexperience.eclipse.agentdebug.debug.TextWindowTest", new String[0]);
+                run(loader, "org.learningfromexperience.eclipse.agentdebug.debug.InvestigationLeaseTest", new String[0]);
+                run(loader, "org.learningfromexperience.eclipse.agentdebug.mcp.InvestigationTrackerTest", new String[0]);
             }
         } finally {
             try (Stream<Path> files = Files.walk(classes)) {

@@ -13,7 +13,7 @@
 | `list_java_applications` | none | Find Java mains (including Boot mains) |
 | `list_run_configurations` | none | Find saved debug-capable Eclipse configurations |
 | `list_junit_tests` | none | Discover source JUnit candidate methods |
-| `begin_debug_investigation` | `mode?` = `NORMAL` or `CONTROLLED` | Returns `investigationId`; defaults NORMAL |
+| `begin_debug_investigation` | `mode?` = `NORMAL` or `CONTROLLED` | Returns `investigationId`; defaults NORMAL. With one open investigation, breakpoints and launches without `investigationId` are attached to it; with several, pass it. If the session ends or stops calling for 10 minutes, it is finished automatically |
 | `finish_debug_investigation` | `investigationId` | NORMAL scoped cleanup; CONTROLLED preserves debug state |
 
 ## Breakpoints and launches

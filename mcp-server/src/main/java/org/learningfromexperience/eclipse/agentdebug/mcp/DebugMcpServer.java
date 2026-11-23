@@ -52,6 +52,23 @@ public class DebugMcpServer {
                 "[Eclipse Agentic Debugger] Starting MCP server..."
         );
 
+        // CORE-17: notice when the agent goes away (stdin closed) and finish its open investigations.
+        System.setIn(new java.io.FilterInputStream(System.in) {
+            @Override
+            public int read() throws IOException {
+                int r = super.read();
+                if (r < 0) onClientGone();
+                return r;
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                int r = super.read(b, off, len);
+                if (r < 0) onClientGone();
+                return r;
+            }
+        });
+
         var transport = new StdioServerTransportProvider(
                 McpJsonDefaults.getMapper()
         );
@@ -204,11 +221,15 @@ public class DebugMcpServer {
                     if (parsedLine < 1 || parsedLine != lineNumber.doubleValue()) {
                         return failure("Line number must be a positive integer");
                     }
+                    ATTACHED.remove();
                     try {
                         String response = sendToEclipse(
                                 "SET_BREAKPOINT " + enc(typeName) + " " + parsedLine
-                                        + optionalId(arguments), true);
-                        return bridgeResult(response);
+                                        + ownedId(arguments), true);
+                        return bridgeResult(noteAttachment(response));
+                    } catch (IllegalArgumentException e) {
+                        ATTACHED.remove();
+                        return failure(e.getMessage());
                     } catch (IOException e) {
                         return failure("Failed to set breakpoint: " + e.getMessage());
                     }
@@ -224,8 +245,10 @@ public class DebugMcpServer {
                 "Start a debugging investigation. Default mode NORMAL cleans up ONLY its own new session "
                         + "and its own breakpoints when finish_debug_investigation is called. "
                         + "Use CONTROLLED only when the user expressly requests a paused/step-by-step investigation. "
-                        + "Pass the returned investigationId to set_breakpoint and the launch tool. "
-                        + "Always finish the investigation when done.",
+                        + "Pass the returned investigationId to set_breakpoint and the launch tool "
+                        + "(with exactly one open investigation it is attached automatically; with several it is required). "
+                        + "Always finish the investigation when done. If this session ends without finishing, "
+                        + "the server finishes it; if the agent stops calling for 10 minutes, Eclipse does.",
                 Map.of("mode", Map.of("type", "string", "enum", List.of("NORMAL", "CONTROLLED"))),
                 List.of(), a -> "BEGIN_INVESTIGATION " + enc(mode(a))));
         allTools.add(bridgeTool("finish_debug_investigation",
@@ -245,14 +268,14 @@ public class DebugMcpServer {
                 Map.of("typeName",str(), "lineNumber",integer(), "condition",str(), "investigationId",str()),
                 List.of("typeName", "lineNumber", "condition"),
                 a -> "SET_CONDITIONAL_BREAKPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")
-                        + " " + enc(arg(a,"condition")) + optionalId(a)));
+                        + " " + enc(arg(a,"condition")) + ownedId(a)));
         allTools.add(bridgeTool("set_exception_breakpoint",
                 "Create an Eclipse Java exception breakpoint for a fully-qualified exception type. "
                 + "Caught and/or uncaught must be true. Existing exception breakpoints are never modified.",
                 Map.of("exceptionName",str(),"caught",bool(),"uncaught",bool(),"investigationId",str()),
                 List.of("exceptionName","caught","uncaught"),
                 a -> "SET_EXCEPTION_BREAKPOINT " + enc(arg(a,"exceptionName")) + " "
-                        + enc(boolArg(a,"caught")) + " " + enc(boolArg(a,"uncaught")) + optionalId(a)));
+                        + enc(boolArg(a,"caught")) + " " + enc(boolArg(a,"uncaught")) + ownedId(a)));
         allTools.add(bridgeTool("list_exception_breakpoints",
                 "List existing Java exception breakpoints and ownership without modifying them.",
                 Map.of(), List.of(), a -> "LIST_EXCEPTION_BREAKPOINTS"));
@@ -271,7 +294,7 @@ public class DebugMcpServer {
                     if (!Boolean.TRUE.equals(a.get("allowSideEffects")))
                         throw new IllegalArgumentException("Explicit consent required for tracepoint evaluation");
                     return "SET_TRACEPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")
-                            + " " + enc(arg(a,"expression")) + optionalId(a);
+                            + " " + enc(arg(a,"expression")) + ownedId(a);
                 }));
         allTools.add(bridgeTool("list_junit_tests",
                 "Discover source test methods annotated with @Test, @ParameterizedTest or @RepeatedTest "
@@ -284,7 +307,7 @@ public class DebugMcpServer {
                 Map.of("projectName",str(), "typeName",str(),"methodName",str(),"investigationId",str()),
                 List.of("projectName","typeName","methodName"),
                 a -> "START_JUNIT_TEST " + enc(arg(a,"projectName")) + " " + enc(arg(a,"typeName"))
-                        + " " + enc(stringAllowEmpty(a,"methodName")) + optionalId(a)));
+                        + " " + enc(stringAllowEmpty(a,"methodName")) + ownedId(a)));
         allTools.add(bridgeTool("expand_frame_variable",
                 "Read a selected local/field/array element and its immediate children with pagination. "
                 + "Read-only; requires suspended frame. path example: order.customer.address or items[0].",
@@ -320,10 +343,10 @@ public class DebugMcpServer {
                 Map.of("projectName", str(), "mainType", str(), "investigationId", str()),
                 List.of("projectName", "mainType"),
                 a -> "START_JAVA_APPLICATION " + enc(arg(a, "projectName")) + " "
-                        + enc(arg(a, "mainType")) + optionalId(a)));
+                        + enc(arg(a, "mainType")) + ownedId(a)));
         allTools.add(bridgeTool("start_debug_session", "Start or reuse a saved Eclipse debug launch configuration.",
                 Map.of("launchName",str(),"investigationId",str()), List.of("launchName"),
-                a -> "START_DEBUG " + enc(arg(a,"launchName")) + optionalId(a)));
+                a -> "START_DEBUG " + enc(arg(a,"launchName")) + ownedId(a)));
         allTools.add(bridgeTool("show_debug_location",
                 "Select the agent-controlled suspended session in Eclipse Debug view and open its source at the current line. Does not step or resume.",
                 Map.of("launchName",str()), List.of("launchName"),
@@ -445,11 +468,54 @@ public class DebugMcpServer {
 
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
+                    finishOpenInvestigations("MCP server shutting down");
                     server.close();
                 })
         );
 
         new CountDownLatch(1).await();
+    }
+
+    private static final java.util.concurrent.atomic.AtomicBoolean CLIENT_GONE = new java.util.concurrent.atomic.AtomicBoolean();
+    private static final java.util.concurrent.atomic.AtomicBoolean CLEANUP_STARTED = new java.util.concurrent.atomic.AtomicBoolean();
+    private static final CountDownLatch CLEANUP_DONE = new CountDownLatch(1);
+
+    /** stdin reached its end: the agent closed the connection or exited. */
+    private static void onClientGone() {
+        if (!CLIENT_GONE.compareAndSet(false, true)) return;
+        Thread exit = new Thread(() -> {
+            finishOpenInvestigations("agent closed the MCP connection");
+            System.exit(0);
+        }, "AgentDebug-ClientGone");
+        exit.start();
+    }
+
+    /**
+     * Cleanup path 2 of 4 (agent gone, Eclipse still running). The full overview is in the plugin's
+     * DebugInvestigationPolicy class comment and docs/decisions.md ADR-008.
+     * Finishes every investigation this session left open (NORMAL: Eclipse removes its own
+     * breakpoints and ends its own JVM; CONTROLLED: kept, as finish would). Runs once; a second
+     * caller waits for the first. If this process is killed hard, Eclipse's idle lease still
+     * cleans up later.
+     */
+    static void finishOpenInvestigations(String why) {
+        if (!CLEANUP_STARTED.compareAndSet(false, true)) {
+            try { CLEANUP_DONE.await(150, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignored) { }
+            return;
+        }
+        try {
+            for (String id : TRACKER.openIds()) {
+                try {
+                    String reply = sendToEclipse("FINISH_INVESTIGATION " + enc(id), true);
+                    System.err.println("[Eclipse Agentic Debugger] " + why + "; finished open investigation " + id + ": " + reply);
+                } catch (Exception e) {
+                    System.err.println("[Eclipse Agentic Debugger] " + why + "; could not finish " + id + ": " + e.getMessage()
+                            + " (Eclipse cleans it up when its idle lease ends)");
+                }
+            }
+        } finally {
+            CLEANUP_DONE.countDown();
+        }
     }
 
     private static CallToolResult success(String message) {
@@ -518,6 +584,31 @@ public class DebugMcpServer {
         return (String) requested;
     }
 
+    /** This session's open investigations (CORE-17). */
+    static final InvestigationTracker TRACKER = new InvestigationTracker();
+    /** Set when a request was attached to the open investigation automatically. */
+    private static final ThreadLocal<String> ATTACHED = new ThreadLocal<>();
+
+    /**
+     * investigationId for requests that create breakpoints or sessions: the given one, else the
+     * session's only open investigation (attached automatically, so cleanup includes it), else none.
+     */
+    private static String ownedId(Map<String,Object> args) {
+        Object given = args.get("investigationId");
+        String explicit = given == null ? null : arg(args, "investigationId");
+        String id = TRACKER.resolve(explicit);
+        if (explicit == null && id != null) ATTACHED.set(id);
+        return id == null ? "" : " " + enc(id);
+    }
+
+    /** Adds "attachedToInvestigation" to a JSON reply when the ID was supplied automatically. */
+    private static String noteAttachment(String response) {
+        String id = ATTACHED.get();
+        ATTACHED.remove();
+        if (id == null || response == null || !response.startsWith("{")) return response;
+        return "{\"attachedToInvestigation\":\"" + id + "\"," + response.substring(1);
+    }
+
     private static String optionalId(Map<String,Object> args) {
         Object id = args.get("investigationId");
         return id == null ? "" : " " + enc(arg(args, "investigationId"));
@@ -534,9 +625,11 @@ public class DebugMcpServer {
         return SyncToolSpecification.builder()
                 .tool(Tool.builder(name, schema(properties, required)).description(description).build())
                 .callHandler((exchange, request) -> {
+                    ATTACHED.remove();
                     try {
-                        return bridgeResult(sendToEclipse(factory.apply(request.arguments()), true));
+                        return bridgeResult(noteAttachment(sendToEclipse(factory.apply(request.arguments()), true)));
                     } catch (IOException | IllegalArgumentException e) {
+                        ATTACHED.remove();
                         return failure(e.getMessage());
                     }
                 }).build();
@@ -624,6 +717,7 @@ public class DebugMcpServer {
                     );
                 }
 
+                TRACKER.observe(command, response);
                 return response;
             }
         }

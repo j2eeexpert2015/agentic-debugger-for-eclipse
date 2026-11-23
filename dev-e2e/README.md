@@ -42,7 +42,7 @@ The opt-in `bridge` group (4 scenarios) and `stops` group (6 scenarios) are run 
 Two levels, both separate from the 23-scenario regression (the `bridge` group is **not** included in a plain `test` run):
 
 ```cmd
-:: 1. Unit tests — no Eclipse, no Maven, about 15 s (BR-U1..BR-U13 and OUT-U1..OUT-U5)
+:: 1. Unit tests — no Eclipse, no Maven, about 15 s (BR-U1..BR-U13, OUT-U1..OUT-U5, LE-U1..LE-U7, TR-U1..TR-U5)
 java dev-e2e/BridgeUnitTests.java
 
 :: 2. Fault injection against the installed bridge in the dedicated Eclipse (about 45 s)
@@ -104,6 +104,24 @@ java dev-e2e/DevE2E.java test --tests stops:step
 | `output` | OUT-E1 | Stopped at `OrderBatchApplication` `Thread.sleep(3000)`: `Order 1057 total` appears in `stdout` or `console` (Eclipse usually keeps it only in `console`); `stdoutChars`, `stderrChars`, `consoleChars` present; short output returned whole |
 
 **CORE-14/15 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** unit tests 18/18 (`BridgeUnitTests`: BR-U1..U13 and OUT-U1..U5); after deploying the build with the native-frame fix, `all --approve-fixture-post` 23/23 and `test --groups stops` 6/6, all `cleanup=true`. Breakpoint stop reported in 0.65 s; `TERMINATED` reported 6 ms after resume and 0.5 s after a run without breakpoints; output found in `console` (`stdoutChars=0`, `consoleChars=26`). First run before the fix: 4/6 (pause failed reading locals of `Thread.sleep`; output test expected `stdout`).
+
+## Abandoned-investigation tests (CORE-17)
+
+The opt-in `lease` group (about 1.5 minutes) uses 5-second leases (`BEGIN_INVESTIGATION NORMAL 5`) so expiry can be observed; normal sessions keep the 10-minute default. `mcp-disconnect` and `mcp-several` start the built MCP server JAR as a real stdio process, so run `all` (build) first.
+
+```cmd
+java dev-e2e/DevE2E.java test --groups lease
+```
+
+| Scenario | Check | Pass if |
+|---|---|---|
+| `idle-expiry` | LE-E1 | Stopped at a breakpoint, then no calls: within 30 s Eclipse removed the investigation's breakpoint and ended its JVM; a late finish reports "expired" |
+| `wait-keeps-alive` | LE-E2 | A 12 s `WAIT_FOR_STOP` on a 5 s lease does not expire it; finish then succeeds |
+| `controlled-kept` | LE-E3 | A CONTROLLED investigation expires, but its suspended session and breakpoint are kept (the test removes them) |
+| `mcp-disconnect` | LE-E4 | Through a real MCP server: breakpoint and launch sent **without** `investigationId` come back with `attachedToInvestigation`; after closing the MCP connection the breakpoint is removed and the JVM ended |
+| `mcp-several` | LE-E5 | With two open investigations, a breakpoint without `investigationId` is rejected ("Several investigations are open") |
+
+**CORE-17 acceptance record (24 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** unit 30/30; `lease` 5/5 (idle-expiry cleanup after 7 s, wait-keeps-alive, controlled-kept, mcp-disconnect immediate, mcp-several rejected); regression 23/23 after the startup cleanup removed a real leftover exception breakpoint that had failed phase2 on the previous build; `stops` 6/6.
 
 ## Claude trial captures — separate from direct regression
 

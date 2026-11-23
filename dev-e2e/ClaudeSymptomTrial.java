@@ -152,6 +152,9 @@ public final class ClaudeSymptomTrial {
             "org.learningfromexperience.bootfixture.", "org.learningfromexperience.debugfixtures.");
 
     /**
+     * Test-only isolation between trials, NOT a product cleanup path (those are described in the
+     * plugin's DebugInvestigationPolicy and ADR-008). It guarantees each trial starts clean even if a
+     * product path failed; the grader still reports the failing run.
      * Test-only isolation between trials: a fixture JVM left running by an earlier run would be
      * reused by the next run and spoil it. Finds fixture JVMs with jps, stops them, and waits until
      * Eclipse no longer shows a live "Agentic Debugger - " session. Returns what was stopped.

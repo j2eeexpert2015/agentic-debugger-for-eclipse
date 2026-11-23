@@ -79,6 +79,31 @@ public class EclipseBreakpointService {
         return removed;
     }
 
+    /**
+     * Cleanup path 4 (overview in {@link DebugInvestigationPolicy}).
+     * CORE-17: removes agent-owned breakpoints (line and exception) whose investigation is no longer
+     * active, e.g. left by an investigation that was open when Eclipse closed or crashed. Investigations
+     * live in memory, breakpoint markers in the workspace, so after a restart such markers have no owner
+     * left to clean them up. User breakpoints and agent breakpoints without an investigation are kept.
+     * Returns a label per removed breakpoint.
+     */
+    public List<String> removeOrphanedAgentBreakpoints(java.util.function.Predicate<String> investigationActive)
+            throws CoreException {
+        List<String> removed = new ArrayList<>();
+        for (IBreakpoint bp : DebugPlugin.getDefault().getBreakpointManager().getBreakpoints()) {
+            if (bp.getMarker() == null || !bp.getMarker().exists()) continue;
+            if (!"agent".equals(bp.getMarker().getAttribute(OWNER_ATTRIBUTE, "user"))) continue;
+            String investigation = bp.getMarker().getAttribute(INVESTIGATION_ATTRIBUTE, "");
+            if (investigation.isEmpty() || investigationActive.test(investigation)) continue;
+            String label = bp instanceof IJavaExceptionBreakpoint e ? "exception " + e.getTypeName()
+                    : bp instanceof IJavaLineBreakpoint l ? l.getTypeName() + ":" + l.getLineNumber()
+                    : bp.getModelIdentifier();
+            bp.delete();
+            removed.add(label + " (investigation " + investigation + ")");
+        }
+        return removed;
+    }
+
     public record ExceptionBreakpointInfo(String typeName, boolean caught, boolean uncaught, String owner) {}
 
     public List<ExceptionBreakpointInfo> listExceptionBreakpoints() throws CoreException {

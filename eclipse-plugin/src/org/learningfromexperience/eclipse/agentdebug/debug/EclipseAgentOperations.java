@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.debug.core.DebugEvent;
 import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunch;
@@ -53,9 +54,41 @@ public final class EclipseAgentOperations {
     private final DebugInvestigationPolicy investigations = new DebugInvestigationPolicy();
     /** Records real debugger stops for WAIT_FOR_STOP (event-based, no polling). */
     private final DebugStopTracker stops = new DebugStopTracker();
+    /** Serializes finishing an investigation and expiring an abandoned one (CORE-17). */
+    private final Object lifecycle = new Object();
+    /** Checks every 2 s for investigations whose agent went away (idle lease ended). */
+    private final java.util.concurrent.ScheduledExecutorService leaseChecker =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "AgentDebug-InvestigationLease");
+                t.setDaemon(true);
+                return t;
+            });
+
+    public EclipseAgentOperations() {
+        leaseChecker.scheduleWithFixedDelay(this::expireAbandoned, 2, 2, TimeUnit.SECONDS);
+        // After Eclipse starts, no investigation exists yet, so agent breakpoints still linked to one
+        // are leftovers from before the restart (CORE-17).
+        leaseChecker.schedule(this::removeOrphanedBreakpoints, 5, TimeUnit.SECONDS);
+    }
+
+    /** Cleanup path 4 (Eclipse restarted mid-investigation); overview in {@link DebugInvestigationPolicy}. */
+    private void removeOrphanedBreakpoints() {
+        try {
+            synchronized (lifecycle) {
+                List<String> removed = breakpoints.removeOrphanedAgentBreakpoints(investigations::isActive);
+                if (removed.isEmpty()) return;
+                restoreRecurrencePolicyIfUnused();
+                Platform.getLog(EclipseAgentOperations.class).info("[Agentic Debugger] Removed " + removed.size()
+                        + " agent breakpoint(s) left by investigations that no longer exist: " + removed);
+            }
+        } catch (Exception e) {
+            Platform.getLog(EclipseAgentOperations.class).warn("[Agentic Debugger] Could not remove leftover agent breakpoints: " + e);
+        }
+    }
 
     /** Remove the UI and stop event listeners when the bridge shuts down. */
     public void close() {
+        leaseChecker.shutdownNow();
         ui.close();
         stops.close();
         // Never leave the user's repeated-exception setting changed after Eclipse/the bridge stops.
@@ -63,8 +96,11 @@ public final class EclipseAgentOperations {
     }
 
     public String execute(String command) {
+        String[] p = command.split(" ", -1);
+        // CORE-17: a command that names an investigation (ID or launch) keeps it alive while it runs.
+        var named = investigations.namedBy(p);
+        named.forEach(DebugInvestigationPolicy.Investigation::enter);
         try {
-            String[] p = command.split(" ", -1);
             return switch (p[0]) {
                 case "GET_E2E_INFO" -> buildIdentity();
                 case "PREPARE_SMOKE_TEST" -> new SmokeTestProject().prepare();
@@ -102,6 +138,8 @@ public final class EclipseAgentOperations {
             };
         } catch (Exception e) {
             return error(e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()));
+        } finally {
+            named.forEach(DebugInvestigationPolicy.Investigation::exit);
         }
     }
 
@@ -173,13 +211,82 @@ public final class EclipseAgentOperations {
 
     private String beginInvestigation(String[] p) {
         String mode = p.length > 1 ? require(p, 1) : "NORMAL";
-        var investigation = investigations.begin(mode);
+        // Optional idle lease in seconds (default 10 min, AGENTDEBUG_INVESTIGATION_LEASE_MINUTES).
+        long lease = p.length > 2 && !p[2].isBlank() ? number(p, 2) * 1000L : DebugInvestigationPolicy.DEFAULT_LEASE_MILLIS;
+        var investigation = investigations.begin(mode, lease);
         return ok(",\"investigationId\":" + q(investigation.id())
-                + ",\"mode\":" + q(investigation.mode().name()));
+                + ",\"mode\":" + q(investigation.mode().name())
+                + ",\"leaseSeconds\":" + investigation.leaseMillis() / 1000);
     }
 
-    /** Finalizes only work belonging to the explicitly identified investigation. */
+    /**
+     * Cleanup path 3 (overview in {@link DebugInvestigationPolicy}).
+     * CORE-17: finishes investigations whose agent stopped sending commands (crashed, cancelled,
+     * disconnected) once their idle lease ended. NORMAL: the same cleanup as
+     * finish_debug_investigation (own breakpoints removed, own JVM ended and verified). CONTROLLED:
+     * session and breakpoints are kept for the user to inspect; only the investigation ends.
+     * User-owned and borrowed sessions and breakpoints are never touched.
+     */
+    private void expireAbandoned() {
+        for (var investigation : investigations.abandoned()) {
+            try {
+                synchronized (lifecycle) {
+                    if (!investigation.abandoned()) continue;
+                    long idle = investigation.idleMillis() / 1000;
+                    String reason;
+                    if (investigation.mode() == DebugInvestigationPolicy.Mode.NORMAL) {
+                        Cleanup result = cleanUp(investigation);
+                        reason = "Investigation " + investigation.id() + " expired after " + idle
+                                + " s without calls (agent gone?); its own breakpoints were removed and its JVM "
+                                + (result.ended() ? "ended" : "could NOT be ended") + " automatically";
+                    } else {
+                        reason = "Investigation " + investigation.id() + " expired after " + idle
+                                + " s without calls; CONTROLLED, so its session and breakpoints were kept for inspection";
+                    }
+                    investigations.expire(investigation.id(), reason);
+                    Platform.getLog(EclipseAgentOperations.class).info("[Agentic Debugger] " + reason);
+                }
+            } catch (Exception e) {
+                // Never let one failure stop the checker; retried on the next round.
+                Platform.getLog(EclipseAgentOperations.class).warn(
+                        "[Agentic Debugger] Could not expire investigation " + investigation.id() + ": " + e);
+            }
+        }
+    }
+
+    private record Cleanup(String json, boolean ended) {}
+
+    /**
+     * NORMAL cleanup shared by paths 1 (finish) and 3 (expiry), see {@link DebugInvestigationPolicy}:
+     * own breakpoints first, so nothing can suspend the JVM while it shuts down, then own JVM, verified.
+     */
+    private Cleanup cleanUp(DebugInvestigationPolicy.Investigation investigation) throws CoreException {
+        String id = investigation.id();
+        for (var bp : investigation.breakpoints()) {
+            breakpoints.removeInvestigationBreakpoint(bp.typeName(), bp.lineNumber(), id);
+        }
+        for (var exception : investigation.exceptions()) {
+            breakpoints.removeInvestigationException(exception, id);
+        }
+        restoreRecurrencePolicyIfUnused();
+        if (investigation.ownedLaunch() instanceof ILaunch launch) {
+            List<String> steps = new ArrayList<>();
+            boolean ended = terminateAndVerify(launch, steps);
+            return new Cleanup(",\"processesEnded\":" + ended + ",\"terminationSteps\":["
+                    + String.join(",", steps.stream().map(EclipseAgentOperations::q).toList()) + "]", ended);
+        }
+        return new Cleanup("", true);
+    }
+
+    /** Cleanup path 1: finalizes only work belonging to the explicitly identified investigation
+     *  (overview of all cleanup paths in {@link DebugInvestigationPolicy}). */
     private String finishInvestigation(String[] p) throws CoreException {
+        synchronized (lifecycle) {
+            return finishInvestigationLocked(p);
+        }
+    }
+
+    private String finishInvestigationLocked(String[] p) throws CoreException {
         String id = require(p, 1);
         var investigation = investigations.require(id);
         String action = investigation.mode() == DebugInvestigationPolicy.Mode.NORMAL
@@ -205,20 +312,9 @@ public final class EclipseAgentOperations {
         boolean ended = true;
         if (investigation.mode() == DebugInvestigationPolicy.Mode.NORMAL) {
             // Remove breakpoints first, so nothing can suspend the JVM again while it shuts down.
-            for (var bp : investigation.breakpoints()) {
-                breakpoints.removeInvestigationBreakpoint(bp.typeName(), bp.lineNumber(), id);
-            }
-            for (var exception : investigation.exceptions()) {
-                breakpoints.removeInvestigationException(exception, id);
-            }
-            restoreRecurrencePolicyIfUnused();
-            Object owned = investigation.ownedLaunch();
-            if (owned instanceof ILaunch launch) {
-                List<String> steps = new ArrayList<>();
-                ended = terminateAndVerify(launch, steps);
-                termination = ",\"processesEnded\":" + ended + ",\"terminationSteps\":["
-                        + String.join(",", steps.stream().map(EclipseAgentOperations::q).toList()) + "]";
-            }
+            Cleanup result = cleanUp(investigation);
+            termination = result.json();
+            ended = result.ended();
         }
         investigations.finish(id);
         return ok(",\"investigationId\":" + q(id)

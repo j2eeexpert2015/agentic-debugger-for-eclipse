@@ -1,13 +1,57 @@
 package org.learningfromexperience.eclipse.agentdebug.debug;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Tracks debugging mode and ownership for explicit investigation completion.
+ * Tracks debugging mode and ownership of agent investigations, and is the reference for how agent
+ * resources are cleaned up.
+ *
+ * <h2>What an investigation owns</h2>
+ * The breakpoints, tracepoints and exception breakpoints it created, and the JVM it launched. Each
+ * such breakpoint marker is labelled {@code owner=agent} plus the investigation ID
+ * ({@link EclipseBreakpointService#OWNER_ATTRIBUTE}, {@link EclipseBreakpointService#INVESTIGATION_ATTRIBUTE}).
+ * User breakpoints and sessions the agent only borrowed are never owned and never cleaned up.
+ *
+ * <h2>The four cleanup paths (CORE-08, CORE-17)</h2>
+ * Investigations live in this registry, in memory; breakpoint markers live in the workspace and
+ * survive restarts. Each path covers a case the previous ones cannot see:
+ * <table>
+ * <caption>Cleanup paths</caption>
+ * <tr><th>Situation</th><th>Who cleans up</th><th>Where</th></tr>
+ * <tr><td>1. The agent finishes normally</td>
+ *     <td>{@code finish_debug_investigation}</td>
+ *     <td>{@code EclipseAgentOperations.finishInvestigation} / {@code cleanUp}</td></tr>
+ * <tr><td>2. The agent exits or crashes and its MCP connection closes; Eclipse keeps running</td>
+ *     <td>The MCP server finishes the investigations its agent left open, within seconds</td>
+ *     <td>{@code DebugMcpServer.finishOpenInvestigations}, {@code InvestigationTracker}</td></tr>
+ * <tr><td>3. The agent hangs, or is killed so hard that the MCP server cannot react; Eclipse keeps running</td>
+ *     <td>This registry's idle lease (default 10 min without a command naming the investigation, none running)</td>
+ *     <td>{@link #abandoned()}, {@code EclipseAgentOperations.expireAbandoned}</td></tr>
+ * <tr><td>4. Eclipse itself closes or crashes while an investigation is open</td>
+ *     <td>5 s after the next start: agent markers whose investigation no longer exists are removed
+ *         (the registry starts empty, so they are leftovers). The JVM ended with Eclipse.</td>
+ *     <td>{@code EclipseBreakpointService.removeOrphanedAgentBreakpoints},
+ *         {@code EclipseAgentOperations.removeOrphanedBreakpoints}</td></tr>
+ * </table>
+ * NORMAL investigations get the full cleanup in paths 1-3 (own breakpoints first, then own JVM,
+ * verified ended). CONTROLLED investigations keep their paused session and breakpoints in paths 1-3
+ * because the user asked to inspect them; path 4 still removes their markers, since after a restart
+ * there is no session left to inspect. Path 4 was found on 23 Nov 2026: an interrupted Claude run
+ * left an {@code IllegalArgumentException} exception breakpoint that paused every Spring Boot start
+ * after the next restart. Design record: docs/decisions.md, ADR-008.
+ *
+ * <p>A breakpoint or launch the agent sends without an investigation ID would belong to nobody and
+ * escape all four paths; the MCP server therefore attaches it to the session's only open
+ * investigation, or rejects it when several are open ({@code InvestigationTracker#resolve}).
  *
  * @author Ayan Dutta
  */
@@ -26,11 +70,27 @@ public final class DebugInvestigationPolicy {
         private boolean ownsLaunch;
         private String launchName;
         private boolean complete;
+        private final long leaseMillis;
+        private final java.util.function.LongSupplier clock;
+        private long lastActivityNanos;
+        private int inFlight;
 
-        private Investigation(String id, Mode mode) {
+        private Investigation(String id, Mode mode, long leaseMillis, java.util.function.LongSupplier clock) {
             this.id = id;
             this.mode = mode;
+            this.leaseMillis = leaseMillis;
+            this.clock = clock;
+            this.lastActivityNanos = clock.getAsLong();
         }
+        public long leaseMillis() { return leaseMillis; }
+        /** A command naming this investigation (or its launch) starts. */
+        public synchronized void enter() { inFlight++; lastActivityNanos = clock.getAsLong(); }
+        /** That command ended; the idle time is counted from here. */
+        public synchronized void exit() { inFlight = Math.max(0, inFlight - 1); lastActivityNanos = clock.getAsLong(); }
+        public synchronized void touch() { lastActivityNanos = clock.getAsLong(); }
+        public synchronized long idleMillis() { return (clock.getAsLong() - lastActivityNanos) / 1_000_000L; }
+        /** Abandoned: idle longer than the lease and no command of it still running. */
+        public synchronized boolean abandoned() { return !complete && inFlight == 0 && idleMillis() > leaseMillis; }
         public String id() { return id; }
         public Mode mode() { return mode; }
         public synchronized String launchName() { return launchName; }
@@ -85,20 +145,103 @@ public final class DebugInvestigationPolicy {
         }
     }
 
+    /** Default idle lease; override with environment variable AGENTDEBUG_INVESTIGATION_LEASE_MINUTES. */
+    public static final long DEFAULT_LEASE_MILLIS = leaseFromEnvironment();
+    public static final long MIN_LEASE_MILLIS = 5_000;
+    public static final long MAX_LEASE_MILLIS = 24L * 60 * 60 * 1000;
+
     private final Map<String, Investigation> investigations = new ConcurrentHashMap<>();
+    private final java.util.function.LongSupplier clock;
+    /** Recently expired investigations and why, so a late call gets a clear answer (bounded). */
+    private final Map<String, String> expired = new LinkedHashMap<>();
+
+    public DebugInvestigationPolicy() {
+        this(System::nanoTime);
+    }
+
+    /** For tests: a controllable nanosecond clock. */
+    DebugInvestigationPolicy(java.util.function.LongSupplier nanoClock) {
+        this.clock = nanoClock;
+    }
 
     public Investigation begin(String mode) {
+        return begin(mode, DEFAULT_LEASE_MILLIS);
+    }
+
+    public Investigation begin(String mode, long leaseMillis) {
         Mode selected = mode == null || mode.isBlank() ? Mode.NORMAL : Mode.valueOf(mode);
-        Investigation investigation = new Investigation(UUID.randomUUID().toString(), selected);
+        if (leaseMillis < MIN_LEASE_MILLIS || leaseMillis > MAX_LEASE_MILLIS)
+            throw new IllegalArgumentException("Lease must be " + MIN_LEASE_MILLIS / 1000 + "-" + MAX_LEASE_MILLIS / 1000 + " seconds");
+        Investigation investigation = new Investigation(UUID.randomUUID().toString(), selected, leaseMillis, clock);
         investigations.put(investigation.id(), investigation);
         return investigation;
     }
 
     public Investigation require(String id) {
         Investigation result = investigations.get(id);
-        if (result == null) throw new IllegalArgumentException("Unknown investigationId: " + id);
+        if (result == null) {
+            String reason;
+            synchronized (expired) { reason = expired.get(id); }
+            if (reason != null) throw new IllegalStateException(reason);
+            throw new IllegalArgumentException("Unknown investigationId: " + id);
+        }
         result.ensureActive();
+        result.touch();
         return result;
+    }
+
+    /** Active investigations named by a command: its ID or launch name appears among the raw arguments. */
+    public List<Investigation> namedBy(String[] rawParts) {
+        List<Investigation> result = new ArrayList<>();
+        if (rawParts.length < 2 || investigations.isEmpty()) return result;
+        for (Investigation investigation : investigations.values()) {
+            String id = encoded(investigation.id());
+            String launch = investigation.launchName() == null ? null : encoded(investigation.launchName());
+            for (int i = 1; i < rawParts.length; i++) {
+                String part = rawParts[i].replace("=", "");
+                if (part.equals(id) || part.equals(launch)) { result.add(investigation); break; }
+            }
+        }
+        return result;
+    }
+
+    /** True while the investigation is open (not finished, not expired). */
+    public boolean isActive(String id) {
+        Investigation result = investigations.get(id);
+        return result != null && !result.complete();
+    }
+
+    public List<Investigation> abandoned() {
+        List<Investigation> result = new ArrayList<>();
+        for (Investigation investigation : investigations.values()) if (investigation.abandoned()) result.add(investigation);
+        return result;
+    }
+
+    /** Completes an abandoned investigation; later calls with its ID get {@code reason}. */
+    public void expire(String id, String reason) {
+        Investigation result = investigations.remove(id);
+        if (result != null && !result.complete()) result.markComplete();
+        synchronized (expired) {
+            expired.put(id, reason);
+            while (expired.size() > 200) expired.remove(expired.keySet().iterator().next());
+        }
+    }
+
+    private static String encoded(String value) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static long leaseFromEnvironment() {
+        try {
+            String minutes = System.getenv("AGENTDEBUG_INVESTIGATION_LEASE_MINUTES");
+            if (minutes != null && !minutes.isBlank()) {
+                long millis = Long.parseLong(minutes.trim()) * 60_000L;
+                if (millis >= 60_000L && millis <= 24L * 60 * 60 * 1000) return millis;
+            }
+        } catch (RuntimeException ignored) {
+            // fall back to the default
+        }
+        return 10 * 60_000L;
     }
 
     public void finish(String id) {

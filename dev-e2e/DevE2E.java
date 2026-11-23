@@ -338,12 +338,13 @@ public class DevE2E {
                 "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java"))
             compile.add(sources.resolve(file).toString());
         for (String optional : List.of("PendingAcceptanceVerifier.java", "BootGapVerifier.java", "BridgeFaultVerifier.java",
-                "StopEventVerifier.java")) {
+                "StopEventVerifier.java", "InvestigationLeaseVerifier.java")) {
             Path sourceFile = sources.resolve(optional);
             boolean required = (optional.startsWith("Pending") && selection.containsKey("acceptance"))
                     || (optional.startsWith("BootGap") && selection.containsKey("boot-gaps"))
                     || (optional.startsWith("BridgeFault") && selection.containsKey("bridge"))
-                    || (optional.startsWith("StopEvent") && selection.containsKey("stops"));
+                    || (optional.startsWith("StopEvent") && selection.containsKey("stops"))
+                    || (optional.startsWith("InvestigationLease") && selection.containsKey("lease"));
             if (required) check(Files.isRegularFile(sourceFile),
                     "Missing " + optional + ". Update the repository to the current source before running this group.");
             if (Files.isRegularFile(sourceFile)) compile.add(sourceFile.toString());
@@ -420,6 +421,11 @@ public class DevE2E {
                     args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.StopEventVerifier",
                         "--root",repo.toString(),"--scenario",scenario,"--output",report.toString()));
                 }
+                case "lease" -> {
+                    // CORE-17: abandoned investigations cleaned up; MCP auto-attach and disconnect cleanup.
+                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.InvestigationLeaseVerifier",
+                        "--root",repo.toString(),"--scenario",scenario,"--output",report.toString()));
+                }
                 case "boot-gaps" -> {
                     args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BootGapVerifier",
                         "--root",repo.toString(),"--workspace",workspace.toString(),
@@ -453,7 +459,8 @@ public class DevE2E {
         "boot-gaps", Set.of("all","two-mains","junit-invalid-method","two-services","startup-failure","readiness-timeout","port-conflict","owned-isolation"),
         "claude", Set.of("all","boot-quote","junit","validation"),
         "bridge", Set.of("all","slow-command","busy","parallel-load","auth"),
-        "stops", Set.of("all","breakpoint","step","exception","pause","terminated","output"));
+        "stops", Set.of("all","breakpoint","step","exception","pause","terminated","output"),
+        "lease", Set.of("all","idle-expiry","wait-keeps-alive","controlled-kept","mcp-disconnect","mcp-several"));
     private static LinkedHashMap<String,List<String>> select(String[] args) {
         LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
         String groups=null, tests=null;
@@ -490,7 +497,7 @@ public class DevE2E {
     }
     public static void main(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
-            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps|bridge|stops] [--tests acceptance:core-step-into-out,boot-gaps:two-mains,bridge:busy,stops:step] [--approve-fixture-post]");
+            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps|bridge|stops|lease] [--tests acceptance:core-step-into-out,boot-gaps:two-mains,bridge:busy,stops:step] [--approve-fixture-post]");
             System.out.println("Claude trials (use Claude usage): test --groups claude|--tests claude:boot-quote --approve-claude [--approve-fixture-post] [--repeat N] [--no-skill]");
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
@@ -512,7 +519,7 @@ public class DevE2E {
         x.describe();
         if (args[0].equals("config")) return;
         if (args[0].equals("list")) {
-            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","bridge","stops","claude")) {
+            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","bridge","stops","lease","claude")) {
                 System.out.println(group + ": " + String.join(", ", new TreeSet<>(SCENARIOS.get(group))));
             }
             return;
