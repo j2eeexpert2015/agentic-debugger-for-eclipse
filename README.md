@@ -2,15 +2,12 @@
 
 Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude Code** through the Model Context Protocol (MCP). The plugin uses Eclipse Java Debug Tools (JDT) for actual execution control; Claude selects and invokes MCP tools. Safety checks for session ownership, breakpoints and cleanup are implemented in Java, not left solely to prompt instructions.
 
-**Evidence snapshot — 23 November 2026:** On the CORE-13 bridge-stability build, the direct Java E2E suite passed **23/23 in 3 consecutive uninterrupted Windows runs**, all with `cleanup=true`, plus the new bridge fault-injection group (**4/4**) and bridge unit tests (**13/13**). The earlier intermittent timeouts were traced to Eclipse console output blocking on an unread pipe and are fixed. Three single-session Claude investigations were reviewed (JUnit diagnosis; Boot quote and HTTP 400 event-level runtime PASS). See [acceptance evidence](docs/claude-acceptance-2026-11-23.md) and [current state](docs/current-state.md); do not infer repeated agent reliability or skill A/B success.
+**Evidence snapshot — 24 November 2026 (Windows, JDK 25.0.5, Eclipse 2026-09):** direct regression **23/23**, stop/output group **6/6**, abandoned-investigation group **5/5**, bridge fault injection **4/4** (23 Nov), unit checks **30/30**, all with verified cleanup. Repeated Claude trials (3 per scenario, graded automatically from actual debugger results): **9/9 PASS with the skill, 17/18 without** (the one FAIL is a run where the Claude CLI ended early). Small samples on test fixtures: an indication, not a reliability statistic. Details: [current state](docs/current-state.md), [acceptance evidence](docs/claude-acceptance-2026-11-23.md).
 
-## Current milestone and next development priority
+## Current status and next step
 
-**P0 single-trial symptom-driven acceptance is demonstrated** for the three implemented scenarios: one JUnit investigation (reported diagnostic evidence) and two Spring Boot HTTP investigations (event-level MCP evidence). See [Claude acceptance results, evidence boundaries and exact commands](docs/claude-acceptance-2026-11-23.md). The optional skill's activation, repeated no-skill reliability and with-skill A/B benefit have **not** been established.
+All open work is tracked in **one table: [Status and tracking](#status-and-tracking)**. Next P0 item: **automatic fixture synchronization** (OPEN-01).
 
-**Completed:** CORE-13 bridge stability (priority 1) — see the status column in [Prioritized development order](#prioritized-development-order).
-
-**Next P0 gate:** automate evidence-backed verdicts and independent post-cleanup checks (priority 2). Then safe fixture synchronization, event-correlated pause waiting and user-owned resource isolation. Do not add debugger features merely for checklist parity.
 ## Install and use
 
 ### Which Eclipse IDE?
@@ -35,9 +32,9 @@ Example symptom-only request: *“My orders API returns 120.00, but I expect 108
 
 ## Implementation and test status
 
-**Implemented:** Java main discovery and launch; line, conditional and exception breakpoints; tracepoints; Step Into/Over/Out; pause/resume/restart; step filters; thread/stack/variable inspection; selected JUnit tests; Boot launch and HTTP request investigation; authenticated MCP bridge; investigation ownership and cleanup; **bridge stability (CORE-13)** — parallel read-only commands, ordered state changes, per-command deadlines with explicit `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, `get_bridge_operation` / `get_bridge_diagnostics`, and a timing log (`~/.eclipse-agentdebug/bridge-<port>.log`). **Tested on the installed build (23 Nov 2026):** event-based `wait_for_stop` (CORE-14) — one call returns the exact stop reason, thread, location, top frames and locals, or `TERMINATED`/`TIMEOUT`, and never reports the same stop twice; `get_process_output` returns the first **and last** 4000 characters plus total sizes (CORE-15). The older `wait_for_debug_pause` still polls and is kept for compatibility.
+**Implemented:** Java main discovery and launch; line, conditional and exception breakpoints; tracepoints; Step Into/Over/Out; pause/resume/restart; step filters; thread/stack/variable inspection; selected JUnit tests; Boot launch and HTTP request investigation; authenticated MCP bridge; investigation ownership and cleanup. Added and tested on the installed build 23–24 Nov 2026: **bridge stability** (CORE-13: parallel reads, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, timing log `~/.eclipse-agentdebug/bridge-<port>.log`); **event-based `wait_for_stop`** (CORE-14: stop reason, thread, location, frames and locals in one call; never reports a stop twice); **process output head+tail** (CORE-15); **no blocking "Repeated exception occurrence" dialog, verified JVM termination on cleanup** (CORE-16); **cleanup of abandoned investigations** (CORE-17: on MCP disconnect, after 10 min idle, and of leftover breakpoints after an Eclipse restart; breakpoints/launches without an ID join the open investigation). The older `wait_for_debug_pause` still polls and is kept for compatibility.
 
-**Latest Windows direct-test results (23 November 2026, CORE-13 build) — 3 consecutive uninterrupted runs, each:**
+**Latest Windows direct-test results (24 November 2026, CORE-17 build):**
 
 | Suite | PASS | Scope |
 |---|---:|---|
@@ -47,14 +44,17 @@ Example symptom-only request: *“My orders API returns 120.00, but I expect 108
 | `boot-quote` | 1/1 | Real HTTP quote investigation and wrong discount value |
 | `acceptance` | 4/4 | Target rejection, ownership checks and Step Into/Out |
 | `boot-gaps` | 7/7 | Two Boot mains/services, failed startup, bounded timeout, port conflict, isolated cleanup, invalid JUnit method |
-| **Total** | **23/23** | **All reported `cleanup=true`, in each of 3 consecutive runs** |
-| `bridge` (separate, opt-in) | 4/4 | Reads stay fast during a slow command; `BRIDGE_TIMEOUT`, `BRIDGE_BUSY`, 20 parallel reads, authentication |
+| **Regression total** | **23/23** | All `cleanup=true`; on 23 Nov also 3 consecutive uninterrupted runs (CORE-13 build) |
+| `stops` (opt-in) | 6/6 | `wait_for_stop`: breakpoint, step, exception, pause, program end; process output |
+| `lease` (opt-in) | 5/5 | Abandoned investigations: idle expiry, long waits kept alive, CONTROLLED kept, MCP disconnect, ambiguous ownership rejected |
+| `bridge` (opt-in, 23 Nov) | 4/4 | Reads stay fast during a slow command; `BRIDGE_TIMEOUT`, `BRIDGE_BUSY`, 20 parallel reads, authentication |
+| Unit checks | 30/30 | Bridge dispatcher, output trimming, investigation lease, MCP investigation tracking (no Eclipse needed) |
 
 The failing-startup and port-conflict tests confirmed fixture JVM exit using OS PIDs. This is **local working-tree evidence**; it does not independently certify a published release or other systems. Report files are generated under ignored `evaluation/reports/`. See [Java runner](dev-e2e/README.md).
 
-**Agent behavior (23 November 2026):** The JUnit single-method diagnosis was supported by Claude's final-result record; the Spring Boot wrong-quote and invalid-quantity runs have reviewed MCP event-level proof of HTTP reproduction, runtime debugging and cleanup responses. **Three single trials are not a reliability study.** Skill activation, repeated no-skill trials, controlled no-skill/with-skill comparison, and independent post-cleanup inventories remain open. The harness intentionally labels captures `REVIEW_REQUIRED`; see [evidence ledger](docs/claude-acceptance-2026-11-23.md).
+**Agent behavior (23 November 2026):** Claude runs are graded automatically (PASS/PARTIAL/FAIL/BLOCKED/UNSAFE) from the debugger's actual results plus a before/after Eclipse inventory. Clean batches, 3 runs per scenario (Boot wrong quote, Boot HTTP 400, JUnit): **with skill 9/9 PASS, without skill 17/18 PASS**; every run used `wait_for_stop`; cleanup independently verified. On these explicit prompts the skill added no accuracy and cost about 30% more calls and money; whether it helps on vague, symptom-only prompts is open (OPEN-05). See [evidence ledger](docs/claude-acceptance-2026-11-23.md).
 
-**Limits:** Run to Line, variable mutation, field watchpoints, JDWP attach, thread-dump export and Hot Code Replace are not exposed as verified MCP features. STS-specific modes, Linux/macOS runner execution, more complex Spring-context JUnit cases and comprehensive user-marker/configuration isolation require separate tests.
+**Limits:** Run to Line, variable mutation, field watchpoints, JDWP attach, thread-dump export and Hot Code Replace are not exposed as verified MCP features. STS-specific modes, Linux/macOS, more complex Spring-context JUnit cases and a full user-marker/configuration matrix need separate tests. Every open item is listed in [Status and tracking](#status-and-tracking).
 
 ## Developer quickstart
 
@@ -78,41 +78,67 @@ java dev-e2e/BridgeUnitTests.java
 java dev-e2e/DevE2E.java test --groups bridge
 ```
 
-**First agent baseline trial (requires Claude CLI/MCP, may consume usage):**
+**Claude trials (require Claude CLI/MCP, use Claude usage):**
 
 ```cmd
+:: One trial, or 3 runs of each scenario; add --no-skill for the comparison without the skill
 java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude
+java dev-e2e/DevE2E.java test --groups claude --repeat 3 --approve-claude --approve-fixture-post
+
+:: Stop/output and abandoned-investigation groups (opt-in)
+java dev-e2e/DevE2E.java test --groups stops
+java dev-e2e/DevE2E.java test --groups lease
 ```
 
-For the current three-trial group:
+Each Claude run is graded automatically (`*.verdict.json` under `evaluation/reports/claude-trials/`, summary table at the end of a batch). `test` reuses or starts the dedicated Eclipse instance but does not redeploy the plugin. Automatic fixture synchronization is not implemented yet (OPEN-01). Older PowerShell scripts still support specialized paths and must not be deleted without parity checks.
 
-```cmd
-java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture-post
-```
+## Status and tracking
 
-Review generated transcripts under `evaluation/reports/claude-trials/`; they are not automatic PASS reports. `test` reuses or starts the dedicated Eclipse instance but does not redeploy the plugin. General automatic fixture synchronization remains pending. Older PowerShell scripts still support specialized evaluation/deployment paths and must not be deleted without parity checks.
+**This is the single tracking list.** Every open item is in the first table, every finished item in the second. Details and evidence live in the linked docs, but an item that is not in this section is not tracked. When an item is finished, move it to **Done** with its date and evidence; when new work is found (a bug, a gap, a follow-up), add it to **Open** with an ID.
 
-## Prioritized development order
+Status: ✅ Done · 🟡 Partly done · ⬜ Not started · ⏸ Parked or deferred
 
-Status: ✅ Done · 🟡 Partly done · ⬜ Not started · ⏸ Deferred
+### Open
 
-| Order | Priority | Work and acceptance outcome | Status |
-|---|---|---|---|
-| **1** | **P0** | **Bridge stability (CORE-13):** parallel read-only commands, ordered state changes, per-command deadlines with explicit `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, tracked operations (`get_bridge_operation`), timing and slow-command log; `AGENTDEBUG_BRIDGE_MODE=legacy` fallback. Also fixed the root cause of the earlier intermittent timeouts (Eclipse console output blocking on an unread pipe). | ✅ **Done (23 Nov 2026):** 3 consecutive uninterrupted 23/23 runs, bridge group 4/4, unit tests 13/13. Still open: legacy-mode comparison run, 32 ownership checks, overnight loop ([checklist](dev-e2e/README.md#bridge-stability-tests-core-13)) |
-| 2 | P0 | **Automated Claude acceptance verdicts and independent cleanup evidence:** preserve event-level MCP observations; revalidate full combined regression; repeat controlled no-skill trials (initial JUnit/Boot smoke completed) | ✅ **Done (23 Nov 2026).** Evaluator (EVAL-05) and repeated/no-skill runner (EVAL-06). Clean batches, 3 runs per scenario: with skill **9/9 PASS**, without skill **17/18 PASS** (the one FAIL is a run where the Claude CLI ended early), every run used `wait_for_stop`, cleanup independently verified. No accuracy difference from the skill on these explicit prompts; without it runs used about 20% fewer calls and cost about 30% less. Next: symptom-only prompts and more scenarios before any skill claim |
-| 3 | P0 | **Automatic fixture synchronization:** marker-verified disposable workspace; no manual source copying or destructive project changes | ⬜ Not started |
-| 4 | P0 | **Event-correlated pause waiting (CORE-14):** exact launch/thread/stop cause; no stale or unrelated stop accepted. New `wait_for_stop` tool returns the full stop context in one call. Also **CORE-15:** `get_process_output` keeps the end of long output and reports total sizes | ✅ **Done (23 Nov 2026)** — unit checks 18/18, 23/23 regression and `stops` group 6/6 on the installed Windows build (23 Nov 2026). Open: several threads stopping at once, Claude trial using `wait_for_stop` |
-| 5 | P0 | **User-resource safety:** preserve user-owned breakpoints, launch configurations and unrelated JVMs under concurrent debugging | 🟡 Subset verified (borrowed sessions, expired IDs, two-service isolation); full user-marker/configuration matrix open |
-| 6 | P1 | **Run to Line:** scoped operation, correct thread and cleanup | ⬜ Not started |
-| 7 | P1 | **Change Variable Value:** explicit consent, owned session and safe failure behavior | ⬜ Not started |
-| 8 | P1 | **Claude regression and skill evaluation:** compare without versus with skill after reliable no-skill baseline | ⬜ Not started (needs priority 2) |
-| 9 | P1 | **Multiple MCP clients:** verify Codex and compatible clients before promising support | ⬜ Not started |
-| 10 | P2 | **Thread dumps, local JVM attach, method breakpoints/watchpoints:** individual API feasibility and safety tests | ⬜ Not started |
-| 11 | P2 | **Spring Tools and extended JUnit compatibility:** verify real installed variants | 🟡 Plain Eclipse JDT/JUnit verified; Spring Tools launch modes and complex JUnit cases open |
-| 12 | P2 | **Cross-platform and remaining PowerShell parity:** preserve historical test coverage | 🟡 Java E2E runner in use on Windows; Linux/macOS unverified; some PowerShell harnesses remain |
-| 13 | P3 | **Remote/Docker attach and Hot Code Replace:** defer pending demand, feasibility and safety review | ⏸ Deferred |
+| ID | Priority | Item | Status | Done when | Feature IDs / details |
+|---|---|---|---|---|---|
+| OPEN-01 | **P0** | **Automatic fixture synchronization:** copy changed test projects into the disposable test workspace, marker-verified, never touching other projects | ⬜ | New or changed fixture classes reach the test workspace without manual copying; blocks OPEN-11 and new Claude scenarios | [Runner](dev-e2e/README.md) |
+| OPEN-02 | **P0** | **User-resource safety matrix:** tests with real user breakpoints, exception breakpoints and custom launch configurations present; nothing of the user's is changed or removed | 🟡 | Direct group passes with user markers/configurations present (so far the workspace had none, so preservation was not really exercised) | CORE-03, CORE-04, BOOT-10 |
+| OPEN-03 | **P0** | **Ownership checks:** port the 32 PowerShell ownership/failure checks to a Java direct-test group and rerun them on the current build | 🟡 | 32/32 in Java on the current build; PowerShell copy removed | CORE-08; `e2e-runner/ownership-tests/run.ps1` |
+| OPEN-04 | **P0** | **Spring Boot scenario acceptance gaps:** agent chooses between two Boot apps without guessing; launch keeps profile, arguments, environment and working directory; `@SpringBootTest` method debugging | 🟡 | Direct checks for each; currently discovery, readiness, HTTP quote, HTTP 400 and one Spring-context JUnit method pass | BOOT-01, BOOT-02, BOOT-06 ([scenarios](docs/spring-boot-debugging-scenarios.md)) |
+| OPEN-05 | P1 | **Skill evaluation on symptom-only prompts:** vague prompts ("the total is wrong") with and without the skill; plus skill install/remove invariants and the Boot JUnit scenarios | 🟡 | Repeated batches both ways on symptom-only prompts; base tests pass with no skill and after skill removal | SKILL-01..03, EVAL-03, EVAL-04; explicit-prompt comparison done (see Done) |
+| OPEN-06 | P1 | **Run to Line** | ⬜ | Scoped operation, correct thread, cleanup; direct test | JAVA-11 |
+| OPEN-07 | P1 | **Change Variable Value** with explicit consent | ⬜ | Owned session only, consent enforced, safe failure; direct and negative tests | JAVA-10B |
+| OPEN-08 | P1 | **Other MCP clients** (Codex, GitHub Copilot and other compatible clients) | ⬜ | Each client verified before support is claimed | — |
+| OPEN-09 | P1 | **Claude MCP registration preservation:** installing/configuring never changes other entries in the user's Claude MCP configuration | ⬜ | Installed test with unrelated registrations present | CORE-09 |
+| OPEN-10 | P1 | **Bridge stability follow-ups:** one comparison run in legacy mode (`AGENTDEBUG_BRIDGE_MODE=legacy`); overnight loop of 10+ regression runs | 🟡 | Legacy run 23/23; overnight loop without failure | CORE-13 ([checklist](dev-e2e/README.md#bridge-stability-tests-core-13)) |
+| OPEN-11 | P1 | **Stop-waiting follow-ups:** several threads stopping at the same breakpoint; Spring Boot request threads; output of a launch that already ended | ⬜ | Direct tests (needs a multi-thread fixture, so OPEN-01 first) | CORE-14, CORE-15 |
+| OPEN-12 | P1 | **Execution-control negatives:** operations on ended, stale or invalid threads fail safely; stepping in Spring Boot and JUnit contexts | 🟡 | Direct negative tests; Step Into/Out already pass for plain Java | CORE-05-06 |
+| OPEN-13 | P2 | **Coverage gaps in implemented features:** bridge port collision and several IDEs (CORE-01); agent choice among ambiguous mains (CORE-02); editor focus with concurrent sessions (CORE-07); release ZIP matches source revision (CORE-10); deploy failure recovery and version changes (CORE-11); failing condition expressions (JAVA-01); tracepoint output after exit (JAVA-05) | ⬜ | One direct or documented manual test each | [Feature tracker](docs/feature-roadmap.md) |
+| OPEN-14 | P2 | **Thread dumps, local JVM attach, method breakpoints, watchpoints** | ⬜ | Feasibility and safety test per API | JAVA-08, JAVA-09 |
+| OPEN-15 | P2 | **Spring Tools launch modes and complex JUnit** (parameterized tests, JUnit Platform selection) | 🟡 | Installed variants verified; plain Eclipse JDT/JUnit already verified | BOOT-11, JAVA-03 |
+| OPEN-16 | P2 | **Linux/macOS and remaining PowerShell harnesses** | 🟡 | Java runner passes on Linux/macOS; PowerShell paths replaced with parity checks | — |
+| OPEN-17 | Eng | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests stay out of the build | ⏸ Parked | `mvn clean package` fails when a unit test fails | — |
+| OPEN-18 | Eng | **Test reorganization by feature:** one integration group per feature, `--feature` / `--suite` selection, old runners removed | ⏸ Parked | Same results before and after the move | — |
+| OPEN-19 | Eng | **Docs consolidation:** one roadmap file, `testing.md`, history moved to `docs/archive/` | ⏸ Parked | Status maintained only here and in one roadmap | — |
+| OPEN-20 | Eng | **Parallel test lanes** (several test Eclipses) | ⏸ Parked | Opt-in `--parallel N` with identical results | — |
+| OPEN-21 | P3 | **Remote/Docker attach, Hot Code Replace, JPA/transaction diagnostics, concurrent/async Boot requests** | ⏸ Deferred | Demand, feasibility and safety review first | BOOT-05, JAVA-10A, BOOT-08, BOOT-09 |
 
-Release hygiene runs across these priorities: retain the **23/23 direct regression** and record source commit, bundle identity, environment, reports and deviations. The ordering may change based on actual Claude trial failures; do not implement features just to match a competitor's checklist.
+### Done
+
+| Item | Date | Evidence |
+|---|---|---|
+| **Bridge stability (CORE-13):** parallel reads, ordered state changes, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, operation tracking, timing log; root cause of earlier timeouts fixed (console output blocking on an unread pipe). Follow-ups: OPEN-10 | 23 Nov 2026 | 3 consecutive uninterrupted 23/23 runs, `bridge` 4/4, unit 13/13 ([ADR-006](docs/decisions.md)) |
+| **Event-based stop waiting (CORE-14)** and **process output head+tail (CORE-15).** Follow-ups: OPEN-11 | 23 Nov 2026 | `stops` 6/6, unit 18/18, regression 23/23 |
+| **Repeated-exception dialog never blocks agents; cleanup verifies the JVM ended (CORE-16)** | 23 Nov 2026 | `stops` 6/6 with `SKIP_RECURRENCES`, validation trials 8/8 after the fix (1/6 before) ([ADR-007](docs/decisions.md)) |
+| **Cleanup of abandoned investigations (CORE-17):** MCP disconnect, 10-minute idle lease, leftover breakpoints after an Eclipse restart, IDs attached automatically | 24 Nov 2026 | `lease` 5/5, unit 30/30, regression 23/23 ([ADR-008](docs/decisions.md)) |
+| **Automatic Claude verdicts (EVAL-05)** from actual debugger results plus before/after Eclipse inventory | 23 Nov 2026 | Self-test 19/19; first trial graded PASS with independent cleanup |
+| **Repeated trials and skill comparison on explicit prompts (EVAL-06)** | 23 Nov 2026 | With skill 9/9, without 17/18; no accuracy gain from the skill on explicit prompts ([evidence](docs/claude-acceptance-2026-11-23.md)) |
+| **Single-trial Claude acceptance:** JUnit diagnosis, Boot wrong quote, Boot HTTP 400 | 23 Nov 2026 | [Acceptance evidence](docs/claude-acceptance-2026-11-23.md) |
+| **Step Into / Step Out dedicated tests (CORE-05-03/04)** | 23 Nov 2026 | `acceptance:core-step-into-out` |
+| **Core debugger and Phase 1 Java features:** bridge, main discovery, launch, breakpoints, stepping, variables, editor navigation, NORMAL/CONTROLLED ownership, conditional and exception breakpoints, single JUnit methods, nested variables, tracepoints, pause/restart, step filters | Nov 2026 | Regression 23/23; [capabilities](docs/capabilities.md) (CORE-01..08, JAVA-01..07) |
+
+Release hygiene runs across all items: keep the **23/23 direct regression** and record source commit, bundle identity, environment, reports and deviations. Order may change based on real Claude trial failures; do not implement features just to match a competitor's checklist.
 
 ## Development workflow
 

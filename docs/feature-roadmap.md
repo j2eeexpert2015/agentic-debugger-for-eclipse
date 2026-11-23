@@ -30,6 +30,8 @@
 - [Phase 5 — Advanced candidates](#phase-5--advanced-candidates)
 - [Non-goals, prioritization and change rules](#non-goals-prioritization-and-change-rules)
 
+> **Tracking:** open work and its priority are tracked only in the README [Status and tracking](../README.md#status-and-tracking) table (OPEN-xx IDs). This file holds feature definitions and evidence.
+
 ## Status and evidence rules
 
 `Candidate → Investigation → Feasibility verified → Planned → Implemented in source → Tested on installed candidate → Released`; alternatively **Deferred**, **Not planned**, **Rejected**, **Unknown**. A feasible Eclipse UI feature is not necessarily an agent-exposed MCP feature; proof needs actual code/API evidence. A documented Claude prompt is **not** a test pass.
@@ -44,7 +46,7 @@
 | CORE-02 | Discover Java `main()` entry points | Implemented; fixture discovery passed | Ambiguity and multi-project selection |
 | CORE-03 | Reuse/start Java launch without destroying user settings | Implemented; ownership tests | Custom configurations and fail-before-save |
 | CORE-04 | Set/list/remove ordinary breakpoints | Implemented; marker assertions | Duplicate and user marker safety |
-| CORE-05 | Pause/resume/step into/over/out | Implemented; installed resume, Step Over, pause evidence; dedicated Step Into/Step Out acceptance pending | Individually test five operations; stale thread/frame and termination |
+| CORE-05 | Pause/resume/step into/over/out | Implemented; installed resume, Step Over, pause evidence; dedicated Step Into/Step Out passed 23 Nov 2026 | Individually test five operations; stale thread/frame and termination |
 | CORE-06 | Read threads/stacks/locals | Implemented; runtime checks | Bounded output, stale frames |
 | CORE-07 | Navigate Eclipse editor to suspended source | Implemented; navigation request verified | Real GUI focus with concurrent sessions |
 | CORE-08 | NORMAL/CONTROLLED lifecycle, precise ownership/cleanup | 32 live negative/ownership checks passed | Preserve invariants for new operations |
@@ -117,9 +119,9 @@ The [installed fixture audit](spring-boot-tool-audit.md) records direct checks f
 
 | ID | Work | State | Acceptance |
 |---|---|---|---|
-| SKILL-04 | A/B runner for no skill / stable / candidate | Not implemented | Repeatable isolated sessions, real skill activation detection and full reports |
+| SKILL-04 | A/B runner for no skill / stable / candidate | **Done for no skill vs skill** (EVAL-06: `--no-skill`, skill use detected from Skill calls and skill-file reads); stable vs candidate skill versions not implemented | Repeatable isolated sessions, real skill activation detection and full reports |
 | EVAL-01 | Reproducible prompt/fixture/oracle matrix, EV-01–EV-16 | Existing Java scenarios defined; Boot extension specified | Validated fixtures and ground truths, fixed input visibility |
-| EVAL-02 | Quantitative and qualitative scoring | Plan documented; automation pending | Correctness, evidence, wrong-target count, stop/call count, elapsed time, token use when available |
+| EVAL-02 | Quantitative and qualitative scoring | **Automated** (EVAL-05 verdicts and metrics: calls, waits, turns, time, cost; EVAL-06 batch summary); wrong-target count not separately reported | Correctness, evidence, wrong-target count, stop/call count, elapsed time, token use when available |
 | EVAL-03 | Skill install/remove/rollback invariants | Planned | Base Java/Boot tests work with no skill and after skill removal |
 | EVAL-04 | Boot no-skill benchmark | Planned; not yet run | At least SB-04, SB-06/07 and SB-08 with repeat trials |
 | EVAL-06 | Repeated trials and controlled skill comparison: `DevE2E … --groups claude --repeat N [--no-skill]` runs each scenario N times in one batch; `--no-skill` adds `--disallowedTools Skill` to the Claude CLI; every verdict records `batch` and `skillMode`; metrics record `skillsInvoked` and `skillFileReads` (skill files opened with Read/Grep/Glob, so a "no-skill" run that still reads the skill is visible); `ClaudeTranscriptEvaluator --summary` prints and writes per-scenario pass rate, skill/`wait_for_stop` use, cleanup, average calls/turns/time and total cost | **Done (23 Nov 2026):** with skill 9/9 PASS, without skill 17/18 (one run where the Claude CLI ended early is graded FAIL). Self-test EV-U1..EV-U18. Harness removes leftover fixture JVMs and agent-owned breakpoints before each run; runs whose CLI failed are graded and counted | Equal model and fixture for both arms; enough runs per arm before claiming a difference |
