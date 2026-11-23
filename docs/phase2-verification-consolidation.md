@@ -1,5 +1,10 @@
 # Phase 2 — Verification Consolidation and Remaining Acceptance
 
+<!-- JAVA-E2E-19-STATUS:BEGIN -->
+**Current evidence (23 November 2026):** In one combined Windows run, the repository-integrated Java E2E runner completed **19/19 direct Eclipse scenarios PASS**, all reporting successful cleanup. This includes dedicated Step Into/Out, two Boot mains, two concurrently running Boot JVMs with owned-session isolation, JUnit method rejection, HTTP quote and validation checks. Run `java dev-e2e/DevE2E.java test --approve-fixture-post` from the repository root. Full Claude/skill, Spring Tools, Linux/macOS, startup negatives and comprehensive user-marker/configuration isolation are **not yet verified**. See [current README](../README.md#4-limitations-and-pending-work) for prioritized next steps. Older dated sections below are preserved as historical snapshots; do not interpret their previous `NOT RUN` or `pending` entries as the latest direct-test status. Do not infer autonomous Claude behavior from a Java bridge test.
+<!-- JAVA-E2E-19-STATUS:END -->
+
+
 [README](../README.md) · [Development Roadmap](development-roadmap.md) · [Spring Boot Scenarios](spring-boot-debugging-scenarios.md) · [Tool Audit](spring-boot-tool-audit.md) · [Evaluation Plan](evaluation-plan.md)
 
 **Consolidated:** 22 November 2026. **Scope:** actual evidence recorded in the repository as of GitHub `main` commit `59e64785c23420528c889d013e87d7b1b0d9a3f3`, plus independently reported local Windows results after adding the P2-06 verifier. **This report is a test-evidence consolidation, not a Phase 2 release sign-off.**

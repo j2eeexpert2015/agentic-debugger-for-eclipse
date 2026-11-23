@@ -1,0 +1,62 @@
+DOCUMENTATION CONSOLIDATION REVIEW — 23 NOVEMBER 2026
+Repository: j2eeexpert2015/agentic-debugger-for-eclipse
+
+DECISION
+The 19/19 Java direct E2E baseline and next priorities now belong in root README.md.
+The Java runner command details remain in dev-e2e/README.md.
+Detailed immutable/historical test evidence remains in purpose-specific documents.
+No markdown files are deleted in this update. Do not delete the old repository or docs folder before copying the package.
+
+KEEP CURRENT / ACTIVE
+- README.md: primary install/use/development/status/priority entry point.
+- dev-e2e/README.md: exact Java E2E commands, groups, paths, safety requirements.
+- docs/capabilities.md: feature and context-specific capability matrix.
+- docs/decisions.md: architecture, ownership and safety decisions.
+- docs/development-roadmap.md: strategic work order.
+- docs/feature-roadmap.md: stable CORE/JAVA/BOOT/SKILL/EVAL IDs and acceptance requirements.
+- docs/spring-boot-debugging-scenarios.md: SB-01..SB-10 full scenario contracts.
+- docs/evaluation-plan.md: explicit-versus-symptom-only and skill comparison gates.
+- docs/phase3-skill-requirements-and-design.md: detailed skill contracts and boundaries.
+
+PRESERVE AS HISTORICAL EVIDENCE (NOT ACTIVE STATUS AUTHORITIES)
+- docs/phase1-implementation-status.md
+- docs/phase1-claude-scenarios.md
+- docs/spring-boot-tool-audit.md
+- docs/phase2-verification-consolidation.md
+- docs/phase3-skill-v0.1-validation.md (static snapshot; outdated status, label historical)
+- docs/research-sources.md (original source/research references)
+
+POTENTIAL MERGE/ARCHIVE CANDIDATES (NO DELETION AUTOMATED)
+- docs/phase1-java-test-runner.md: old Windows runner steps superseded by dev-e2e/README.
+  Preserve verifier-specific regression/debugging details before archiving.
+- docs/phase2-bridge-verification.md: historical two-scenario PowerShell-era setup,
+  superseded by Java Phase 2 and the combined 19-scenario regression.
+- docs/windows-test-quickstart.md and docs/eclipse-installation-and-validation.md:
+  overlap README's user and developer instructions; retain only unique legacy
+  dev/doctor and p2 troubleshooting steps if merging later.
+- docs/codex-implementation-backlog.md: implementation backlog from older milestone;
+  reconcile any still-open tasks into docs/development-roadmap.md first.
+- README-INSTALL-AND-TEST.md: old skill candidate installation/testing guide;
+  retain unique activation/rollback steps within docs/phase3-skill-requirements-and-design.md
+  or a skill-specific README if eventually archived.
+
+Before deleting or moving ANY old file:
+1. Verify cross-references in README, other Markdown, source comments and scripts.
+2. Retain unique scenario or incident evidence (do not turn old failures into PASS).
+3. Update incoming relative links, including links in historical docs where feasible.
+4. Commit one archival/merge change separately from this documentation status update.
+5. Run the Java E2E regression after source/test changes (docs-only changes do not
+   require another live debug session unless instructions or test config changed).
+
+CURRENT TEST COVERAGE: 19/19 direct Java E2E PASS in one Windows run, each cleanup=true.
+OPEN: failure/timeout startup, wider user-marker isolation, Spring Boot/JUnit negatives,
+Claude skill activation/diagnosis/A-B testing, Spring Tools, Linux/macOS and remaining
+PowerShell-only skill/ownership/deployment utilities.
+
+PACKAGE CONTENTS
+- README.md (complete replacement, preserve all other repository files)
+- dev-e2e/UpdateRoadmapDocs.java (idempotent sync for existing roadmap/evidence headers)
+- DOCUMENTATION-AUDIT.txt (this deletion/retention assessment)
+- APPLY-INSTRUCTIONS.txt (how to apply safely)
+
+NO Python source files or Python commands are included.

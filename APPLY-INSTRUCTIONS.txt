@@ -1,0 +1,31 @@
+JAVA E2E DOCUMENTATION UPDATE — 23 NOVEMBER 2026
+
+This ZIP is a DOCUMENTATION OVERLAY, not a full project checkout.
+DO NOT delete existing repository files or the docs directory.
+
+1. Extract ZIP into the EXISTING repository:
+   C:\All_GitHub_Desktop\agentic-debugger-for-eclipse
+   Overwrite README.md; retain every other file.
+
+2. Open CMD in the repo root:
+   cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse
+
+3. Synchronize current-status annotations in existing roadmap/validation docs:
+   java dev-e2e/UpdateRoadmapDocs.java
+
+   This updates docs/capabilities.md, docs/development-roadmap.md,
+   docs/feature-roadmap.md, docs/phase2-verification-consolidation.md,
+   docs/spring-boot-debugging-scenarios.md, and dev-e2e/README.md.
+   It does not delete files, install plugins or launch Eclipse.
+   It is safe to run again (idempotent).
+
+4. Review:
+   git status
+   git diff --check
+   git diff --stat
+   git diff -- README.md docs/ dev-e2e/README.md
+
+5. Commit only after reviewing; no automatic commit/push.
+
+Test baseline already supplied by developer: 19/19 PASS in one combined Windows run.
+No live Eclipse test was run during this documentation-only packaging.

@@ -1,5 +1,10 @@
 # Java end-to-end tests (development)
 
+<!-- JAVA-E2E-19-STATUS:BEGIN -->
+**Current evidence (23 November 2026):** In one combined Windows run, the repository-integrated Java E2E runner completed **19/19 direct Eclipse scenarios PASS**, all reporting successful cleanup. This includes dedicated Step Into/Out, two Boot mains, two concurrently running Boot JVMs with owned-session isolation, JUnit method rejection, HTTP quote and validation checks. Run `java dev-e2e/DevE2E.java test --approve-fixture-post` from the repository root. Full Claude/skill, Spring Tools, Linux/macOS, startup negatives and comprehensive user-marker/configuration isolation are **not yet verified**. See [current README](../README.md#4-limitations-and-pending-work) for prioritized next steps. Older dated sections below are preserved as historical snapshots; do not interpret their previous `NOT RUN` or `pending` entries as the latest direct-test status. Do not infer autonomous Claude behavior from a Java bridge test.
+<!-- JAVA-E2E-19-STATUS:END -->
+
+
 The core repository contains the Java E2E runner and all currently migrated test sources. **JDK 21+** and **Maven** are required; live suites require a local Eclipse installation with JDT and the plugin. Commands below are executed **from the repository root**, not from `dev-e2e/`.
 
 ## One-time setup

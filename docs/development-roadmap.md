@@ -1,5 +1,10 @@
 # Development Roadmap — Phases 0–5
 
+<!-- JAVA-E2E-19-STATUS:BEGIN -->
+**Current evidence (23 November 2026):** In one combined Windows run, the repository-integrated Java E2E runner completed **19/19 direct Eclipse scenarios PASS**, all reporting successful cleanup. This includes dedicated Step Into/Out, two Boot mains, two concurrently running Boot JVMs with owned-session isolation, JUnit method rejection, HTTP quote and validation checks. Run `java dev-e2e/DevE2E.java test --approve-fixture-post` from the repository root. Full Claude/skill, Spring Tools, Linux/macOS, startup negatives and comprehensive user-marker/configuration isolation are **not yet verified**. See [current README](../README.md#4-limitations-and-pending-work) for prioritized next steps. Older dated sections below are preserved as historical snapshots; do not interpret their previous `NOT RUN` or `pending` entries as the latest direct-test status. Do not infer autonomous Claude behavior from a Java bridge test.
+<!-- JAVA-E2E-19-STATUS:END -->
+
+
 [README](../README.md) · [Feature-level tracker](feature-roadmap.md) · [Spring Boot scenarios](spring-boot-debugging-scenarios.md) · [Agent evaluation](evaluation-plan.md) · [Codex work queue](codex-implementation-backlog.md) · [Phase 1 evidence](phase1-implementation-status.md)
 
 **Planning baseline:** GitHub `main` at `11e696624412725e2668fbe074cbf4e098b31055`, reviewed 22 November 2026. This document **reorders the proposed phases**; it does not claim the roadmap changes or proposed features have been implemented. Source of truth for actual installed testing remains [Phase 1 Implementation Status](phase1-implementation-status.md).
@@ -32,7 +37,7 @@
 | **0** | Real Eclipse JDT debugger controlled by a Java MCP server | Implemented; installed calculator E2E and ownership evidence | Preserve base regression and resource isolation |
 | **1** | Conditional and exception breakpoints, single JUnit test, nested inspection, tracepoints, owned restart and step filters | **All seven direct and explicit Claude tests passed on installed Windows candidate; publication pending** | Decide publication of the verified ZIP |
 | **2** | Reliable Boot launch/configuration, readiness, HTTP reproduction and practical Boot/JUnit debugging | Initial installed Boot and JUnit checks recorded; full acceptance pending | One complete real HTTP debugging path, Boot unit/integration test paths, negative/ownership tests and installed regression |
-| **3** | Optional, replaceable Java + JUnit + Spring Boot agentic debugging skill | Research and initial Java behavior baseline exist; **skill not implemented** | Demonstrate correct activation and cross-context guidance without coupling debugger to skill |
+| **3** | Optional, replaceable Java + JUnit + Spring Boot agentic debugging skill | Research and initial Java behavior baseline exist; skill files exist; activation/comparison incomplete | Demonstrate correct activation and cross-context guidance without coupling debugger to skill |
 | **4** | Repeatable no-skill / stable-skill / candidate-skill testing | Evaluation specification exists; **A/B runner and repeated trials not built** | Measurable value with predeclared thresholds, no safety or non-debug regressions |
 | **5** | Remote attach, watchpoints, run-to-line, HCR, mutation and deeper Boot/JPA/transaction diagnostics | **Deferred; feasibility and user value to be established** | Feature-specific API spike, fixture, proof, safety review and deliberate prioritization |
 
@@ -108,7 +113,7 @@ The [tool audit](spring-boot-tool-audit.md) records the fixture results, observe
 
 **Architecture contract:** Skill is independent/versioned guidance; Eclipse plugin and MCP schemas do not import or require it. Remove the skill and the same core debugger must still function. Research JetBrains `ij-debugger`, Microsoft DebugMCP `debug-live`, Java Debug Agent and Debug2Fix as **ideas**, not as copied skills or assumed feature parity. [Research](research-sources.md).
 
-**Exit gate:** Successful activation and cross-context trial runs, reproducible skill installation/removal, no safety regression and a credible comparative benefit; metrics evaluated under Phase 4. **Not implemented yet.**
+**Exit gate:** Successful activation and cross-context trial runs, reproducible skill installation/removal, no safety regression and a credible comparative benefit; metrics evaluated under Phase 4. **Skill source exists; activation, cross-context and comparative acceptance incomplete.**
 
 ## Phase 4 — Skill evaluation and optimization
 

@@ -1,5 +1,10 @@
 # Feature Roadmap and Decision Tracker
 
+<!-- JAVA-E2E-19-STATUS:BEGIN -->
+**Current evidence (23 November 2026):** In one combined Windows run, the repository-integrated Java E2E runner completed **19/19 direct Eclipse scenarios PASS**, all reporting successful cleanup. This includes dedicated Step Into/Out, two Boot mains, two concurrently running Boot JVMs with owned-session isolation, JUnit method rejection, HTTP quote and validation checks. Run `java dev-e2e/DevE2E.java test --approve-fixture-post` from the repository root. Full Claude/skill, Spring Tools, Linux/macOS, startup negatives and comprehensive user-marker/configuration isolation are **not yet verified**. See [current README](../README.md#4-limitations-and-pending-work) for prioritized next steps. Older dated sections below are preserved as historical snapshots; do not interpret their previous `NOT RUN` or `pending` entries as the latest direct-test status. Do not infer autonomous Claude behavior from a Java bridge test.
+<!-- JAVA-E2E-19-STATUS:END -->
+
+
 [README](../README.md) · [Phase-level roadmap](development-roadmap.md) · [Spring Boot scenarios](spring-boot-debugging-scenarios.md) · [Evaluation plan](evaluation-plan.md) · [Codex backlog](codex-implementation-backlog.md) · [Phase 1 evidence](phase1-implementation-status.md)
 
 **Reviewed:** 22 November 2026, GitHub `main` `77c43a08f72d7a4578718a92d8d0c8b9bce2377a`. **Scope:** feature-level benefit, status, feasibility and acceptance. Phase numbering is revised; existing feature identifiers remain stable.
@@ -51,12 +56,12 @@ The debugger implements these operations, but a general passing regression does 
 |---|---|---|---|
 | CORE-05-01 | Resume | Installed workflow verified | Selected suspended thread resumes; other sessions unchanged |
 | CORE-05-02 | Step Over | Installed calculator workflow verified | Expected next application line and changed locals |
-| CORE-05-03 | Step Into | Implemented; standalone acceptance pending | Enter expected application callee; verify frame, line, thread |
-| CORE-05-04 | Step Out | Implemented; standalone acceptance pending | Return to expected caller; verify frame, line, thread |
+| CORE-05-03 | Step Into | Dedicated Java E2E PASS (23 Nov 2026) | Enter expected application callee; verify frame, line, thread |
+| CORE-05-04 | Step Out | Dedicated Java E2E PASS (23 Nov 2026) | Return to expected caller; verify frame, line, thread |
 | CORE-05-05 | Pause | Installed JAVA-06 workflow verified | Selected running thread suspends; stack is readable |
 | CORE-05-06 | Ended/stale/invalid thread operations | Broader negative coverage pending | Fail safely with no action on another debug target |
 
-Keep Step Into and Step Out as **supported**, not as separately tested operations until a recorded installed run proves the outcomes. Cross-context Spring Boot and JUnit stepping checks remain open. The corresponding user-facing status matrix is in [capabilities.md](capabilities.md#fundamental-execution-control-acceptance-checklist-core-05).
+Step Into and Step Out now have a dedicated installed Java E2E assertion (caller `main()` to callee `sum()` and return); cross-context tests remain open. Cross-context Spring Boot and JUnit stepping checks remain open. The corresponding user-facing status matrix is in [capabilities.md](capabilities.md#fundamental-execution-control-acceptance-checklist-core-05).
 
 ## Phase 1 — Verified Java features
 
@@ -93,9 +98,9 @@ The [installed fixture audit](spring-boot-tool-audit.md) records direct checks f
 
 | ID | Guidance target | State | Measurement |
 |---|---|---|---|
-| SKILL-01 | Appropriate selection of runtime investigation versus static-only explanation; choose Java/JUnit/Boot context | Candidate; skill absent | EV-01, EV-03, EV-09, EV-10, EV-11, EV-13 |
-| SKILL-02 | Hypothesis, targeted stops, first-bad-value tracing, efficient tools, bounded observations | Candidate; skill absent | EV-02, EV-04, EV-05, EV-12, EV-15 |
-| SKILL-03 | Error handling, correct target/session, explicit consent and investigation finish | Candidate; skill absent | EV-06, EV-07, EV-08, EV-14, EV-16 |
+| SKILL-01 | Appropriate selection of runtime investigation versus static-only explanation; choose Java/JUnit/Boot context | Skill source exists; activation/agent acceptance incomplete | EV-01, EV-03, EV-09, EV-10, EV-11, EV-13 |
+| SKILL-02 | Hypothesis, targeted stops, first-bad-value tracing, efficient tools, bounded observations | Skill source exists; controlled comparison incomplete | EV-02, EV-04, EV-05, EV-12, EV-15 |
+| SKILL-03 | Error handling, correct target/session, explicit consent and investigation finish | Skill source exists; full behavior acceptance incomplete | EV-06, EV-07, EV-08, EV-14, EV-16 |
 
 **Requirement:** Independently replaceable versioned guidance, optionally split into topic-specific reference documents if long. The plugin/MCP server cannot depend on it. No skill benefit claims without comparative tests. Research: [research-sources.md](research-sources.md).
 

@@ -1,12 +1,17 @@
 # Supported Debugging Capabilities — Java, Spring Boot and JUnit
 
+<!-- JAVA-E2E-19-STATUS:BEGIN -->
+**Current evidence (23 November 2026):** In one combined Windows run, the repository-integrated Java E2E runner completed **19/19 direct Eclipse scenarios PASS**, all reporting successful cleanup. This includes dedicated Step Into/Out, two Boot mains, two concurrently running Boot JVMs with owned-session isolation, JUnit method rejection, HTTP quote and validation checks. Run `java dev-e2e/DevE2E.java test --approve-fixture-post` from the repository root. Full Claude/skill, Spring Tools, Linux/macOS, startup negatives and comprehensive user-marker/configuration isolation are **not yet verified**. See [current README](../README.md#4-limitations-and-pending-work) for prioritized next steps. Older dated sections below are preserved as historical snapshots; do not interpret their previous `NOT RUN` or `pending` entries as the latest direct-test status. Do not infer autonomous Claude behavior from a Java bridge test.
+<!-- JAVA-E2E-19-STATUS:END -->
+
+
 [README](../README.md) · [Feature roadmap](feature-roadmap.md) · [Phase 1 evidence](phase1-implementation-status.md) · [Phase 2 consolidation](phase2-verification-consolidation.md) · [Spring Boot audit](spring-boot-tool-audit.md) · [Scenario catalog](spring-boot-debugging-scenarios.md) · [Evaluation plan](evaluation-plan.md)
 
 **Reviewed: 22 November 2026.** The latest repository review used GitHub `main` at `77c43a08f72d7a4578718a92d8d0c8b9bce2377a`, together with the user's reported installed Windows run on candidate `1.5.0.20261122084229515`. These are **different evidence sources**; locally verified changes are not automatically proof of release or of code at the reviewed GitHub commit.
 
 ## At a glance
 
-**Yes — Agentic Debugger for Eclipse IDE has working core debugging capabilities for standard Java applications, Spring Boot applications and individual JUnit 5 methods.** It uses the existing Eclipse Java Debug Tools (JDT), not a separate debugger per framework. **The optional unified debugging skill is not implemented and is not necessary for debugger operations.**
+**Yes — Agentic Debugger for Eclipse IDE has working core debugging capabilities for standard Java applications, Spring Boot applications and individual JUnit 5 methods.** It uses the existing Eclipse Java Debug Tools (JDT), not a separate debugger per framework. **The optional debugging skill files exist, but full activation/comparative acceptance remains incomplete; core debugger operations do not depend on a skill.**
 
 | Application type | What a developer can currently do | Evidence level |
 |---|---|---|
@@ -31,9 +36,9 @@
 | Ordinary line breakpoint | **Verified** | **Verified** (controller, service, repository) | **Verified** (application code during tests) |
 | Conditional breakpoint | **Verified** | Supported via JDT; **not separately verified** | Supported via JDT; **not separately verified** |
 | Caught/uncaught exception breakpoint | **Verified** | Supported via JDT; handled-exception path **verified** with ordinary line stops | Supported via JDT; **not separately verified** for exception breakpoint |
-| Step Into | **Implemented; separate installed acceptance not recorded** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
+| Step Into | **Dedicated Java E2E PASS (23 Nov 2026; `core-step-into-out`)** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
 | Step Over | **Verified in installed calculator workflow** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
-| Step Out | **Implemented; separate installed acceptance not recorded** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
+| Step Out | **Dedicated Java E2E PASS (23 Nov 2026; `core-step-into-out`)** | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
 | Resume | **Verified in installed Java workflows** | **Verified in HTTP request investigation** | **Verified in JUnit debugging workflow** |
 | Pause / suspend a running thread | **Verified** (JAVA-06) | Supported via JDT; not independently tested | Supported via JDT; not independently tested |
 | Read threads, stacks and local variables | **Verified** | **Verified** (request thread and service locals) | **Verified** (test target and application locals) |
@@ -59,14 +64,14 @@ Keep these stable IDs aligned with the [feature roadmap](feature-roadmap.md), wh
 | CORE-02 | Java application discovery | Main discovery and multiple Boot mains verified; ambiguous agent selection needs more trials |
 | CORE-03 | Start/reuse existing Java launch configuration | Installed owned and borrowed launches verified; custom-config negatives remain important |
 | CORE-04 | Add/list/remove source line breakpoints | Installed runtime marker hits and cleanup; never delete user markers |
-| CORE-05 | Pause, resume, Step Into, Step Over and Step Out | Resume and Step Over have recorded installed evidence; Step Into and Step Out are implemented but require independently recorded step-result assertions |
+| CORE-05 | Pause, resume, Step Into, Step Over and Step Out | Dedicated Java E2E Step Into/Out passed on 23 Nov 2026; other cross-context negative coverage remains open |
 | CORE-06 | Inspect JVM threads, stack frames and variables | Live Java, Boot and JUnit evidence; bounded reads recommended |
 | CORE-07 | Navigate Eclipse editor to suspended source | Navigation operation verified; concurrent-session GUI focus needs manual validation |
 | CORE-08 | Investigation lifecycle `NORMAL`/`CONTROLLED` | Previous 32/32 ownership checks, new SB-09 subset; full concurrent Boot matrix pending |
 | CORE-09 | Managed Claude Code MCP registration | Implemented; installed preservation of unrelated registrations still needs coverage |
 | CORE-10 | Source and installed binary integrity checks | Historical candidate checks passed; recheck source/artifact match for release |
 | CORE-11 | Windows build/deploy/doctor/test scripts | Local installed deployment, doctor and regression passed; keep isolated test workspace |
-| CORE-12 | Optional agent debugging skill | **Not implemented**; Phase 3 work, no core dependency |
+| CORE-12 | Optional agent debugging skill | Skill source exists; live activation/comparative acceptance incomplete; core debugger independent |
 | JAVA-01 | Conditional breakpoints | Phase 1 direct and explicit Claude verified |
 | JAVA-02 | Caught/uncaught exception breakpoints | Phase 1 verified; Spring exception handler tested separately with line stops |
 | JAVA-03 | Discover/debug individual JUnit 5 test method | Phase 1 and Boot/JUnit cases verified; parameterized/complex selection open |
@@ -88,8 +93,8 @@ These are **test cases under existing feature ID `CORE-05`**, not new features. 
 |---|---|---|---|
 | CORE-05-01 | Resume a suspended thread | **Verified** in installed investigations | Correct selected thread resumes; unrelated targets remain unchanged |
 | CORE-05-02 | Step Over | **Verified** in installed calculator scenario | Next suspend is in the expected caller method after executing current line; locals change as expected |
-| CORE-05-03 | Step Into | **Implemented; dedicated test pending** | From a caller, enter the expected application method and verify target frame, line and thread |
-| CORE-05-04 | Step Out | **Implemented; dedicated test pending** | From a callee, return to the expected caller and verify frame/line and state |
+| CORE-05-03 | Step Into | **Dedicated Java E2E PASS (23 Nov 2026)** | From a caller, enter the expected application method and verify target frame, line and thread |
+| CORE-05-04 | Step Out | **Dedicated Java E2E PASS (23 Nov 2026)** | From a callee, return to the expected caller and verify frame/line and state |
 | CORE-05-05 | Pause / suspend | **Verified** in JAVA-06 | Stop the intended running thread, read the actual stack, leave other sessions untouched |
 | CORE-05-06 | Ended/stale thread and invalid step | **Not fully acceptance-tested** | Report an actionable error without stepping an unrelated or terminated target |
 
@@ -130,7 +135,7 @@ Previous core ownership tests passed 32/32 checks. The more recent SB-09 direct 
 | Runtime variable mutation (`JAVA-10B`) | Deferred; safety-sensitive |
 | Deep JPA, persistence and transaction debugging (`BOOT-08`) | Deferred |
 | Advanced concurrent/async request diagnostics (`BOOT-09`) | Deferred |
-| Unified Java/JUnit/Spring Boot Claude skill (`SKILL-01`–`SKILL-03`) | Planned; not implemented |
+| Unified Java/JUnit/Spring Boot Claude skill (`SKILL-01`–`SKILL-03`) | Source exists; activation and controlled evaluation incomplete |
 
 ### Available workflows that still require acceptance work
 
