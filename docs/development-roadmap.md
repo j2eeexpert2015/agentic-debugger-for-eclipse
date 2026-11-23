@@ -1,5 +1,30 @@
 # Development Roadmap — Phases 0–5
 
+<!-- CLAUDE-FIRST-PRIORITY:BEGIN -->
+## Current implementation order — 23 November 2026
+
+**First: P0 — Claude Code symptom-only acceptance.** Do not start new debugger features until an actual no-skill agent baseline has been evaluated. The 23/23 installed Java E2E PASS result proves direct debugger scenarios, **not Claude's autonomous choices**.
+
+| Order | Priority | Target / gate |
+|---|---|---|
+| **1** | **P0** | **Claude symptom-only no-skill baseline:** JUnit, wrong Boot quote, handled HTTP 400; independently review tool calls, actual frames/values, diagnosis, consent and cleanup; add Java calculation and concurrent-service prompts as *planned* cases |
+| 2 | P0 | Fixture synchronization: marker-verified, safe sync of dedicated Eclipse workspace; preserve unrelated files |
+| 3 | P0 | Event-correlated pause waiting: correct JVM, thread, breakpoint reason, no stale/wrong stop |
+| 4 | P0 | User-resource isolation: user-owned breakpoint/configuration preservation and concurrent launches |
+| 5 | P1 | Run to Line: scoped debug operation, correct thread and cleanup |
+| 6 | P1 | Change Variable Value: explicit permission, owned session and safe failure |
+| 7 | P1 | Repeated Claude trials, skill activation and no-skill/with-skill comparisons |
+| 8 | P1 | Other MCP clients including Codex: verify real interoperability |
+| 9 | P2 | Thread dumps, local attach, method breakpoints and watchpoints: targeted feasibility |
+| 10 | P2 | Spring Tools launch modes and expanded Spring-context JUnit coverage |
+| 11 | P2 | Linux/macOS and remaining PowerShell harness parity |
+| 12 | P3 | Remote/Docker attach and Hot Code Replace, subject to user demand and safety |
+
+**Evidence policy:** Existing `claude` Java launcher captures transcript artifacts as `REVIEW_REQUIRED`, never automatic PASS. Start with an individual JUnit smoke trial, then the Boot quote and validation trials. Repeat on fresh sessions before estimating reliability. Keep direct 23/23 as the regression gate; capture exact Git revision, bundle, tools and reports.
+
+**Selection of new features should follow observed agent failure modes**, rather than treating IDE GUI features as proven agent MCP support. See [evaluation plan](evaluation-plan.md) and [README](../README.md#next-development-priority-claude-symptom-only-acceptance).
+<!-- CLAUDE-FIRST-PRIORITY:END -->
+
 <!-- JAVA-E2E-19-STATUS:BEGIN -->
 **Latest installed-Eclipse result (23 November 2026): 23/23 direct Java E2E scenarios PASS in one combined Windows run, with successful cleanup for each scenario.** Groups: Phase 1 Java/JUnit (7), Phase 2 validation/ownership (2), Boot discovery/readiness (2), HTTP quote defect (1), core acceptance (4), Boot failure/isolation acceptance (7). Dedicated startup-failure, readiness-timeout and port-conflict tests passed; startup and port failures were verified using actual JVM PIDs and OS process exit evidence. The combined result was reported from a local working tree, not a separately verified published release. Autonomous Claude, skill activation/comparison, STS-specific launch modes, Linux/macOS and full user-owned marker/configuration preservation remain OPEN. **Current implementation, exact runner commands and prioritized next steps:** [root README](../README.md#next-priorities). Older status tables below describe their dated milestones and must not be interpreted as the latest 23-scenario direct-test status.
 <!-- JAVA-E2E-19-STATUS:END -->
@@ -152,13 +177,6 @@ All deferred. These are *candidates*, not an implementation promise.
 
 ## Immediate implementation order
 
-1. **Release hygiene:** the installed plug-in audit is complete. The newly versioned distribution ZIP passed installed verification. Publication awaits approval.
-2. **Boot feasibility + test fixture:** verify existing Java/JUnit tools against a small Boot application; capture the real gaps before adding APIs.
-3. **Core Boot vertical slice:** safe project/launch selection, readiness, approved HTTP reproduction, suspended controller/service evidence and ownership cleanup.
-4. **Boot/JUnit slice:** ordinary service unit test, one Spring-context JUnit test and an HTTP/validation failure scenario; assert real Eclipse evidence.
-5. **Phase 2 hardening:** ambiguous launch, wrong request, startup failure, concurrent sessions, consent and reproducible `dev.bat`/Java-only acceptance.
-6. **No-skill baseline:** repeated plain Java, JUnit and Boot symptom prompts with recorded test evidence and realistic context visibility.
-7. **Optional skill + A/B:** implement the unified skill, verify activation, then the three-cohort evaluation runner and scoring.
-8. **Advanced features:** only after individual benefits and feasibility are demonstrated.
+**Superseded by [Current implementation order](#current-implementation-order--23-november-2026) above.** The former list began with already completed Spring Boot feasibility; it is not an active work queue.
 
-[Detailed ordered Codex tasks](codex-implementation-backlog.md) · [Feature matrix](feature-roadmap.md).
+[Detailed historical Codex tasks](codex-implementation-backlog.md) · [Feature matrix](feature-roadmap.md).

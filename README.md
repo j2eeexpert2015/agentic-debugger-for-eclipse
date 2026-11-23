@@ -1,126 +1,117 @@
 # Agentic Debugger for Eclipse IDE
 
-Debug **Java, JUnit 5 and Spring Boot** applications in Eclipse using **Claude Code** and the **Model Context Protocol (MCP)**. The plugin uses Eclipse Java Debug Tools (JDT) for actual debugging; Claude chooses and invokes the tools. Breakpoints, stepping, runtime values and investigation safety are handled by Java code, not by prompt instructions alone.
+Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude Code** through the Model Context Protocol (MCP). The plugin uses Eclipse Java Debug Tools (JDT) for actual execution control; Claude selects and invokes MCP tools. Safety checks for session ownership, breakpoints and cleanup are implemented in Java, not left solely to prompt instructions.
 
-**Status — 23 November 2026:** **23/23 direct Java end-to-end scenarios PASS in one Windows Eclipse run**, with `cleanup=true` for all 23. This establishes the specified installed debugger workflows, **not** autonomous Claude/skill reliability, all Spring Tools launch types, or cross-platform support. See [What is tested](#implementation-and-verification) and [Next priorities](#next-priorities).
+**Verified baseline — 23 November 2026:** **23/23 direct Java E2E scenarios PASS** in one Windows Eclipse execution, all with `cleanup=true`. These are real installed-debugger checks, **not** evidence that Claude independently chooses the right debugging strategy. See [Implementation and test status](#implementation-and-test-status).
+
+## Next development priority: Claude symptom-only acceptance
+
+**P0 / Task 1 — Do this first, before implementing new debugger capabilities.** Establish how well Claude Code investigates real Java, JUnit and Spring Boot problems **without being told which MCP tool, breakpoint or debugger operation to use**.
+
+1. **Baseline without the optional skill.** Use the existing `claude` transcript-trial harness (`boot-quote`, `junit`, `validation`), with isolated sessions, fixed fixtures, permissions and bounded timeouts. Add a plain-Java calculation case and a second-service safety case to the trial catalog; these additional trials are **planned**, not implemented.
+2. **Independently review evidence.** Record the actual selected launch, MCP calls, breakpoint/thread/stack/variables, diagnosis, consent decisions, resource cleanup, tool failures, duration and usage when available. Classify each trial `PASS`, `PARTIAL`, `FAIL`, `UNSAFE` or `NOT RUN`. A completed Claude CLI invocation or plausible static answer is **not** a debugging PASS.
+3. **Repeat and compare.** Begin with individual smoke trials; run repeated no-skill sessions before reporting success rates. Only after establishing that baseline test with the optional skill and compare like for like.
+4. **Use the findings to reprioritize debugger enhancements.** In particular, measure wrong-stop/polling problems before replacing the existing `wait_for_debug_pause`; do not assume feature parity from IDE GUI capabilities.
+
+**Next after this:** automatic safe fixture synchronization; event-correlated pause waiting; preservation of user-owned breakpoints and launch configurations; then Run to Line and consent-gated variable mutation. Full [priority order](#prioritized-development-order) and [detailed roadmap](docs/development-roadmap.md).
 
 ## Install and use
 
-### Supported Eclipse installation
+### Which Eclipse IDE?
 
-Use **Eclipse IDE for Enterprise Java and Web Developers** (recommended for Spring Boot), or **Eclipse IDE for Java Developers**. Both are suitable when they have **JDT, Java launch/debug, JUnit and Maven (m2e)** support available. The plugin targets the **Eclipse IDE workbench**, not the **Eclipse RCP/RAP runtime alone**. The **Eclipse IDE for RCP and RAP Developers** package is not a tested configuration; it would need the Java/JDT tooling installed. **Spring Tools (STS) is optional**, and STS-specific launch delegates still require separate compatibility testing.
+Use **Eclipse IDE for Enterprise Java and Web Developers** (recommended for Spring Boot) or **Eclipse IDE for Java Developers**, with **Java/JDT debugging, JUnit and Maven/m2e** available. This is an **Eclipse IDE workbench plugin**, **not a standalone Eclipse RCP/RAP runtime application**. The Eclipse IDE for RCP and RAP Developers package has not been independently tested; it would need the Java tooling installed. **Spring Tools is optional**, and its specialized launch modes remain unverified.
 
-Requirements: **JDK 21+** and Claude Code CLI (installed/authenticated for Claude-driven use). Maven and Git are needed when building from source; **Maven/m2e** is also needed for the supplied test fixtures. The latest verified direct regression used Windows, JDK 25.0.5, Eclipse 4.41 and a dedicated workspace.
+Requirements: **JDK 21+** and authenticated Claude Code for Claude-driven use. Building from source requires Maven and Git. The 23-scenario direct regression ran on Windows, Eclipse 4.41 and JDK 25.0.5; no Python is required by the Java E2E framework.
 
-### Install the Eclipse plugin
+### Install the plugin
 
-1. Obtain an **Eclipse update-site ZIP** from [GitHub Releases](https://github.com/j2eeexpert2015/agentic-debugger-for-eclipse/releases), if a release asset exists. The repository's automatic source ZIP **cannot** be installed as an Eclipse update site.
-2. Alternatively build the update site from this repository:
+1. Obtain an Eclipse **update-site ZIP** from [GitHub Releases](https://github.com/j2eeexpert2015/agentic-debugger-for-eclipse/releases) if available, or run `mvn clean package` and use the generated `eclipse-update-site/target/agentic-debugger-update-site-*.zip`. A GitHub source ZIP is **not** an installable Eclipse update site.
+2. In Eclipse use **Help → Install New Software → Add → Archive**, select the update-site ZIP, install **Agentic Debugger for Eclipse IDE**, and restart.
+3. Use **Window → Preferences → Agentic Debugger** to configure Claude Code. With Eclipse running and the project imported, check Claude's `/mcp` for `eclipse-debugger` and call `eclipse_ping` (expected `PONG`).
 
-   ```cmd
-   mvn clean package
-   ```
+See [installation and validation](docs/eclipse-installation-and-validation.md) for troubleshooting.
 
-   Use the generated `eclipse-update-site/target/agentic-debugger-update-site-*.zip` (actual name depends on Maven version).
-3. In Eclipse: **Help → Install New Software → Add → Archive**, select that update-site ZIP, install **Agentic Debugger for Eclipse IDE**, then restart Eclipse.
-4. Configure **Window → Preferences → Agentic Debugger → Configure Claude Code**. Keep Eclipse running, start Claude Code for a project imported into Eclipse, check `/mcp` for `eclipse-debugger`, and call `eclipse_ping` (expected `PONG`).
+### Ask Claude to investigate
 
-For complete installation troubleshooting, see [Eclipse installation and validation](docs/eclipse-installation-and-validation.md).
+Example symptom-only request: *“My orders API returns 120.00, but I expect 108.00. Find the cause. Do not modify source or unrelated running applications.”*
 
-### Start an investigation
+`NORMAL` investigations remove their **own** debugging resources when properly finished; `CONTROLLED` investigations may retain state. Neither authorizes changing user-owned breakpoints or unrelated launches. The [optional skill](skills/eclipse-debugger/SKILL.md) is not required for core MCP debugging.
 
-Ask Claude, for example: *“My order API returns 120.00 instead of 108.00. Debug the running application in Eclipse, show the incorrect runtime value, do not edit the code, and clean up your own debugging resources.”*
+## Implementation and test status
 
-`NORMAL` investigations clean up their **own** breakpoints and launches when `finish_debug_investigation` executes. `CONTROLLED` investigations deliberately retain state. Neither mode authorizes changing unrelated user sessions or breakpoints. For Spring profiles, VM arguments or environment variables, configure a suitable launch in Eclipse first. The [optional debugging skill](skills/eclipse-debugger/SKILL.md) may guide Claude but is **not required** for the MCP debugger.
+**Implemented:** Java main discovery and launch; line, conditional and exception breakpoints; tracepoints; Step Into/Over/Out; pause/resume/restart; step filters; thread/stack/variable inspection; selected JUnit tests; Boot launch and HTTP request investigation; authenticated MCP bridge; investigation ownership and cleanup. `wait_for_debug_pause` exists but **polls**, rather than correlating the precise debugger stop event.
 
-## Implementation and verification
+**Installed Windows direct tests, 23 November 2026:**
 
-**Implemented in the plugin** (scope: Java debugger via Eclipse JDT): Java main discovery and launch; ordinary, conditional and exception breakpoints; tracepoints; pause/resume/restart; Step Into/Over/Out; step filters; stack frames and variables; selected JUnit methods; Spring Boot launch and HTTP-request debugging; authenticated local bridge; investigation ownership and cleanup; Claude Code MCP registration.
-
-**Direct installed-Eclipse tests — all passed** on 23 November 2026:
-
-| Test group | PASS | Verified scope |
+| Suite | PASS | Scope |
 |---|---:|---|
-| `phase1` | 7/7 | Java/JUnit breakpoints, variables, trace, pause/restart, filters |
-| `phase2` | 2/2 | HTTP 400 validation, consent and ownership |
-| `boot` | 2/2 | Boot main discovery and successful readiness |
-| `boot-quote` | 1/1 | Real HTTP request; incorrect discount value observed in service |
-| `acceptance` | 4/4 | Target rejection, borrowed/expired ownership, Step Into/Out |
-| `boot-gaps` | 7/7 | Two mains, invalid JUnit method, two services, startup failure, timeout, port conflict, reverse cleanup |
-| **Total** | **23/23** | **Every scenario reported `cleanup=true`** |
+| `phase1` | 7/7 | Java/JUnit breakpoints, variables, stepping-related controls, trace and filters |
+| `phase2` | 2/2 | Boot validation HTTP 400, safety and ownership |
+| `boot` | 2/2 | Boot discovery and readiness |
+| `boot-quote` | 1/1 | Real HTTP quote investigation and wrong discount value |
+| `acceptance` | 4/4 | Target rejection, ownership checks and Step Into/Out |
+| `boot-gaps` | 7/7 | Two Boot mains/services, failed startup, bounded timeout, port conflict, isolated cleanup, invalid JUnit method |
+| **Total** | **23/23** | **All reported `cleanup=true`** |
 
-The failure-path tests observed real Spring Boot errors and confirmed fixture-JVM exit by OS PID. The combined run was executed on a **local working tree**; the supplied terminal evidence does **not** independently prove that the same source was committed, released, or tested on another machine. Reports are generated under the locally ignored `evaluation/reports/` directory. See [Java E2E runner](dev-e2e/README.md) for precise commands and scopes.
+The failing-startup and port-conflict tests confirmed fixture JVM exit using OS PIDs. This is **local working-tree evidence**; it does not independently certify a published release or other systems. Report files are generated under ignored `evaluation/reports/`. See [Java runner](dev-e2e/README.md).
 
-**Claude/skill evidence is a separate gate.** Historical explicit Claude/skill trials exist, but a full repeated **symptom-only** Claude assessment, automatic skill-activation reliability, and no-skill/with-skill comparison are **not established** by the 23 direct tests. The opt-in `claude` trial group currently **captures transcripts for review**, not automatic agent PASS verdicts.
+**Agent behavior:** Selected earlier explicit and symptom-only Claude trials are documented, but **a repeated baseline covering the current Boot/JUnit scenarios, skill activation reliability, and a controlled no-skill/with-skill comparison remain open**. The opt-in `claude` trial runner captures transcripts as `REVIEW_REQUIRED`; it does **not** certify agent success.
 
-### Known limits
+**Limits:** Run to Line, variable mutation, field watchpoints, JDWP attach, thread-dump export and Hot Code Replace are not exposed as verified MCP features. STS-specific modes, Linux/macOS runner execution, more complex Spring-context JUnit cases and comprehensive user-marker/configuration isolation require separate tests.
 
-- **Not implemented or deferred:** Run to Line, runtime variable mutation, remote JDWP attach, watchpoints, Hot Code Replace, JPA/transaction-specific diagnostics.
-- **Not fully verified:** STS-specific launch modes; Linux/macOS runner; complex/parameterized and Spring-context JUnit negatives; user-owned marker/configuration isolation in every two-service permutation.
-- A Boot fixture failure/exit check does not prove that Claude selected the right operation or gave a correct explanation. A direct passing scenario applies to its **named scope**, not arbitrary Java/Spring applications.
+## Developer quickstart
 
-## For developers
+Architecture: **Claude Code → MCP stdio server → authenticated localhost bridge → Eclipse JDT → Java/JUnit/Spring Boot JVM**. Core locations: [`eclipse-plugin/`](eclipse-plugin/), [`mcp-server/`](mcp-server/), [`dev-e2e/`](dev-e2e/), [`e2e-runner/`](e2e-runner/), [`examples/`](examples/), [`skills/eclipse-debugger/`](skills/eclipse-debugger/).
 
-**Architecture:** Claude Code → MCP stdio server → authenticated loopback bridge → Eclipse JDT operations → Java/JUnit/Spring Boot JVM. The optional skill only affects agent guidance.
-
-| Area | Code location |
-|---|---|
-| Eclipse plugin, JDT operations, bridge, ownership | [`eclipse-plugin/src/`](eclipse-plugin/src/) |
-| MCP tools and parameter contracts | [`mcp-server/src/`](mcp-server/src/) |
-| Build, feature and Eclipse update site | [`pom.xml`](pom.xml), [`eclipse-feature/`](eclipse-feature/), [`eclipse-update-site/`](eclipse-update-site/) |
-| Java E2E runner and verifiers | [`dev-e2e/`](dev-e2e/), [`e2e-runner/src/main/java/`](e2e-runner/src/main/java/) |
-| Controlled fixtures | [`examples/`](examples/) |
-| Optional Claude debugging skill | [`skills/eclipse-debugger/`](skills/eclipse-debugger/) |
-
-### Run the installed Java regression
-
-Configure `dev-e2e/e2e.properties` from [`e2e.properties.example`](dev-e2e/e2e.properties.example): repository root, **dedicated Eclipse installation**, **disposable test workspace**, non-default bridge port. Do not commit the local file. From the repository root:
+Configure the untracked `dev-e2e/e2e.properties` from [the example](dev-e2e/e2e.properties.example), using a **dedicated Eclipse installation**, **disposable workspace**, and **nondefault bridge port**. From the repository root:
 
 ```cmd
-:: Full direct 23-scenario regression. Explicitly authorizes localhost fixture POSTs.
+:: Installed direct 23-scenario regression, with approved local fixture POSTs
 java dev-e2e/DevE2E.java test --approve-fixture-post
 
-:: Selected groups or single cases
+:: One test, or a selected group
+java dev-e2e/DevE2E.java test --tests boot-gaps:startup-failure
 java dev-e2e/DevE2E.java test --groups acceptance,boot-gaps
-java dev-e2e/DevE2E.java test --tests boot-gaps:port-conflict
 
-:: Build, deploy and test (close only the dedicated Eclipse instance first)
+:: Build, deploy and test (dedicated Eclipse instance must be closed)
 java dev-e2e/DevE2E.java all --approve-fixture-post
 ```
 
-`test` reuses/starts the dedicated Eclipse test instance, **but does not redeploy the plugin**. `all` builds/deploys, and must not be used on a valuable Eclipse installation. Fixtures are copied into the dedicated workspace; when repository fixture source changes, use [`SyncFailureFixtures.java`](dev-e2e/SyncFailureFixtures.java) for the two failure fixtures or refresh the disposable workspace safely. Automatic general fixture synchronization is **pending**. No Python is used by the Java E2E framework. Older PowerShell scripts remain for **specialized skill/ownership/deployment workflows**, and should not be deleted without parity testing.
-
-**Opt-in Claude transcript trials** (not included in 23):
+**First agent baseline trial (requires Claude CLI/MCP, may consume usage):**
 
 ```cmd
 java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude
+```
+
+For the current three-trial group:
+
+```cmd
 java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture-post
 ```
 
-Requires configured Claude CLI/MCP and may consume usage. Review transcripts, actual tool invocations, observed runtime evidence, diagnosis and cleanup. CLI completion is **not** an agent debugging PASS.
+Review generated transcripts under `evaluation/reports/claude-trials/`; they are not automatic PASS reports. `test` reuses or starts the dedicated Eclipse instance but does not redeploy the plugin. General automatic fixture synchronization remains pending. Older PowerShell scripts still support specialized evaluation/deployment paths and must not be deleted without parity checks.
 
-## Next priorities
+## Prioritized development order
 
-**P0 — Engineering reliability and baseline sign-off**
+| Order | Priority | Work and acceptance outcome |
+|---|---|---|
+| **1** | **P0** | **Claude symptom-only acceptance:** repeatable no-skill trials, actual MCP evidence, safe cleanup, individually reviewed results |
+| 2 | P0 | **Automatic fixture synchronization:** marker-verified disposable workspace; no manual source copying or destructive project changes |
+| 3 | P0 | **Event-correlated pause waiting:** exact launch/thread/stop cause; no stale or unrelated stop accepted |
+| 4 | P0 | **User-resource safety:** preserve user-owned breakpoints, launch configurations and unrelated JVMs under concurrent debugging |
+| 5 | P1 | **Run to Line:** scoped operation, correct thread and cleanup |
+| 6 | P1 | **Change Variable Value:** explicit consent, owned session and safe failure behavior |
+| 7 | P1 | **Claude regression and skill evaluation:** compare without versus with skill after reliable no-skill baseline |
+| 8 | P1 | **Multiple MCP clients:** verify Codex and compatible clients before promising support |
+| 9 | P2 | **Thread dumps, local JVM attach, method breakpoints/watchpoints:** individual API feasibility and safety tests |
+| 10 | P2 | **Spring Tools and extended JUnit compatibility:** verify real installed variants |
+| 11 | P2 | **Cross-platform and remaining PowerShell parity:** preserve historical test coverage |
+| 12 | P3 | **Remote/Docker attach and Hot Code Replace:** defer pending demand, feasibility and safety review |
 
-1. Record the **tested Git commit/working-tree diff**, installed plugin bundle, Java/Eclipse versions and 23 JSON reports. Rerun the complete regression on a clean build before claiming a release.
-2. Fix fixture update handling in `DevE2E.java` with marker-verified, safe synchronization of the *dedicated* workspace (the current workflow required manual recovery after fixture changes).
-3. Extend ownership protection beyond fixture JVMs to **user-owned breakpoints, saved launch configurations, ambiguous targets, and concurrent sessions**; preserve negative-case evidence.
-
-**P1 — Agent-level acceptance and compatibility**
-
-4. Run/review the **three symptom-only Claude trials**: wrong HTTP quote, failing JUnit method, handled HTTP 400. Record correct target/tool selection, actual breakpoint evidence, diagnosis, consent and cleanup; repeat before reporting rates.
-5. Test explicit/automatic activation of the optional skill and **no-skill versus with-skill** outcomes; keep the debugger independent of skill success.
-6. Verify selected `@SpringBootTest` failure/context-negative cases and STS-specific launch behavior on an actual Spring Tools installation.
-
-**P2 — Platform and tooling consolidation**
-
-7. Verify Linux/macOS and migrate PowerShell-only skill/ownership/deployment coverage to Java **only after equivalent tests pass**. Preserve existing safety checks.
-
-**Deferred:** advanced JDWP/watchpoint/Hot Code Replace/variable editing capabilities until product demand and a working Eclipse API spike justify them.
+Release hygiene runs across these priorities: retain the **23/23 direct regression** and record source commit, bundle identity, environment, reports and deviations. The ordering may change based on actual Claude trial failures; do not implement features just to match a competitor's checklist.
 
 ## Documentation
 
-Current entry points: [Java E2E guide](dev-e2e/README.md) · [Capabilities and acceptance details](docs/capabilities.md) · [Development roadmap / stable feature IDs](docs/development-roadmap.md) · [Feature tracker](docs/feature-roadmap.md) · [Spring Boot acceptance scenarios](docs/spring-boot-debugging-scenarios.md) · [Evaluation plan](docs/evaluation-plan.md) · [Architecture decisions](docs/decisions.md).
+[Development roadmap](docs/development-roadmap.md) · [Feature tracker](docs/feature-roadmap.md) · [Agent evaluation plan](docs/evaluation-plan.md) · [Capabilities](docs/capabilities.md) · [Spring Boot scenarios](docs/spring-boot-debugging-scenarios.md) · [Java E2E runner](dev-e2e/README.md) · [Architecture decisions](docs/decisions.md).
 
-Older phase-specific results and tool audits remain under [`docs/`](docs/) **as dated evidence**, not the latest project status. When documents disagree on current coverage, use this README plus the actual dated test reports, not an older planning snapshot.
+Older phase reports in [`docs/`](docs/) preserve dated test evidence. The current README and actual test records define current status, not older planning snapshots.

@@ -1,5 +1,18 @@
 # Regression and Unified Debugging Skill Evaluation Plan
 
+<!-- CLAUDE-FIRST-PRIORITY:BEGIN -->
+## Immediate P0 experiment — symptom-only Claude without skill
+
+**Status: NOT YET VERIFIED as a repeated current baseline.** Run the existing opt-in `claude` trial group against the installed Eclipse test fixture **without installing/enabling the optional debugging skill**. The three implemented transcript trials are `junit`, `boot-quote` and `validation`. A plain-Java calculation trial and a concurrent-service safety trial are proposed additions, not currently implemented.
+
+**Procedure:** one independent session per prompt, same fixture/source visibility, model, MCP configuration, approval policy and timeout. Preserve raw transcripts and inspect real `eclipse-debugger` calls, selected project/launch, breakpoint choice, thread/frame, runtime values, explanation and NORMAL cleanup. Score each `PASS`, `PARTIAL`, `FAIL`, `UNSAFE` or `NOT RUN`. A CLI success status or correct answer without runtime evidence is insufficient for an actual debugger PASS. Record unexpected state changes separately.
+
+**Sequence:** smoke-test JUnit alone; then Boot quote and validation; review the actual traces; repeat fresh sessions before reporting rates. Only then conduct with-skill trials and compare like for like. The 23/23 direct tests remain a distinct prerequisite and do not count as Claude trials.
+
+**CLI from repository root:** `java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude`, then `java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture-post`. These can consume Claude usage.
+
+<!-- CLAUDE-FIRST-PRIORITY:END -->
+
 [README](../README.md) · [Development roadmap](development-roadmap.md) · [Feature tracker](feature-roadmap.md) · [Phase 1 Java prompts](phase1-claude-scenarios.md) · [Phase 2 Boot prompts](spring-boot-debugging-scenarios.md) · [Codex backlog](codex-implementation-backlog.md)
 
 **Planning baseline:** GitHub `main` `11e6966` as reviewed on 22 November 2026. This plan updates the previously stale JUnit and conditional-breakpoint restrictions: **both capabilities exist and passed installed Phase 1 tests**. Boot-specific feature checks, optional skills, and repeated A/B automation have **not** been implemented or verified.

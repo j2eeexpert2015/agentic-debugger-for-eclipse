@@ -1,5 +1,9 @@
 # Feature Roadmap and Decision Tracker
 
+<!-- CLAUDE-FIRST-PRIORITY:BEGIN -->
+**Current delivery priority:** [Claude symptom-only no-skill acceptance is P0 / Task 1](development-roadmap.md#current-implementation-order--23-november-2026). The direct installed-Eclipse Java baseline is **23/23 PASS** on 23 November 2026. This does not establish repeated autonomous Claude success. Next: safe fixture sync, event-correlated pause waiting, user-resource isolation; then Run to Line, variable mutation and skill comparison. **Feature IDs below remain stable and historical evidence is preserved.**
+<!-- CLAUDE-FIRST-PRIORITY:END -->
+
 <!-- JAVA-E2E-19-STATUS:BEGIN -->
 **Latest installed-Eclipse result (23 November 2026): 23/23 direct Java E2E scenarios PASS in one combined Windows run, with successful cleanup for each scenario.** Groups: Phase 1 Java/JUnit (7), Phase 2 validation/ownership (2), Boot discovery/readiness (2), HTTP quote defect (1), core acceptance (4), Boot failure/isolation acceptance (7). Dedicated startup-failure, readiness-timeout and port-conflict tests passed; startup and port failures were verified using actual JVM PIDs and OS process exit evidence. The combined result was reported from a local working tree, not a separately verified published release. Autonomous Claude, skill activation/comparison, STS-specific launch modes, Linux/macOS and full user-owned marker/configuration preservation remain OPEN. **Current implementation, exact runner commands and prioritized next steps:** [root README](../README.md#next-priorities). Older status tables below describe their dated milestones and must not be interpreted as the latest 23-scenario direct-test status.
 <!-- JAVA-E2E-19-STATUS:END -->
