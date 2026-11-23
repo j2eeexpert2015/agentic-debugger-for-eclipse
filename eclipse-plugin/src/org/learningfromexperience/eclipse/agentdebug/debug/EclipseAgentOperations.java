@@ -88,6 +88,7 @@ public final class EclipseAgentOperations {
                 case "GET_VARIABLES" -> getVariables(p);
                 case "EVALUATE_EXPRESSION" -> evaluateExpression(p);
                 case "CONTROL_DEBUG" -> control(p);
+                case "VERIFY_OWNED_FIXTURE_LAUNCH" -> verifyOwnedFixtureLaunch(p);
                 case "GET_PROCESS_OUTPUT" -> getProcessOutput(p);
                 default -> error("Unknown command");
             };
@@ -759,6 +760,28 @@ public final class EclipseAgentOperations {
         if (!"STOP".equals(action)) ui.showSuspended(l, false);
         return ok(",\"action\":" + q(action) + ",\"accepted\":true");
     }
+
+/** Test-only check: the exact selected launch must belong to this NORMAL investigation. */
+private String verifyOwnedFixtureLaunch(String[] p) throws CoreException {
+    String investigationId = require(p, 1);
+    String launchName = require(p, 2);
+    var investigation = investigations.require(investigationId);
+    if (investigation.mode() != DebugInvestigationPolicy.Mode.NORMAL)
+        throw new IllegalStateException("HTTP fixture POST requires a NORMAL investigation");
+    ILaunch selected = launch(launchName);
+    investigation.verifySession(selected);
+    if (investigation.ownedLaunch() != selected || selected.isTerminated())
+        throw new IllegalStateException("Selected fixture launch is not active and investigation-owned");
+    ILaunchConfiguration configuration = selected.getLaunchConfiguration();
+    String project = configuration.getAttribute(
+            IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "");
+    String mainType = configuration.getAttribute(
+            IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
+    if (!"spring-boot-debugging".equals(project)
+            || !"org.learningfromexperience.bootfixture.orders.OrdersApplication".equals(mainType))
+        throw new IllegalStateException("Wrong fixture project or main type");
+    return ok(",\"owned\":true,\"launchName\":" + q(launchName));
+}
 
     private String getProcessOutput(String[] p) {
         ILaunch l = launch(require(p, 1));

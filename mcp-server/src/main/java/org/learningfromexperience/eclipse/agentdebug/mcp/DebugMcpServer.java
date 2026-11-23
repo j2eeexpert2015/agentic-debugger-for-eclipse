@@ -392,6 +392,9 @@ public class DebugMcpServer {
                     }
                 }).build());
 
+        // Restricted, opt-in test fixture HTTP reproduction; disabled in normal MCP sessions.
+        FixtureHttpTools.register(allTools, command -> sendToEclipse(command, true));
+
         // Initialize MCP server.
         var server = McpServer.sync(transport)
                 .serverInfo("eclipse-debugger", "1.0.0")
