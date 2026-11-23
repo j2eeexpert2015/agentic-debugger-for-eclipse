@@ -41,6 +41,24 @@
             <artifactId>mcp</artifactId>
         </dependency>
 
+        <!--
+          Debugging session report (OPEN-30, ADR-009).
+          Rule 1, dependency direction: the MCP server compiles only against the event model. The ChainTest writer is
+          a RUNTIME dependency: it is shaded into the jar and found through ServiceLoader by name, but no MCP server
+          class can import it (the compiler enforces this). Reporting stays off until it is switched on (R1/R2).
+        -->
+        <dependency>
+            <groupId>org.learningfromexperience</groupId>
+            <artifactId>agentic-debugger-report-model</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.learningfromexperience</groupId>
+            <artifactId>agentic-debugger-report-chaintest</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Unit tests (src/test/java), run by "mvn clean package"; test scope, never shaded into the jar -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

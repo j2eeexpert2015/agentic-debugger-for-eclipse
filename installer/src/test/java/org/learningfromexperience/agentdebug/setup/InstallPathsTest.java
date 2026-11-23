@@ -48,8 +48,11 @@ class InstallPathsTest {
     @Test
     @DisplayName("IP-U3 Linux: an absolute XDG_DATA_HOME is respected")
     void ipU3() {
-        assertPath("/opt/userdata/agentic-debugger-for-eclipse",
-                InstallPaths.appDirectory("Linux", "/home/example", Map.of("XDG_DATA_HOME", "/opt/userdata")));
+        // InstallPaths only accepts XDG_DATA_HOME when it is an absolute path ON THE RUNNING SYSTEM. "/opt/userdata"
+        // is absolute on Linux but not on Windows (no drive letter), so use a folder that is absolute everywhere.
+        Path xdg = Path.of(System.getProperty("java.io.tmpdir"), "userdata").toAbsolutePath();
+        assertPath(xdg.resolve("agentic-debugger-for-eclipse").toString(),
+                InstallPaths.appDirectory("Linux", "/home/example", Map.of("XDG_DATA_HOME", xdg.toString())));
     }
 
     @Test

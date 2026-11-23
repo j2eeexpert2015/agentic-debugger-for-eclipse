@@ -14,6 +14,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <modules>
+        <!-- Debugging session report (OPEN-30, ADR-009): event model, then the ChainTest writer; used by mcp-server -->
+        <module>report-model</module>
+        <module>report-chaintest</module>
         <module>mcp-server</module>
         <!-- Standalone setup utility; must follow mcp-server because it embeds the mcp-server jar -->
         <module>installer</module>
