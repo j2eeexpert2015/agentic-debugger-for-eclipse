@@ -6,7 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Apply the verified November 23 direct-E2E documentation delta without replacing
+ * Synchronize the verified November 23 23-scenario direct-E2E documentation status without replacing
  * historical roadmap documents, test records or manually maintained prose.
  * Run from the repository root: java dev-e2e/UpdateRoadmapDocs.java
  * Idempotent. No network, Python, PowerShell, source-code changes or deletions.
@@ -17,7 +17,7 @@ public final class UpdateRoadmapDocs {
     private static final String[] DOCS = {
         "docs/capabilities.md", "docs/development-roadmap.md", "docs/feature-roadmap.md",
         "docs/phase2-verification-consolidation.md", "docs/spring-boot-debugging-scenarios.md",
-        "dev-e2e/README.md"
+        
     };
     private UpdateRoadmapDocs() {}
 
@@ -50,23 +50,24 @@ public final class UpdateRoadmapDocs {
             } finally { Files.deleteIfExists(temporary); }
             System.out.println("UPDATED: " + root.relativize(file));
         }
-        System.out.println("Documentation current-status synchronized. No Markdown files deleted.");
+        System.out.println("23-scenario documentation status synchronized. No Markdown files deleted.");
         System.out.println("Review: git diff -- README.md docs/");
     }
 
     private static String banner(String name) {
-        String shared = "**Current evidence (23 November 2026):** In one combined Windows run, the "
-            + "repository-integrated Java E2E runner completed **19/19 direct Eclipse scenarios PASS**, all "
-            + "reporting successful cleanup. This includes dedicated Step Into/Out, two Boot mains, "
-            + "two concurrently running Boot JVMs with owned-session isolation, JUnit method rejection, "
-            + "HTTP quote and validation checks. Run `java dev-e2e/DevE2E.java test --approve-fixture-post` "
-            + "from the repository root. Full Claude/skill, Spring Tools, Linux/macOS, startup negatives "
-            + "and comprehensive user-marker/configuration isolation are **not yet verified**. "
-            + "See [current README](../README.md#4-limitations-and-pending-work) for prioritized next steps. ";
-        String boundary = "Older dated sections below are preserved as historical snapshots; do not "
-            + "interpret their previous `NOT RUN` or `pending` entries as the latest direct-test status. "
-            + "Do not infer autonomous Claude behavior from a Java bridge test.";
-        return shared+boundary;
+        return "**Latest installed-Eclipse result (23 November 2026): 23/23 direct Java E2E scenarios PASS "
+            + "in one combined Windows run, with successful cleanup for each scenario.** "
+            + "Groups: Phase 1 Java/JUnit (7), Phase 2 validation/ownership (2), Boot discovery/readiness (2), "
+            + "HTTP quote defect (1), core acceptance (4), Boot failure/isolation acceptance (7). "
+            + "Dedicated startup-failure, readiness-timeout and port-conflict tests passed; "
+            + "startup and port failures were verified using actual JVM PIDs and OS process exit evidence. "
+            + "The combined result was reported from a local working tree, not a separately verified "
+            + "published release. Autonomous Claude, skill activation/comparison, STS-specific launch "
+            + "modes, Linux/macOS and full user-owned marker/configuration preservation remain OPEN. "
+            + "**Current implementation, exact runner commands and prioritized next steps:** "
+            + "[root README](../README.md#next-priorities). "
+            + "Older status tables below describe their dated milestones and must not be interpreted "
+            + "as the latest 23-scenario direct-test status.";
     }
     private static String upsertBanner(String content,String message) {
         String block=OPEN+"\n"+message+"\n"+CLOSE;
@@ -112,6 +113,8 @@ public final class UpdateRoadmapDocs {
             "| SKILL-03 | Error handling, correct target/session, explicit consent and investigation finish | Skill source exists; full behavior acceptance incomplete |" );
         s=s.replace("Keep Step Into and Step Out as **supported**, not as separately tested operations until a recorded installed run proves the outcomes.",
             "Step Into and Step Out now have a dedicated installed Java E2E assertion (caller `main()` to callee `sum()` and return); cross-context tests remain open.");
+        s=s.replace("Spring Boot startup-failure and readiness negatives remain pending", 
+            "Spring Boot startup-failure and readiness negatives passed in the 23-scenario direct test; agent-level cases remain pending");
         return s;
     }
     private static String correctDevelopmentRoadmap(String s) {
