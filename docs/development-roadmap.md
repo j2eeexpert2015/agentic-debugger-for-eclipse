@@ -8,7 +8,7 @@
 | Order | Priority | Target / evidence gate |
 |---|---|---|
 | **1** | **P0** | **CORE-13 bridge stability — done (23 Nov 2026).** Parallel reads, ordered state changes, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, operation tracking and timing log. Gate met: 3 consecutive uninterrupted 23/23 runs. The bridge log identified the cause of the earlier `boot-gaps` timeouts (console output blocking on an unread pipe), now fixed. Remaining: legacy comparison, ownership 32/32, overnight loop |
-| 2 | P0 | **Automated transcript grading and independent post-cleanup evidence**, plus an uninterrupted updated 23/23 regression |
+| 2 | P0 | **Automated transcript grading and independent post-cleanup evidence (EVAL-05) — done (23 Nov 2026).** Self-test 13/13; a fresh `claude:boot-quote` trial graded PASS with independent inventory. Remaining under this item: repeated trials per scenario, then a controlled no-skill vs skill comparison (the evaluator records skill use, `wait_for_stop` use, tool calls, turns and cost) |
 | 3 | P0 | Safe fixture synchronization into marker-verified disposable workspace |
 | 4 | P0 | **CORE-14 event-correlated debugger stop — done (23 Nov 2026).** `wait_for_stop`: exact launch/thread/reason, no stale or repeated stops, full stop context in one call. With CORE-15 (output head+tail). Gate met: unchanged 23/23, `stops` group 6/6 on the installed build. Taken before item 2 so the evaluator measures the new wait |
 | 5 | P0 | Full user-resource isolation under concurrent sessions, markers and configurations |

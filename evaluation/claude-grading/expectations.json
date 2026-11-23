@@ -1,0 +1,42 @@
+{
+  "_comment": "What a correct Claude investigation must show for each ClaudeSymptomTrial scenario. Read by dev-e2e/ClaudeTranscriptEvaluator.java. Evidence is taken from MCP tool RESULTS (what the debugger actually returned), never from Claude's own claims; only 'diagnosis' is checked against Claude's final answer. 'diagnosis' is a list of groups: every group must match, any phrase inside a group is enough (case-insensitive, spaces ignored).",
+  "boot-quote": {
+    "description": "Orders quote returns 120.00 instead of 108.00: percent / 100 is integer division, so rate = 0",
+    "stopFrame": { "className": "org.learningfromexperience.bootfixture.orders.OrderService", "lines": [22, 23, 24, 25] },
+    "variables": [ { "name": "percent", "value": "10" }, { "name": "rate", "value": "0" } ],
+    "requiredCalls": [ { "tool": "start_fixture_http_request", "input": { "scenario": "discount" } } ],
+    "resultContains": [ { "tool": "get_fixture_http_request", "all": ["\"httpStatus\":200", "120.00"] } ],
+    "allowedHttpScenarios": ["discount"],
+    "diagnosis": [
+      ["percent / 100", "percent/100", "integer division", "integer arithmetic", "int division"],
+      ["rate"],
+      ["OrderService"]
+    ]
+  },
+  "validation": {
+    "description": "HTTP 400 for quantity 0 comes from OrderService.quote line 17 (Quantity must be positive)",
+    "stopFrame": { "className": "org.learningfromexperience.bootfixture.orders.OrderService", "lines": [16, 17] },
+    "variables": [ { "name": "quantity", "value": "0" } ],
+    "requiredCalls": [ { "tool": "start_fixture_http_request", "input": { "scenario": "invalid-quantity" } } ],
+    "resultContains": [ { "tool": "get_fixture_http_request", "all": ["\"httpStatus\":400", "Quantity must be positive"] } ],
+    "allowedHttpScenarios": ["invalid-quantity"],
+    "diagnosis": [
+      ["Quantity must be positive"],
+      ["400"],
+      ["OrderService"]
+    ]
+  },
+  "junit": {
+    "description": "OrderServiceTest.calculatesDiscount fails: percent / 100 is integer division, so rate = 0",
+    "stopFrame": { "className": "org.learningfromexperience.bootfixture.orders.OrderService", "lines": [22, 23, 24, 25] },
+    "variables": [ { "name": "percent", "value": "10" }, { "name": "rate", "value": "0" } ],
+    "requiredCalls": [ { "tool": "start_junit_test", "input": { "methodName": "calculatesDiscount" } } ],
+    "resultContains": [],
+    "allowedHttpScenarios": [],
+    "diagnosis": [
+      ["percent / 100", "percent/100", "integer division", "integer arithmetic", "int division"],
+      ["rate"],
+      ["calculatesDiscount", "OrderServiceTest"]
+    ]
+  }
+}

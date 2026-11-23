@@ -349,9 +349,11 @@ public class DevE2E {
         if(selection.containsKey("claude")) {
             if(!claudeApproval) throw new IllegalArgumentException("Claude token usage requires --approve-claude");
             Path claudeSource=repo.resolve("dev-e2e/ClaudeSymptomTrial.java");
+            Path evaluatorSource=repo.resolve("dev-e2e/ClaudeTranscriptEvaluator.java");
             check(Files.isRegularFile(claudeSource),"Missing Claude trial capture Java source");
+            check(Files.isRegularFile(evaluatorSource),"Missing Claude transcript evaluator Java source");
             runProcess(List.of(javaBin("javac"),"--release","21","-encoding","UTF-8",
-                    "-d",classes.toString(),claudeSource.toString()),repo,Map.of(),60);
+                    "-d",classes.toString(),claudeSource.toString(),evaluatorSource.toString()),repo,Map.of(),60);
         }
         startAndWait();
         Map<String,String> env = Map.of("AGENTDEBUG_PORT", Integer.toString(port));
@@ -417,11 +419,11 @@ public class DevE2E {
             System.out.println("== Java E2E: " + group + "/" + scenario + " ==");
             try {
                 runProcess(args,repo,env,group.equals("claude")?530:360);
-                System.out.println(group.equals("claude")?"CAPTURED: Claude transcript requires independent review":"PASS: "+report);
+                System.out.println(group.equals("claude")?"CAPTURED and graded: see the VERDICT line above (*.verdict.json)":"PASS: "+report);
             } catch (Exception error) { failures.add(group+"/"+scenario+": "+error.getMessage()); }
         }
         if (!failures.isEmpty()) throw new IllegalStateException("E2E failures: " + String.join(" | ",failures));
-        System.out.println(selection.containsKey("claude")?"Completed requested runs; Claude trial outcomes require transcript review":"PASS: all requested Java E2E suites");
+        System.out.println(selection.containsKey("claude")?"Completed requested runs; Claude verdicts are in evaluation/reports/claude-trials/*.verdict.json":"PASS: all requested Java E2E suites");
     }
     private static final Map<String,Set<String>> SCENARIOS = Map.of(
         "phase1", Set.of("all","conditional","exception","junit","variables","trace","pause-restart","filters"),

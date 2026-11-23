@@ -6,7 +6,8 @@ import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-/** Opt-in Claude CLI transcript capture, NOT an automatic correctness grader.
+/** Opt-in Claude CLI trial: captures the transcript, an independent before/after Eclipse
+ * inventory, and grades the run with ClaudeTranscriptEvaluator (PASS/PARTIAL/FAIL/BLOCKED/UNSAFE).
  * Run only in the disposable Eclipse workspace with a trusted local MCP registration.
  * Never bypasses Claude permission prompts and never runs production requests. */
 public final class ClaudeSymptomTrial {
@@ -92,6 +93,39 @@ public final class ClaudeSymptomTrial {
                 + "    }\n  }\n}\n";
     }
 
+    /**
+     * Independent Eclipse state read directly from the bridge (not through Claude):
+     * debug sessions, line breakpoints and exception breakpoints with their owner.
+     * Returns a JSON object; on failure an object with "error".
+     */
+    private static String inventory(int port) {
+        try {
+            Path tokenFile = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug",
+                    port == 8765 ? "bridge.token" : "bridge-" + port + ".token");
+            String token = Files.readString(tokenFile, StandardCharsets.UTF_8).trim();
+            StringBuilder out = new StringBuilder("{");
+            String[][] parts = {{"sessions","LIST_DEBUG_SESSIONS"},{"breakpoints","LIST_BREAKPOINTS"},
+                    {"exceptionBreakpoints","LIST_EXCEPTION_BREAKPOINTS"}};
+            for (int i = 0; i < parts.length; i++) {
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress("127.0.0.1", port), 3000);
+                    socket.setSoTimeout(30_000);
+                    var writer = new java.io.OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8);
+                    writer.write("AUTH " + token + " " + parts[i][1] + "\n");
+                    writer.flush();
+                    String reply = new java.io.BufferedReader(new java.io.InputStreamReader(
+                            socket.getInputStream(), StandardCharsets.UTF_8)).readLine();
+                    require(reply != null && reply.contains("\"status\":\"success\""),
+                            parts[i][1] + " failed: " + reply);
+                    out.append(i == 0 ? "" : ",").append(json(parts[i][0])).append(":").append(reply);
+                }
+            }
+            return out.append("}").toString();
+        } catch (Exception e) {
+            return "{\"error\":" + json(e.toString()) + "}";
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         require(args.length>=3,"Usage: ClaudeSymptomTrial REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post]");
         Path root=Path.of(args[0]).toRealPath();
@@ -135,6 +169,7 @@ public final class ClaudeSymptomTrial {
         Path prompt=reports.resolve(stem+".prompt.txt");
         Path stderr=reports.resolve(stem+".stderr.log");
         Path mcpConfig=reports.resolve(stem+".mcp.json");
+        Path inventoryFile=reports.resolve(stem+".inventory.json");
         require(!Files.exists(transcript) && !Files.exists(metadata),"Existing evidence collision");
         Files.writeString(prompt,PROMPTS.get(scenario)+"\n",StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
         // Test-scoped MCP config binds this process to the configured E2E port.
@@ -147,6 +182,8 @@ public final class ClaudeSymptomTrial {
                 "--mcp-config",mcpConfig.toString(),"--strict-mcp-config",
                 "--allowedTools","mcp__eclipse-debugger__*",
                 "--output-format","stream-json","--verbose","--max-turns","25");
+        // Snapshot Eclipse before Claude starts, so cleanup and user resources can be checked afterwards.
+        String inventoryBefore = inventory(port);
         Process p=null;
         int exit=-1; boolean timedOut=false; String failure="";
         try {
@@ -158,6 +195,9 @@ public final class ClaudeSymptomTrial {
             }
             exit=p.exitValue();
         } catch(Exception e) {failure=e.toString();}
+        String inventoryAfter = inventory(port);
+        Files.writeString(inventoryFile, "{\"before\":" + inventoryBefore + ",\"after\":" + inventoryAfter + "}\n",
+                StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
         String cliResult = Files.isRegularFile(transcript)
                 ? Files.readString(transcript, StandardCharsets.UTF_8) : "";
         // Tool denial scope matters: a denied Grep/Bash operation must not be mistaken
@@ -188,12 +228,23 @@ public final class ClaudeSymptomTrial {
                 "  \"permissionDenialsObserved\": "+permissionDenied+",\n"+
                 "  \"deniedTools\": "+jsonArray(deniedTools)+",\n"+
                 "  \"eclipseMcpPermissionDenied\": "+eclipseMcpDenied+",\n"+
+                "  \"inventory\": "+json(inventoryFile.toString())+",\n"+
+                "  \"verdictFile\": "+json(reports.resolve(stem+".verdict.json").toString())+",\n"+
                 "  \"humanEvidenceReviewNeeded\": true,\n"+
                 "  \"toolInvocationVerified\": false,\n"+
                 "  \"runtimeDiagnosisVerified\": false,\n"+
                 "  \"cleanupVerified\": false\n}";
         Files.writeString(metadata,manifest,StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
         System.out.println(scenario+" => "+outcome+"; transcript="+transcript+"; manifest="+metadata);
+        if (outcome.equals("REVIEW_REQUIRED") || outcome.equals("BLOCKED_PERMISSIONS")) {
+            // Automatic grade from the debugger's actual results plus the independent inventory.
+            var expectations = ClaudeTranscriptEvaluator.Json.obj(ClaudeTranscriptEvaluator.Json.parse(
+                    Files.readString(root.resolve("evaluation/claude-grading/expectations.json"), StandardCharsets.UTF_8)));
+            var verdict = ClaudeTranscriptEvaluator.gradeFile(transcript, scenario, expectations);
+            Path verdictFile = reports.resolve(stem + ".verdict.json");
+            Files.writeString(verdictFile, ClaudeTranscriptEvaluator.Json.stringify(verdict) + "\n", StandardCharsets.UTF_8);
+            System.out.println("VERDICT " + ClaudeTranscriptEvaluator.summary(verdict) + "; verdict=" + verdictFile);
+        }
         if(!outcome.equals("REVIEW_REQUIRED")) throw new IllegalStateException("Claude trial not captured successfully: "+outcome+" "+failure);
     }
 }
