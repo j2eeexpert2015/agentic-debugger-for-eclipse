@@ -7,11 +7,26 @@
     <artifactId>agentic-debugger-setup</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
+    <!--
+      Standalone setup utility (agentic-debugger-setup.jar): installs the MCP server jar and registers it with
+      Claude Code without going through Eclipse Preferences. See installer/README.md.
+      Built by the root build after mcp-server, because it embeds the mcp-server jar.
+    -->
+    <name>Agentic Debugger Setup Utility</name>
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
     </properties>
+    <dependencies>
+        <!-- Unit tests (src/test/java), run by "mvn clean package"; test scope, not in the setup jar -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.14.1</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
     <build>
         <finalName>agentic-debugger-setup</finalName>
         <plugins>
@@ -19,6 +34,11 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven.compiler.plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

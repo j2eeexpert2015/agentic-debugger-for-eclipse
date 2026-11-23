@@ -353,7 +353,8 @@ public class DevE2E {
         if(selection.containsKey("claude")) {
             if(!claudeApproval) throw new IllegalArgumentException("Claude token usage requires --approve-claude");
             Path claudeSource=repo.resolve("dev-e2e/ClaudeSymptomTrial.java");
-            Path evaluatorSource=repo.resolve("dev-e2e/ClaudeTranscriptEvaluator.java");
+            // The grader lives in the testing module (its unit tests run in "mvn clean package").
+            Path evaluatorSource=repo.resolve("testing/src/main/java/org/learningfromexperience/agentdebug/testing/grading/ClaudeTranscriptEvaluator.java");
             check(Files.isRegularFile(claudeSource),"Missing Claude trial capture Java source");
             check(Files.isRegularFile(evaluatorSource),"Missing Claude transcript evaluator Java source");
             runProcess(List.of(javaBin("javac"),"--release","21","-encoding","UTF-8",
@@ -443,7 +444,7 @@ public class DevE2E {
         if (selection.containsKey("claude")) {
             // Pass rate, tool calls, turns, time and cost across the runs of this batch.
             try {
-                runProcess(List.of(javaBin("java"),"-cp",classesDir.toString(),"ClaudeTranscriptEvaluator","--summary",
+                runProcess(List.of(javaBin("java"),"-cp",classesDir.toString(),"org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEvaluator","--summary",
                         "--batch",batch,repo.resolve("evaluation/reports/claude-trials").toString()),repo,Map.of(),60);
             } catch (Exception error) { failures.add("claude summary: "+error.getMessage()); }
         }

@@ -6,6 +6,8 @@ import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEvaluator;
+
 /** Opt-in Claude CLI trial: captures the transcript, an independent before/after Eclipse
  * inventory, and grades the run with ClaudeTranscriptEvaluator (PASS/PARTIAL/FAIL/BLOCKED/UNSAFE).
  * Run only in the disposable Eclipse workspace with a trusted local MCP registration.

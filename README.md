@@ -2,7 +2,7 @@
 
 Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude Code** through the Model Context Protocol (MCP). The plugin uses Eclipse Java Debug Tools (JDT) for actual execution control; Claude selects and invokes MCP tools. Safety checks for session ownership, breakpoints and cleanup are implemented in Java, not left solely to prompt instructions.
 
-**Evidence snapshot — 24 November 2026 (Windows, JDK 25.0.5, Eclipse 2026-09):** direct regression **23/23**, stop/output group **6/6**, abandoned-investigation group **5/5**, bridge fault injection **4/4** (23 Nov), unit checks **30/30**, all with verified cleanup. Repeated Claude trials (3 per scenario, graded automatically from actual debugger results): **9/9 PASS with the skill, 17/18 without** (the one FAIL is a run where the Claude CLI ended early). Small samples on test fixtures: an indication, not a reliability statistic. Details: [current state](docs/current-state.md), [acceptance evidence](docs/claude-acceptance-2026-11-23.md).
+**Evidence snapshot — 24 November 2026 (Windows, JDK 25.0.5, Eclipse 2026-09):** direct regression **23/23**, stop/output group **6/6**, abandoned-investigation group **5/5**, bridge fault injection **4/4** (23 Nov), unit tests **49/49** (JUnit 5, run by the Maven build), all with verified cleanup. Repeated Claude trials (3 per scenario, graded automatically from actual debugger results): **9/9 PASS with the skill, 17/18 without** (the one FAIL is a run where the Claude CLI ended early). Small samples on test fixtures: an indication, not a reliability statistic. Details: [current state](docs/current-state.md), [acceptance evidence](docs/claude-acceptance-2026-11-23.md).
 
 ## Current status and next step
 
@@ -28,7 +28,7 @@ Requirements: **JDK 21+** and authenticated Claude Code for Claude-driven use. B
 2. In Eclipse use **Help → Install New Software → Add → Archive**, select the update-site ZIP, install **Agentic Debugger for Eclipse IDE**, and restart.
 3. Use **Window → Preferences → Agentic Debugger** to configure Claude Code. With Eclipse running and the project imported, check Claude's `/mcp` for `eclipse-debugger` and call `eclipse_ping` (expected `PONG`).
 
-See [installation and validation](docs/eclipse-installation-and-validation.md) for troubleshooting.
+See [installation and validation](docs/eclipse-installation-and-validation.md) for troubleshooting. To install and register the MCP server from a terminal instead, or to add it manually to Claude Code or another MCP client, use the [setup utility](installer/README.md).
 
 ### Ask Claude to investigate
 
@@ -54,7 +54,7 @@ Example symptom-only request: *“My orders API returns 120.00, but I expect 108
 | `stops` (opt-in) | 6/6 | `wait_for_stop`: breakpoint, step, exception, pause, program end; process output |
 | `lease` (opt-in) | 5/5 | Abandoned investigations: idle expiry, long waits kept alive, CONTROLLED kept, MCP disconnect, ambiguous ownership rejected |
 | `bridge` (opt-in, 23 Nov) | 4/4 | Reads stay fast during a slow command; `BRIDGE_TIMEOUT`, `BRIDGE_BUSY`, 20 parallel reads, authentication |
-| Unit checks | 30/30 | Bridge dispatcher, output trimming, investigation lease, MCP investigation tracking (no Eclipse needed) |
+| Unit tests (JUnit 5, in `mvn clean package`) | 49/49 | Plugin 41, mcp-server 8 (24 Nov); setup utility 7 and Claude grader 18 added, waiting for build check |
 
 The failing-startup and port-conflict tests confirmed fixture JVM exit using OS PIDs. This is **local working-tree evidence**; it does not independently certify a published release or other systems. Report files are generated under ignored `evaluation/reports/`. See [Java runner](dev-e2e/README.md).
 
@@ -64,39 +64,95 @@ The failing-startup and port-conflict tests confirmed fixture JVM exit using OS 
 
 ## Developer quickstart
 
-Architecture: **Claude Code → MCP stdio server → authenticated localhost bridge → Eclipse JDT → Java/JUnit/Spring Boot JVM**. Core locations: [`eclipse-plugin/`](eclipse-plugin/), [`mcp-server/`](mcp-server/), [`dev-e2e/`](dev-e2e/), [`e2e-runner/`](e2e-runner/), [`examples/`](examples/) (test fixtures; kept unchanged because the direct tests and Claude trials depend on them), `sample-applications/` (planned demo applications, OPEN-22), [`skills/eclipse-debugger/`](skills/eclipse-debugger/).
+Architecture: **Claude Code → MCP stdio server → authenticated localhost bridge → Eclipse JDT → Java/JUnit/Spring Boot JVM**. Core locations: [`eclipse-plugin/`](eclipse-plugin/), [`mcp-server/`](mcp-server/), [`installer/`](installer/) (setup utility), [`testing/`](testing/) (Claude transcript grader), [`dev-e2e/`](dev-e2e/), [`e2e-runner/`](e2e-runner/), [`examples/`](examples/) (test fixtures; kept unchanged because the direct tests and Claude trials depend on them), `sample-applications/` (planned demo applications, OPEN-22), [`skills/eclipse-debugger/`](skills/eclipse-debugger/).
 
-Configure the untracked `dev-e2e/e2e.properties` from [the example](dev-e2e/e2e.properties.example), using a **dedicated Eclipse installation**, **disposable workspace**, and **nondefault bridge port**. From the repository root:
+## Build and test commands
+
+All commands run from the repository root. There are two kinds of tests, and they never mix:
+
+| Kind | What it checks | Needs | Runs with |
+|---|---|---|---|
+| **Unit tests** (JUnit 5) | Logic that needs no Eclipse: bridge protocol, ownership and lease rules, output trimming, MCP timeouts, setup utility paths, Claude grader | JDK 21+, Maven | `mvn clean package`, automatically |
+| **Integration tests** | The installed plugin in a real Eclipse: launches, breakpoints, stops, variables, Spring Boot, HTTP, cleanup | The dedicated test Eclipse (below) | `java dev-e2e/DevE2E.java ...` only, never in the Maven build |
+
+### Build and unit tests (no Eclipse needed)
 
 ```cmd
-:: Installed direct 23-scenario regression, with approved local fixture POSTs
-java dev-e2e/DevE2E.java test --approve-fixture-post
-
-:: One test, or a selected group
-java dev-e2e/DevE2E.java test --tests boot-gaps:startup-failure
-java dev-e2e/DevE2E.java test --groups acceptance,boot-gaps
-
-:: Build, deploy and test (dedicated Eclipse instance must be closed)
-java dev-e2e/DevE2E.java all --approve-fixture-post
-
-:: Unit tests run inside the build (JUnit 5, no Eclipse needed); then bridge fault injection on the dedicated Eclipse (CORE-13)
+:: Build everything and run all unit tests; a failing unit test fails the build
 mvn clean package
-java dev-e2e/DevE2E.java test --groups bridge
+
+:: Build without running unit tests
+mvn clean package -DskipTests
+
+:: Unit tests of one module only (mcp-server, installer, testing)
+mvn clean package -pl mcp-server
 ```
 
-**Claude trials (require Claude CLI/MCP, use Claude usage):**
+Use `package`, not `mvn test`: the plugin build copies the mcp-server jar, which exists only after `package`.
+
+| Module | Unit tests |
+|---|---|
+| `eclipse-plugin` | 41: BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4 |
+| `mcp-server` | 8: TR-U1..U5, TO-U1..U3 |
+| `installer` (setup utility) | 7: IP-U1..U4, CD-U1..U3 |
+| `testing` (Claude transcript grader) | 18: EV-U1..U18 |
+
+Build outputs: `eclipse-update-site/target/agentic-debugger-update-site-*.zip` (install into Eclipse), `installer/target/agentic-debugger-setup.jar` ([setup utility](installer/README.md)).
+
+### Integration tests (dedicated test Eclipse)
+
+One-time setup: create the untracked `dev-e2e/e2e.properties` from [the example](dev-e2e/e2e.properties.example), using a **dedicated Eclipse installation**, a **disposable workspace** and a **non-default bridge port**.
+
+```cmd
+:: Build, install the new plugin into the test Eclipse, and run the 23-scenario regression
+:: (also runs the unit tests through the build; close the test Eclipse first)
+java dev-e2e/DevE2E.java all --approve-fixture-post
+
+:: Install the last build without rebuilding, then run the regression
+java dev-e2e/DevE2E.java deploy --approve-fixture-post
+
+:: Integration tests only, against the plugin already installed (starts the test Eclipse if needed)
+java dev-e2e/DevE2E.java test --approve-fixture-post
+
+:: Selected groups, or single scenarios
+java dev-e2e/DevE2E.java test --groups phase1,boot-gaps --approve-fixture-post
+java dev-e2e/DevE2E.java test --tests boot-gaps:port-conflict,acceptance:core-step-into-out
+
+:: All groups and scenario names
+java dev-e2e/DevE2E.java list
+```
+
+`--approve-fixture-post` allows HTTP requests to the local test Spring Boot application only; groups without HTTP requests do not need it.
+
+| Group | Scenarios | In the 23-scenario regression |
+|---|---:|---|
+| `phase1` | 7 | Yes |
+| `phase2` | 2 | Yes |
+| `boot` | 2 | Yes |
+| `boot-quote` | 1 | Yes |
+| `acceptance` | 4 | Yes |
+| `boot-gaps` | 7 | Yes |
+| `stops` | 6 | No, run with `test --groups stops` |
+| `lease` | 5 | No, run with `test --groups lease` |
+| `bridge` | 4 | No, run with `test --groups bridge` |
+
+The group names will change to feature names (`--feature`, `--suite regression`) with OPEN-18. Automatic fixture synchronization is not implemented yet (OPEN-01). Older PowerShell scripts still support specialized paths and must not be deleted without parity checks. Details: [Java runner](dev-e2e/README.md).
+
+### Claude trials (use Claude usage)
+
+Require the Claude CLI with the `eclipse-debugger` MCP registration; never run by the build or by a plain `test`.
 
 ```cmd
 :: One trial, or 3 runs of each scenario; add --no-skill for the comparison without the skill
 java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude
 java dev-e2e/DevE2E.java test --groups claude --repeat 3 --approve-claude --approve-fixture-post
 
-:: Stop/output and abandoned-investigation groups (opt-in)
-java dev-e2e/DevE2E.java test --groups stops
-java dev-e2e/DevE2E.java test --groups lease
+:: Grade saved transcripts again, and the pass-rate summary (no Eclipse, no Claude usage)
+java dev-e2e/ClaudeTranscriptEvaluator.java
+java dev-e2e/ClaudeTranscriptEvaluator.java --summary
 ```
 
-Each Claude run is graded automatically (`*.verdict.json` under `evaluation/reports/claude-trials/`, summary table at the end of a batch). `test` reuses or starts the dedicated Eclipse instance but does not redeploy the plugin. Automatic fixture synchronization is not implemented yet (OPEN-01). Older PowerShell scripts still support specialized paths and must not be deleted without parity checks.
+Each run is graded automatically (`*.verdict.json` under `evaluation/reports/claude-trials/`, summary table at the end of a batch).
 
 ## Status and tracking
 
@@ -110,8 +166,8 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 
 | ID | Priority | Item | Status | Done when | Feature IDs / details |
 |---|---|---|---|---|---|
-| OPEN-17 | **Plan 1** | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests (live Eclipse) and Claude trials stay out of the build and run only through the test runner | Partly done: step A done (unit tests in the build); step B next (`testing` module, grader self-test as JUnit) | `mvn clean package` fails when a unit test fails | — |
-| OPEN-18 | **Plan 1** | **Test reorganization by feature:** one integration group per feature, `--feature` / `--suite` selection, old runners removed | Not started | Same results before and after the move | — |
+| OPEN-17 | **Plan 1** | **Unit tests as JUnit 5** run by `mvn package`, plus a `testing` module; integration tests (live Eclipse) and Claude trials stay out of the build and run only through the test runner | Partly done: step A done (unit tests in the build); step B in progress (`testing` module with the grader tests EV-U1..U18; setup utility `installer` added to the build with its tests IP-U1..U4, CD-U1..U3; waiting for build check) | `mvn clean package` fails when a unit test fails | — |
+| OPEN-18 | **Plan 1** | **Test reorganization by feature:** one integration group per feature, `--feature` / `--suite` selection, old runners removed. Later in this item: integration tests rewritten as JUnit 5 test classes (still started only by `DevE2E`, never by the Maven build) | Not started | Same results before and after the move | — |
 | OPEN-22 | **Plan 2** | **Demo sample applications** in a new top-level `sample-applications/` folder: **one plain Java application** (`java-debugging-demo`) and **one Spring Boot application** (`spring-boot-debugging-demo`). Scenarios are chosen because they are easy to show visually on screen, starting from the scenarios the test fixtures already prove (for example: a value wrong for only one record in a large loop, found with a conditional breakpoint; an exception swallowed inside a stream or lambda; a wrong discount in a REST call traced from controller to service; a request rejected with HTTP 400; a failing JUnit test). Each scenario has a symptom-only prompt, the expected root cause and a short demo script. Only scenarios that work with the current features are included. **`examples/` is not changed**: it remains the test-fixture set | Not started | Both applications import cleanly into Eclipse; every scenario is found by the agent with the expected root cause (graded automatically where possible); each application has a README with the demo steps | New; reuses the trial runner and grader (EVAL-05/06); `examples/` stays the test fixtures |
 | OPEN-23 | **Plan 3** | **GitHub Copilot integration in Eclipse:** register the existing MCP server with GitHub Copilot (agent mode) in Eclipse, verify tool use and safety rules, document setup, and run the demo scenarios with Copilot | Not started | Setup documented; the OPEN-22 scenarios run with Copilot; differences from Claude Code recorded | Same MCP server; no Copilot-specific debugger code expected (to be verified) |
 | OPEN-01 | P1 | **Automatic fixture synchronization:** copy changed test projects into the disposable test workspace, marker-verified, never touching other projects | Not started | New or changed fixture classes reach the test workspace without manual copying; blocks OPEN-11 and new Claude scenarios | [Runner](dev-e2e/README.md) |
@@ -131,6 +187,7 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 | OPEN-26 | P2 | **Launch settings:** program and VM arguments, environment variables, Spring profile, in a temporary launch configuration owned by the investigation (the user's configurations never change) | Not started | Direct test: app sees the arguments, environment and active profile; user configuration unchanged | BOOT-02 |
 | OPEN-27 | P2 | **Safe local HTTP request tool for real applications:** localhost only, the user approves the application and URL, asynchronous like the test tool (today the request tool is test-only) | Not started | Safety design reviewed; direct and negative tests (non-localhost, unapproved app rejected) | BOOT-04 follow-up |
 | OPEN-28 | P2 | **Spring step-filter preset:** skip proxies, CGLIB, reflection and AOP frames when stepping | Not started | Stepping through a Spring call stays in application classes in a direct test | JAVA-07 follow-up |
+| OPEN-29 | P2 | **Setup utility `uninstall` can remove the plugin's registration:** it checks only its own `installation.properties`, not which jar the `eclipse-debugger` registration points to, so after the Preferences page has taken the registration over, `uninstall` removes it | Not started | `uninstall` removes the registration only when it points to the utility's own `mcp-server.jar`; unit test | [Setup utility](installer/README.md) |
 | OPEN-13 | P2 | **Coverage gaps in implemented features:** bridge port collision and several IDEs (CORE-01); agent choice among ambiguous mains (CORE-02); editor focus with concurrent sessions (CORE-07); release ZIP matches source revision (CORE-10); deploy failure recovery and version changes (CORE-11); failing condition expressions (JAVA-01); tracepoint output after exit (JAVA-05) | Not started | One direct or documented manual test each | [Feature tracker](docs/feature-roadmap.md) |
 | OPEN-14 | P2 | **Thread dumps, local JVM attach, method breakpoints, watchpoints** | Not started | Feasibility and safety test per API | JAVA-08, JAVA-09 |
 | OPEN-15 | P2 | **Spring Tools launch modes and complex JUnit** (parameterized tests, JUnit Platform selection) | Partly done | Installed variants verified; plain Eclipse JDT/JUnit already verified | BOOT-11, JAVA-03 |

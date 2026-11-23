@@ -44,6 +44,8 @@ Two levels, both separate from the 23-scenario regression (the `bridge` group is
 :: 1. Unit tests — JUnit 5, run by the normal build, no Eclipse needed
 ::    eclipse-plugin (41): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4
 ::    mcp-server (8):      TR-U1..U5, TO-U1..U3
+::    testing (18):        EV-U1..U18 (Claude transcript grader)
+::    installer (7):       IP-U1..U4, CD-U1..U3 (setup utility)
 ::    A failing unit test fails the build. Integration tests and Claude trials are never run by Maven.
 mvn clean package
 
@@ -136,11 +138,11 @@ java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture
 
 ### Automatic Claude verdicts (EVAL-05)
 
-`dev-e2e/ClaudeTranscriptEvaluator.java` grades a transcript from what the debugger actually returned, not from what Claude says. Oracles per scenario: `evaluation/claude-grading/expectations.json`. No Eclipse, Maven or Claude usage needed:
+The grader grades a transcript from what the debugger actually returned, not from what Claude says. Oracles per scenario: `evaluation/claude-grading/expectations.json`. The grader lives in the `testing` module (`testing/src/main/java/.../testing/grading/ClaudeTranscriptEvaluator.java`); its tests with synthetic transcripts (EV-U1..EV-U18, `ClaudeTranscriptEvaluatorTest`) run in `mvn clean package`. `dev-e2e/ClaudeTranscriptEvaluator.java` is a launcher that compiles the grader on the fly, so grading needs no Eclipse, Maven or Claude usage:
 
 ```cmd
-:: Self-test with synthetic transcripts (EV-U1..EV-U18)
-java dev-e2e/ClaudeTranscriptEvaluator.java --self-test
+:: Grader tests (EV-U1..EV-U18) run with the other unit tests in the build
+mvn clean package
 
 :: Grade every saved transcript under evaluation\ (all subfolders; writes <stem>.verdict.json next to each)
 java dev-e2e/ClaudeTranscriptEvaluator.java

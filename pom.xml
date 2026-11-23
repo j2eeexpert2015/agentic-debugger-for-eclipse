@@ -15,6 +15,10 @@
     </properties>
     <modules>
         <module>mcp-server</module>
+        <!-- Standalone setup utility; must follow mcp-server because it embeds the mcp-server jar -->
+        <module>installer</module>
+        <!-- Test tooling (Claude transcript grader) with its unit tests; not shipped -->
+        <module>testing</module>
         <module>eclipse-plugin</module>
         <module>eclipse-feature</module>
         <module>eclipse-update-site</module>

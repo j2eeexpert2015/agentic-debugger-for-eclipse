@@ -1,32 +1,54 @@
 package org.learningfromexperience.agentdebug.setup;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
-/** Lightweight detection checks runnable without installing Claude Code.
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/**
+ * Unit tests (JUnit 5) for finding the Claude Code CLI ({@link ClaudeCodeConfigurator#locateClaude}).
+ * Uses an empty placeholder {@code claude.exe} in a JUnit temporary folder; Claude Code is not needed and
+ * never started. Run by {@code mvn clean package}.
  *
  * @author Ayan Dutta
  */
-public final class ClaudeCodeDetectionTest {
-    public static void main(String[] args) throws Exception {
-        Path home = Files.createTempDirectory("agentdebug-detection-");
-        try {
-            Path installDir = Files.createDirectories(home.resolve(".local").resolve("bin"));
-            Path cli = Files.createFile(installDir.resolve("claude.exe"));
+class ClaudeCodeDetectionTest {
 
-            Path byFallback = ClaudeCodeConfigurator.locateClaude(Map.of(), "Windows 11", home);
-            if (!cli.equals(byFallback)) throw new AssertionError("Failed to detect native Claude install");
+    @TempDir
+    Path home;
 
-            Path byPath = ClaudeCodeConfigurator.locateClaude(Map.of("Path", installDir.toString()), "Windows 11", home);
-            if (!cli.equals(byPath)) throw new AssertionError("Failed case-insensitive PATH detection");
+    private Path installDir;
+    private Path cli;
 
-            System.out.println("ClaudeCodeDetectionTest passed");
-        } finally {
-            Files.deleteIfExists(home.resolve(".local/bin/claude.exe"));
-            Files.deleteIfExists(home.resolve(".local/bin"));
-            Files.deleteIfExists(home.resolve(".local"));
-            Files.deleteIfExists(home);
-        }
+    @BeforeEach
+    void createPlaceholderCli() throws Exception {
+        installDir = Files.createDirectories(home.resolve(".local").resolve("bin"));
+        cli = Files.createFile(installDir.resolve("claude.exe"));
+    }
+
+    @Test
+    @DisplayName("CD-U1 the native installer location ~/.local/bin is found when PATH has no claude")
+    void cdU1() {
+        assertEquals(cli, ClaudeCodeConfigurator.locateClaude(Map.of(), "Windows 11", home));
+    }
+
+    @Test
+    @DisplayName("CD-U2 the Windows 'Path' variable is read case-insensitively")
+    void cdU2() {
+        assertEquals(cli, ClaudeCodeConfigurator.locateClaude(Map.of("Path", installDir.toString()), "Windows 11", home));
+    }
+
+    @Test
+    @DisplayName("CD-U3 a missing CLI gives a clear error instead of a wrong path")
+    void cdU3() throws Exception {
+        Files.delete(cli);
+        assertThrows(IllegalStateException.class, () -> ClaudeCodeConfigurator.locateClaude(Map.of(), "Windows 11", home));
     }
 }
