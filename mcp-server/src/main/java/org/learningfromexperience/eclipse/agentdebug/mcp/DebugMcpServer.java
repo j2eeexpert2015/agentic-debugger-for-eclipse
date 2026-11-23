@@ -372,14 +372,36 @@ public class DebugMcpServer {
                 List.of("launchName","threadIndex","action"),
                 a -> "CONTROL_DEBUG " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
                         + " " + enc(arg(a,"action")) + optionalId(a)));
-        allTools.add(bridgeTool("get_process_output", "Read captured stdout and stderr for a debug launch.",
+        allTools.add(bridgeTool("wait_for_stop",
+                "Wait (1-60 s) for the next debugger stop in this launch - breakpoint, exception, step end or pause - "
+                        + "and get everything about it in one call: reason (BREAKPOINT, EXCEPTION, STEP_END, PAUSED), "
+                        + "thread name and index, location, top 5 stack frames and the top frame's local variables "
+                        + "(and the exception type for EXCEPTION; localsNote explains missing locals, e.g. in a "
+                        + "native method after a pause). Event-based: reports the thread that actually stopped. "
+                        + "Each stop is reported once, including a stop that happened just before this call, so call it "
+                        + "right after start_*, RESUME or a step. Returns stopped=false with reason TIMEOUT or TERMINATED "
+                        + "otherwise. Does not resume or change anything. Prefer this over wait_for_debug_pause + "
+                        + "get_debug_threads + get_stack_frames + get_frame_variables.",
+                Map.of("launchName",str(),"timeoutSeconds",integer()), List.of("launchName","timeoutSeconds"),
+                a -> {
+                    int seconds = intArg(a,"timeoutSeconds");
+                    if (seconds < 1 || seconds > 60) throw new IllegalArgumentException("timeoutSeconds must be 1-60");
+                    return "WAIT_FOR_STOP " + enc(arg(a,"launchName")) + " " + (seconds * 1000);
+                }));
+        allTools.add(bridgeTool("get_process_output",
+                "Read captured stdout and stderr for a debug launch. Output up to 8000 characters is returned "
+                        + "in full; longer output returns the first 4000 and the last 4000 characters with an "
+                        + "omission marker, plus the total length (stdoutChars, stderrChars, consoleChars). "
+                        + "When the Eclipse Console is open, program output is often only in the 'console' field "
+                        + "and stdout/stderr are empty; read 'console' first.",
                 Map.of("launchName",str()), List.of("launchName"),
                 a -> "GET_PROCESS_OUTPUT " + enc(arg(a,"launchName"))));
 
         allTools.add(SyncToolSpecification.builder()
                 .tool(Tool.builder("wait_for_debug_pause", schema(
                         Map.of("launchName",str(),"timeoutSeconds",integer()), List.of("launchName","timeoutSeconds")))
-                        .description("Wait up to 60 seconds for a thread to suspend, without resuming it.").build())
+                        .description("Legacy: wait up to 60 seconds until any thread is suspended, without resuming it. "
+                                + "Prefer wait_for_stop, which reports the exact stop and its details in one call.").build())
                 .callHandler((exchange, request) -> {
                     try {
                         Map<String,Object> a = request.arguments();
@@ -533,6 +555,7 @@ public class DebugMcpServer {
     static int readTimeoutMillis(String command) {
         int space = command.indexOf(' ');
         String name = space < 0 ? command : command.substring(0, space);
+        if ("WAIT_FOR_STOP".equals(name)) return 75_000;   // Eclipse deadline 70 s (BridgeCommands.WAITING)
         return LONG_RUNNING_COMMANDS.contains(name) ? 125_000 : 30_000;
     }
 

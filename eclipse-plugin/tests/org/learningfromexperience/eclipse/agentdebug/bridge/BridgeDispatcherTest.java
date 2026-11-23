@@ -172,6 +172,10 @@ public final class BridgeDispatcherTest {
                 "launch has long deadline");
         require(BridgeCommands.deadlineMillis("SET_BREAKPOINT") < 30_000, "ordinary change answers before old 30 s clients");
         require(BridgeCommands.isClassified("LIST_DEBUG_SESSIONS"), "server-side command classified");
+        require(BridgeCommands.lane("WAIT_FOR_STOP") == BridgeCommands.Lane.READ, "WAIT_FOR_STOP changes nothing: READ lane");
+        require(BridgeCommands.deadlineMillis("WAIT_FOR_STOP") == BridgeCommands.WAIT_DEADLINE_MS
+                && BridgeCommands.WAIT_DEADLINE_MS > 60_000 && BridgeCommands.WAIT_DEADLINE_MS < 75_000,
+                "WAIT_FOR_STOP deadline covers a 60 s wait and stays below the MCP 75 s socket timeout");
         if (operationsSource == null) {
             System.out.println("  (source scan skipped: no EclipseAgentOperations.java path given)");
             return;

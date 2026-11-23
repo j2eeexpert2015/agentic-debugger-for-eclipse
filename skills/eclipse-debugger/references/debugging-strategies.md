@@ -50,7 +50,7 @@ For exceptions: actual throwing frame → method that created invalid state → 
 
 Before retrying a failed stop, inspect status and process output: wrong launch? JVM terminated? method never called? wrong line? app server not ready? another session suspended? JUnit method misselected? Retrying an identical action without changing a failed assumption is wasteful.
 
-Prefer 1–3 strategic stops initially, adding another only to resolve a live hypothesis. Use `wait_for_debug_pause` with a bounded timeout (server accepts 1–60 seconds). Check state between resumes. Avoid collecting entire collections/logs or repeatedly evaluating an expression.
+Prefer 1–3 strategic stops initially, adding another only to resolve a live hypothesis. Use `wait_for_stop` with a bounded timeout (server accepts 1–60 seconds); it reports the stop reason, thread, location and locals in one call. Check state between resumes. Avoid collecting entire collections/logs or repeatedly evaluating an expression.
 
 When evidence is insufficient: write `Observed`, `Inferred`, `Not established`. Explicitly stop rather than assert a root cause not witnessed. Tool-call count is secondary to correctness and safety.
 

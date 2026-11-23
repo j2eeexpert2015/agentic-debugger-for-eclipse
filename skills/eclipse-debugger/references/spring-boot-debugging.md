@@ -14,7 +14,7 @@ A Spring Boot app is debugged through the **existing Eclipse Java/JDT launch**, 
 2. Validate host, port and environment before sending any request. Do not run non-idempotent `POST`/`PUT`/`DELETE` or change production state without explicit approval. `localhost` alone is not enough if the selected process is uncertain.
 3. Place one or a few relevant breakpoints **before** triggering a request. Choose controller, service, validator or repository only where source evidence shows those components.
 4. Trigger the single approved request or ask user to do so. Because the request thread may be suspended, the HTTP client may wait for resume; this is expected, not automatically a timeout defect.
-5. Use `wait_for_debug_pause`, `get_debug_threads`, `get_stack_frames`, `get_frame_variables` and targeted stepping to follow **the actual suspended request thread**. Never assume the most recently selected thread belongs to the request.
+5. Use `wait_for_stop` (it names the exact stopped thread), then `get_debug_threads`, `get_stack_frames`, `get_frame_variables` and targeted stepping to follow **the actual suspended request thread**. Never assume the most recently selected thread belongs to the request.
 6. Observe the response status/body after resuming the request. Correlate response and exact tested request. Diagnose first wrong value/branch in the actual observed path; don't assume code executes in a fixed controller → service → repository order.
 7. Finish only investigation-owned resources. For long-lived services, ensure user-owned/borrowed servers remain running.
 

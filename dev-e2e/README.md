@@ -35,14 +35,14 @@ java dev-e2e/DevE2E.java test --groups bridge
 | `boot-gaps` | 7: two-mains, junit-invalid-method, two-services, startup-failure, readiness-timeout, port-conflict, owned-isolation |
 | **Total** | **23** |
 
-The opt-in `bridge` group (4 scenarios) is run separately; see [Bridge stability tests](#bridge-stability-tests-core-13).
+The opt-in `bridge` group (4 scenarios) and `stops` group (6 scenarios) are run separately; see [Bridge stability tests](#bridge-stability-tests-core-13) and [Stop event tests](#stop-event-and-output-tests-core-14-core-15).
 
 ## Bridge stability tests (CORE-13)
 
 Two levels, both separate from the 23-scenario regression (the `bridge` group is **not** included in a plain `test` run):
 
 ```cmd
-:: 1. Unit tests — no Eclipse, no Maven, about 15 s (BR-U1..BR-U13)
+:: 1. Unit tests — no Eclipse, no Maven, about 15 s (BR-U1..BR-U13 and OUT-U1..OUT-U5)
 java dev-e2e/BridgeUnitTests.java
 
 :: 2. Fault injection against the installed bridge in the dedicated Eclipse (about 45 s)
@@ -84,6 +84,26 @@ Rollback: `AGENTDEBUG_BRIDGE_MODE=legacy` (no reinstall), or revert the CORE-13 
 **CORE-13 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** baseline on the previous build 3× 23/23; new build: unit 13/13, 3 consecutive uninterrupted 23/23 runs, `bridge` 4/4. Open: legacy-mode comparison, ownership 32/32, overnight loop, MCP version mix.
 
 **Eclipse console output:** when DevE2E starts the dedicated Eclipse, its console goes to `e2e-runner/target/eclipse-console.log`. It must never be left as an unread pipe — once the pipe fills, every console write inside Eclipse blocks (the cause of the earlier `boot-gaps` timeouts).
+
+## Stop event and output tests (CORE-14, CORE-15)
+
+The opt-in `stops` group checks `WAIT_FOR_STOP` and `GET_PROCESS_OUTPUT` on the installed bridge (about 1 minute). It uses only the existing `phase-one-debugging` fixture classes, runs every scenario in its own `NORMAL` investigation and cleans up its launches and breakpoints. It needs a deployed build that contains `WAIT_FOR_STOP`; otherwise it stops at once with *"Bridge has no WAIT_FOR_STOP"*.
+
+```cmd
+java dev-e2e/DevE2E.java test --groups stops
+java dev-e2e/DevE2E.java test --tests stops:step
+```
+
+| Scenario | Checks | Pass if |
+|---|---|---|
+| `breakpoint` | ST-E1 | `StepFilterApplication` breakpoint: one call returns `BREAKPOINT`, the breakpoint type/line, location `main` at that line, frames and locals `args`, `values`; a second call times out (the stop is not reported twice) |
+| `step` | ST-E2 | `STEP_OVER` gives `STEP_END` on the next line with no breakpoint named; after `RESUME`, the call returns `TERMINATED` promptly instead of waiting for the timeout |
+| `exception` | ST-E3 | Exception breakpoint on `IllegalStateException`: `EXCEPTION` with `exceptionType`, stopped in `ExceptionApplication.processOrder` (internal JVM throws of the same type are skipped, at most 5) |
+| `pause` | ST-E4 | `LongRunningApplication`: no stop while running (`TIMEOUT`), then `PAUSE` gives `PAUSED` on the main thread, even when it stops inside a native method such as `Thread.sleep` (locals then empty, with `localsNote`) |
+| `terminated` | ST-E5 | A program with no breakpoints gives `TERMINATED` well before the timeout |
+| `output` | OUT-E1 | Stopped at `OrderBatchApplication` `Thread.sleep(3000)`: `Order 1057 total` appears in `stdout` or `console` (Eclipse usually keeps it only in `console`); `stdoutChars`, `stderrChars`, `consoleChars` present; short output returned whole |
+
+**CORE-14/15 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** after deploying the build with the native-frame fix, `all --approve-fixture-post` 23/23 and `test --groups stops` 6/6, all `cleanup=true`. Breakpoint stop reported in 0.65 s; `TERMINATED` reported 6 ms after resume and 0.5 s after a run without breakpoints; output found in `console` (`stdoutChars=0`, `consoleChars=26`). First run before the fix: 4/6 (pause failed reading locals of `Thread.sleep`; output test expected `stdout`).
 
 ## Claude trial captures — separate from direct regression
 

@@ -51,9 +51,14 @@ public final class EclipseAgentOperations {
     private final EclipseBreakpointService breakpoints = new EclipseBreakpointService();
     private final AgentDebugUiCoordinator ui = new AgentDebugUiCoordinator();
     private final DebugInvestigationPolicy investigations = new DebugInvestigationPolicy();
+    /** Records real debugger stops for WAIT_FOR_STOP (event-based, no polling). */
+    private final DebugStopTracker stops = new DebugStopTracker();
 
-    /** Remove the UI event listener when the bridge shuts down. */
-    public void close() { ui.close(); }
+    /** Remove the UI and stop event listeners when the bridge shuts down. */
+    public void close() {
+        ui.close();
+        stops.close();
+    }
 
     public String execute(String command) {
         try {
@@ -84,6 +89,7 @@ public final class EclipseAgentOperations {
                 case "SHOW_DEBUG_LOCATION" -> showDebugLocation(p);
                 case "GET_UI_STATUS" -> ok(",\"navigation\":" + q(ui.status()));
                 case "GET_THREADS" -> getThreads(p);
+                case "WAIT_FOR_STOP" -> waitForStop(p);
                 case "GET_STACK" -> getStack(p);
                 case "GET_VARIABLES" -> getVariables(p);
                 case "EVALUATE_EXPRESSION" -> evaluateExpression(p);
@@ -634,6 +640,106 @@ public final class EclipseAgentOperations {
                 + ",\"disconnected\":" + t.isDisconnected() + ",\"suspended\":" + suspended);
     }
 
+    /**
+     * WAIT_FOR_STOP launchName timeoutMillis — waits for the next real debugger stop of the launch
+     * (event-based, see {@link DebugStopTracker}) and returns, in one reply, the stop reason, the
+     * thread, its location, the top stack frames and the top frame's locals. Each stop is reported
+     * once. Replies with stopped=false and reason TIMEOUT or TERMINATED otherwise.
+     */
+    private String waitForStop(String[] p) throws Exception {
+        String name = require(p, 1);
+        int timeout = number(p, 2);
+        if (timeout < 0 || timeout > 60_000) throw new IllegalArgumentException("timeout must be 0-60000 ms");
+        ILaunch launch = launchForWait(name);
+        DebugStopTracker.Outcome outcome = stops.waitForStop(launch, timeout);
+        if (outcome.stop() == null) {
+            return ok(",\"stopped\":false,\"reason\":" + q(outcome.terminated() ? "TERMINATED" : "TIMEOUT")
+                    + ",\"launchName\":" + q(name));
+        }
+        DebugStopTracker.Stop stop = outcome.stop();
+        IThread thread = stop.thread();
+        ui.follow(launch);
+        int index = -1;
+        IThread[] threads = target(launch).getThreads();
+        for (int i = 0; i < threads.length; i++) if (threads[i] == thread) index = i;
+        // Frames and locals are read separately: a frame without readable locals (for example a
+        // native method such as Thread.sleep after a pause) must not hide the stop itself.
+        IStackFrame[] frames;
+        try {
+            frames = thread.getStackFrames();
+        } catch (org.eclipse.debug.core.DebugException unreadable) {
+            if (!thread.isSuspended()) {
+                throw new IllegalStateException("The thread resumed before its stop could be read; call wait_for_stop again");
+            }
+            throw new IllegalStateException("Stack of the stopped thread could not be read: " + unreadable.getMessage());
+        }
+        List<String> frameItems = new ArrayList<>();
+        for (int i = 0; i < Math.min(frames.length, 5); i++) {
+            IStackFrame f = frames[i];
+            String type = null, method = null;
+            int line = -1;
+            try {
+                type = f instanceof IJavaStackFrame j ? j.getDeclaringTypeName() : null;
+                method = f instanceof IJavaStackFrame j ? j.getMethodName() : f.getName();
+                line = f.getLineNumber();
+            } catch (org.eclipse.debug.core.DebugException unreadable) {
+                // Keep the frame with the fields that could be read.
+            }
+            frameItems.add("{\"index\":" + i + ",\"className\":" + q(type)
+                    + ",\"methodName\":" + q(method) + ",\"lineNumber\":" + line + "}");
+        }
+        List<String> locals = new ArrayList<>();
+        String localsNote = null;
+        if (frames.length > 0) {
+            try {
+                if (frames[0] instanceof IJavaStackFrame j && j.isNative()) {
+                    localsNote = "Native method: no local variables";
+                } else {
+                    int count = 0;
+                    for (IVariable v : frames[0].getVariables()) {
+                        if (++count > 50) break;
+                        String value;
+                        try {
+                            IValue raw = v.getValue();
+                            value = raw == null ? null : clipped(raw.getValueString(), 300);
+                        } catch (org.eclipse.debug.core.DebugException unreadable) {
+                            value = "<unreadable: " + unreadable.getMessage() + ">";
+                        }
+                        locals.add("{\"name\":" + q(v.getName()) + ",\"type\":" + q(v.getReferenceTypeName())
+                                + ",\"value\":" + q(value) + "}");
+                    }
+                }
+            } catch (org.eclipse.debug.core.DebugException unreadable) {
+                localsNote = "Local variables not available: " + unreadable.getMessage();
+            }
+        }
+        return ok(",\"stopped\":true,\"reason\":" + q(stop.reason().name())
+                + ",\"launchName\":" + q(name)
+                + ",\"threadIndex\":" + index + ",\"threadName\":" + q(thread.getName())
+                + (stop.breakpointType() == null ? "" : ",\"breakpoint\":{\"typeName\":" + q(stop.breakpointType())
+                    + ",\"lineNumber\":" + stop.breakpointLine() + "}")
+                + (stop.exceptionType() == null ? "" : ",\"exceptionType\":" + q(stop.exceptionType()))
+                + ",\"location\":" + (frameItems.isEmpty() ? "null" : frameItems.get(0))
+                + ",\"frames\":[" + String.join(",", frameItems) + "]"
+                + ",\"totalFrames\":" + frames.length
+                + ",\"locals\":[" + String.join(",", locals) + "]"
+                + (localsNote == null ? "" : ",\"localsNote\":" + q(localsNote)));
+    }
+
+    /** The active launch with this name, or else the most recent terminated one (to report TERMINATED). */
+    private static ILaunch launchForWait(String name) {
+        ILaunch active = activeLaunch(name);
+        if (active != null) return active;
+        ILaunch latest = null;
+        for (var current : manager().getLaunches()) {
+            var c = current.getLaunchConfiguration();
+            if (ILaunchManager.DEBUG_MODE.equals(current.getLaunchMode()) && c != null && c.getName().equals(name))
+                latest = current;
+        }
+        if (latest == null) throw new IllegalArgumentException("Debug launch not found: " + name);
+        return latest;
+    }
+
     private String getThreads(String[] p) throws CoreException {
         IThread[] threads = target(launch(require(p, 1))).getThreads();
         List<String> items = new ArrayList<>();
@@ -793,6 +899,7 @@ private String verifyOwnedFixtureLaunch(String[] p) throws CoreException {
             String stderr = streams == null || streams.getErrorStreamMonitor() == null ? null
                     : streams.getErrorStreamMonitor().getContents();
             String consoleText = null;
+            int consoleChars = 0;
             var console = org.eclipse.debug.ui.DebugUITools.getConsole(process);
             if (console instanceof org.eclipse.debug.ui.console.IConsole processConsole) {
                 var document = processConsole.getDocument();
@@ -800,15 +907,24 @@ private String verifyOwnedFixtureLaunch(String[] p) throws CoreException {
                     Object lock = document instanceof org.eclipse.jface.text.ISynchronizable sync ? sync.getLockObject() : null;
                     synchronized (lock == null ? document : lock) {
                         try {
-                            consoleText = document.get(0, Math.min(document.getLength(), 4000));
+                            consoleChars = document.getLength();
+                            // Beginning and end, not just the beginning (see TextWindow).
+                            consoleText = consoleChars <= TextWindow.HEAD + TextWindow.TAIL
+                                    ? document.get(0, consoleChars)
+                                    : document.get(0, TextWindow.HEAD)
+                                        + TextWindow.marker(consoleChars - TextWindow.HEAD - TextWindow.TAIL)
+                                        + document.get(consoleChars - TextWindow.TAIL, TextWindow.TAIL);
                         } catch (org.eclipse.jface.text.BadLocationException ignored) {
                             // The console may be trimmed while its output is read.
                         }
                     }
                 }
             }
-            items.add("{\"label\":" + q(process.getLabel()) + ",\"stdout\":" + q(clipped(stdout, 4000))
-                    + ",\"stderr\":" + q(clipped(stderr, 4000)) + ",\"console\":" + q(consoleText) + "}");
+            items.add("{\"label\":" + q(process.getLabel()) + ",\"stdout\":" + q(TextWindow.headAndTail(stdout))
+                    + ",\"stderr\":" + q(TextWindow.headAndTail(stderr)) + ",\"console\":" + q(consoleText)
+                    + ",\"stdoutChars\":" + (stdout == null ? 0 : stdout.length())
+                    + ",\"stderrChars\":" + (stderr == null ? 0 : stderr.length())
+                    + ",\"consoleChars\":" + consoleChars + "}");
         }
         return ok(",\"processes\":[" + String.join(",", items) + "]");
     }

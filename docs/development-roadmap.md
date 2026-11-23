@@ -10,7 +10,7 @@
 | **1** | **P0** | **CORE-13 bridge stability — done (23 Nov 2026).** Parallel reads, ordered state changes, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, operation tracking and timing log. Gate met: 3 consecutive uninterrupted 23/23 runs. The bridge log identified the cause of the earlier `boot-gaps` timeouts (console output blocking on an unread pipe), now fixed. Remaining: legacy comparison, ownership 32/32, overnight loop |
 | 2 | P0 | **Automated transcript grading and independent post-cleanup evidence**, plus an uninterrupted updated 23/23 regression |
 | 3 | P0 | Safe fixture synchronization into marker-verified disposable workspace |
-| 4 | P0 | Event-correlated debugger stop: exact launch/thread/reason, no stale matches |
+| 4 | P0 | **CORE-14 event-correlated debugger stop — done (23 Nov 2026).** `wait_for_stop`: exact launch/thread/reason, no stale or repeated stops, full stop context in one call. With CORE-15 (output head+tail). Gate met: unchanged 23/23, `stops` group 6/6 on the installed build. Taken before item 2 so the evaluator measures the new wait |
 | 5 | P0 | Full user-resource isolation under concurrent sessions, markers and configurations |
 | 6 | P1 | Repeat controlled no-skill Claude trials, then optional skill activation and A/B comparison |
 | 7 | P1 | Run to Line and consent-gated Change Variable Value, each with negative cases |

@@ -334,11 +334,13 @@ public class DevE2E {
         for (String file : List.of("PhaseOneBridgeVerifier.java", "PhaseTwoBridgeVerifier.java",
                 "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java"))
             compile.add(sources.resolve(file).toString());
-        for (String optional : List.of("PendingAcceptanceVerifier.java", "BootGapVerifier.java", "BridgeFaultVerifier.java")) {
+        for (String optional : List.of("PendingAcceptanceVerifier.java", "BootGapVerifier.java", "BridgeFaultVerifier.java",
+                "StopEventVerifier.java")) {
             Path sourceFile = sources.resolve(optional);
             boolean required = (optional.startsWith("Pending") && selection.containsKey("acceptance"))
                     || (optional.startsWith("BootGap") && selection.containsKey("boot-gaps"))
-                    || (optional.startsWith("BridgeFault") && selection.containsKey("bridge"));
+                    || (optional.startsWith("BridgeFault") && selection.containsKey("bridge"))
+                    || (optional.startsWith("StopEvent") && selection.containsKey("stops"));
             if (required) check(Files.isRegularFile(sourceFile),
                     "Missing " + optional + ". Update the repository to the current source before running this group.");
             if (Files.isRegularFile(sourceFile)) compile.add(sourceFile.toString());
@@ -400,6 +402,11 @@ public class DevE2E {
                     args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BridgeFaultVerifier",
                         "--port",Integer.toString(port),"--scenario",scenario,"--output",report.toString()));
                 }
+                case "stops" -> {
+                    // CORE-14/15: event-based wait_for_stop and process output, on phase-one fixtures.
+                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.StopEventVerifier",
+                        "--root",repo.toString(),"--scenario",scenario,"--output",report.toString()));
+                }
                 case "boot-gaps" -> {
                     args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BootGapVerifier",
                         "--root",repo.toString(),"--workspace",workspace.toString(),
@@ -424,7 +431,8 @@ public class DevE2E {
         "acceptance", Set.of("all","core-step-into-out","sb01-target-selection","sb09-borrowed-session","sb09-expired-owner"),
         "boot-gaps", Set.of("all","two-mains","junit-invalid-method","two-services","startup-failure","readiness-timeout","port-conflict","owned-isolation"),
         "claude", Set.of("all","boot-quote","junit","validation"),
-        "bridge", Set.of("all","slow-command","busy","parallel-load","auth"));
+        "bridge", Set.of("all","slow-command","busy","parallel-load","auth"),
+        "stops", Set.of("all","breakpoint","step","exception","pause","terminated","output"));
     private static LinkedHashMap<String,List<String>> select(String[] args) {
         LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
         String groups=null, tests=null;
@@ -459,7 +467,7 @@ public class DevE2E {
     }
     public static void main(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
-            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps|bridge] [--tests acceptance:core-step-into-out,boot-gaps:two-mains,bridge:busy] [--approve-fixture-post]");
+            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps|bridge|stops] [--tests acceptance:core-step-into-out,boot-gaps:two-mains,bridge:busy,stops:step] [--approve-fixture-post]");
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
             System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
@@ -474,7 +482,7 @@ public class DevE2E {
         x.describe();
         if (args[0].equals("config")) return;
         if (args[0].equals("list")) {
-            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","bridge","claude")) {
+            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps","bridge","stops","claude")) {
                 System.out.println(group + ": " + String.join(", ", new TreeSet<>(SCENARIOS.get(group))));
             }
             return;

@@ -36,6 +36,8 @@ public final class BridgeCommands {
             "EXPAND_VARIABLE",
             "GET_PROCESS_OUTPUT",
             "VERIFY_OWNED_FIXTURE_LAUNCH",
+            // Waits up to 60 s for a debugger stop but changes nothing (see WAITING below).
+            "WAIT_FOR_STOP",
             // Bridge-level commands answered by the dispatcher itself.
             "GET_OPERATION",
             "GET_BRIDGE_DIAGNOSTICS");
@@ -75,7 +77,14 @@ public final class BridgeCommands {
             "FINISH_INVESTIGATION",
             "PREPARE_SMOKE_TEST");
 
+    /**
+     * Read-only commands that deliberately wait (up to 60 s). They run in the READ lane but get a
+     * longer deadline. The MCP server's socket timeout for them must stay longer than this.
+     */
+    static final Set<String> WAITING = Set.of("WAIT_FOR_STOP");
+
     static final long READ_DEADLINE_MS = 15_000;
+    static final long WAIT_DEADLINE_MS = 70_000;
     /** Below the 30 s socket timeout of older MCP servers, so they still receive a reply. */
     static final long MUTATE_DEADLINE_MS = 25_000;
     static final long LONG_DEADLINE_MS = 120_000;
@@ -98,6 +107,7 @@ public final class BridgeCommands {
     }
 
     public static long deadlineMillis(String name) {
+        if (WAITING.contains(name)) return WAIT_DEADLINE_MS;
         if (READ_ONLY.contains(name)) return READ_DEADLINE_MS;
         return LONG_RUNNING.contains(name) ? LONG_DEADLINE_MS : MUTATE_DEADLINE_MS;
     }

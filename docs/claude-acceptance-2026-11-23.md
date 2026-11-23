@@ -29,7 +29,7 @@ Six suites contain **23** direct Java/JDT scenarios: `phase1` (7), `phase2` (2),
 - Eclipse bridge uses authenticated localhost transport; Java debugger commands run through JDT. The runner reads `dev-e2e/e2e.properties` and isolates the dedicated bridge port (observed `21766`).
 - The test launcher uses the freshly built shaded `mcp-server/target/agentic-debugger-mcp-1.0.0-SNAPSHOT.jar` for these E2E Claude sessions; it must **not** assume the user-scoped staged JAR was refreshed by Eclipse deployment. The normal user's `eclipse-debugger` registration is unchanged by E2E configuration.
 - `FixtureHttpTools` provides `start_fixture_http_request`, `get_fixture_http_request`, `cancel_fixture_http_request`: a constrained asynchronous local request path, not arbitrary URL/body access. It was built/deployed successfully and exercised by the two Claude HTTP trials.
-- `wait_for_debug_pause` still polls and does not offer exact event stop correlation; successful runs do not remove that limitation.
+- These trials used `wait_for_debug_pause`, which polls and does not offer exact event stop correlation. The event-based `wait_for_stop` (CORE-14) was added afterwards and is not part of this evidence.
 - The source was compiled and installed using Maven/Tycho on Windows/JDK 25; no proof of a signed/released artifact, STS-specific launches, Linux/macOS, remote JVMs or other MCP clients.
 
 ## Reproduction commands (from repository root)
