@@ -14,15 +14,16 @@ if /i not "%AGENTDEBUG_APPROVE_FIXTURE_POST%"=="YES" goto no_consent
 set "classes=e2e-runner\target\phase2-classes"
 if not exist "%classes%" mkdir "%classes%"
 if errorlevel 1 goto failed
-echo [Phase 2] Compiling Java bridge verifier...
+echo [Phase 2] Compile pure Java verifier and HTTP client...
 javac --release 21 -encoding UTF-8 -d "%classes%" ^
  "e2e-runner\src\main\java\org\learningfromexperience\agentdebug\e2e\PhaseOneBridgeVerifier.java" ^
- "e2e-runner\src\main\java\org\learningfromexperience\agentdebug\e2e\PhaseTwoBridgeVerifier.java"
+ "e2e-runner\src\main\java\org\learningfromexperience\agentdebug\e2e\PhaseTwoBridgeVerifier.java" ^
+ "e2e-runner\src\main\java\org\learningfromexperience\agentdebug\e2e\JavaFixtureQuoteClient.java"
 if errorlevel 1 goto failed
-echo [Phase 2] Running %mode% against disposable Eclipse...
+echo [Phase 2] Run %mode% with Java HTTP client...
 java -cp "%classes%" org.learningfromexperience.agentdebug.e2e.PhaseTwoBridgeVerifier ^
  --root "." --workspace "%AGENTDEBUG_WORKSPACE%" --port "%AGENTDEBUG_PORT%" ^
- --scenario "%mode%" --approve-fixture-post
+ --scenario "%mode%" --approve-fixture-post --http-client java
 if errorlevel 1 goto failed
 echo [Phase 2] PASS. Inspect evaluation\reports\phase2-live.json
 set "rc=0"

@@ -55,7 +55,7 @@ The [MCP tool definitions](../mcp-server/src/main/java/org/learningfromexperienc
 
 ## P2-04 HTTP quote investigation
 
-A direct bridge probe and one fresh Claude Sonnet 5.5 session each debugged a separate real POST on Windows candidate `1.5.0.20261121194127738`. The explicit prompt included numbered fixture source and named the three boundaries. The [fixture client](../e2e-runner/boot-tests/Invoke-FixtureQuote.ps1) sent each approved request and wrote its HTTP receipt. Claude controlled the Eclipse investigation and read the receipt after resuming the request.
+A direct bridge probe and one fresh Claude Sonnet 5.5 session each debugged a separate real POST on Windows candidate `1.5.0.20261121194127738`. The explicit prompt included numbered fixture source and named the three boundaries. The historical PowerShell fixture client (now replaced by [JavaFixtureQuoteClient.java](../e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/JavaFixtureQuoteClient.java)) sent each approved request and wrote its HTTP receipt. Claude controlled the Eclipse investigation and read the receipt after resuming the request.
 
 | Boundary | Observed evidence |
 |---|---|

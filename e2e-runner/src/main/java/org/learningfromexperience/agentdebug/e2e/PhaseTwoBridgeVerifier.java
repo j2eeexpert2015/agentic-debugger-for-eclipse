@@ -65,8 +65,8 @@ public final class PhaseTwoBridgeVerifier {
         // PhaseOneBridgeVerifier.Bridge reads AGENTDEBUG_PORT at class initialization.
         if (Integer.parseInt(System.getenv().getOrDefault("AGENTDEBUG_PORT", "8765")) != port)
             throw new IllegalArgumentException("Set AGENTDEBUG_PORT to exactly --port before invocation");
-        String httpClient = options.getOrDefault("http-client", "powershell");
-        if (!List.of("powershell", "java").contains(httpClient)) throw new IllegalArgumentException("--http-client must be java or powershell");
+        String httpClient = options.getOrDefault("http-client", "java");
+        if (!"java".equals(httpClient)) throw new IllegalArgumentException("--http-client must be java or powershell");
         PhaseTwoBridgeVerifier v = new PhaseTwoBridgeVerifier(root, ws.toRealPath(), output, port, "java".equals(httpClient));
         v.preflight();
         v.run(selected);
@@ -209,31 +209,23 @@ public final class PhaseTwoBridgeVerifier {
         }
     }
 
-    private Process startHttpFixtureClient(String launch, Path receipt, boolean approved, boolean invalid,
-            Path clientLog) throws IOException {
-        List<String> args;
-        if (javaHttpClient) {
-            String java = Path.of(System.getProperty("java.home"), "bin",
-                    System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java").toString();
-            Path classes = root.resolve("e2e-runner/target/phase2-classes");
-            if (!Files.isRegularFile(classes.resolve("org/learningfromexperience/agentdebug/e2e/JavaFixtureQuoteClient.class")))
-                throw new IOException("Compile JavaFixtureQuoteClient into e2e-runner/target/phase2-classes first");
-            args = new ArrayList<>(List.of(java, "-cp", classes.toString(),
-                    JavaFixtureQuoteClient.class.getName(), "--workspace", workspace.toString(),
-                    "--bridge-port", Integer.toString(port), "--launch-name", launch, "--receipt", receipt.toString()));
-            if (approved) args.add("--approve-fixture-post");
-            if (invalid) args.add("--invalid-quantity");
-        } else {
-            args = new ArrayList<>(List.of("powershell.exe", "-NoProfile", "-File",
-                    root.resolve("e2e-runner/boot-tests/Invoke-FixtureQuote.ps1").toString(),
-                    "-Workspace", workspace.toString(), "-BridgePort", Integer.toString(port),
-                    "-LaunchName", launch, "-Receipt", receipt.toString()));
-            if (approved) args.add("-ApproveFixturePost");
-            if (invalid) args.add("-InvalidQuantity");
-        }
-        return new ProcessBuilder(args).redirectErrorStream(true)
-                .redirectOutput(clientLog.toFile()).start();
-    }
+// JAVA_HTTP_ONLY_CLIENT_V1: Java transport; no shell/PowerShell child process.
+private Process startHttpFixtureClient(String launch, Path receipt, boolean approved, boolean invalid,
+        Path clientLog) throws IOException {
+    String java = Path.of(System.getProperty("java.home"), "bin",
+            System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java").toString();
+    Path classes = root.resolve("e2e-runner/target/phase2-classes");
+    if (!Files.isRegularFile(classes.resolve("org/learningfromexperience/agentdebug/e2e/JavaFixtureQuoteClient.class")))
+        throw new IOException("Compile JavaFixtureQuoteClient first");
+    List<String> args = new ArrayList<>(List.of(java, "-cp", classes.toString(),
+            JavaFixtureQuoteClient.class.getName(), "--workspace", workspace.toString(),
+            "--bridge-port", Integer.toString(port), "--launch-name", launch,
+            "--receipt", receipt.toString()));
+    if (approved) args.add("--approve-fixture-post");
+    if (invalid) args.add("--invalid-quantity");
+    return new ProcessBuilder(args).redirectErrorStream(true)
+            .redirectOutput(clientLog.toFile()).start();
+}
 
     private String launch(String owner) throws IOException {
         Map<String,Object> reply = bridge.call("START_JAVA_APPLICATION", false, PROJECT, PKG + "OrdersApplication", owner);
@@ -317,7 +309,7 @@ public final class PhaseTwoBridgeVerifier {
         return match;
     }
 
-    private static String usage() { return "--root PATH --workspace DISPOSABLE_ECLIPSE_WORKSPACE --port NONDEFAULT_PORT [--scenario all|validation|ownership] --approve-fixture-post [--http-client java|powershell] [--output REPORT]"; }
+    private static String usage() { return "--root PATH --workspace DISPOSABLE_ECLIPSE_WORKSPACE --port NONDEFAULT_PORT [--scenario all|validation|ownership] --approve-fixture-post [--http-client java] [--output REPORT]"; }
     private static int number(Object x) { return x instanceof Number n ? n.intValue() : Integer.parseInt(text(x)); }
     private static String text(Object x) { return x == null ? "" : x.toString(); }
     private static void require(boolean ok, String msg) { if(!ok) throw new AssertionError(msg); }

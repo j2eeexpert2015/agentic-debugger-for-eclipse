@@ -24,3 +24,6 @@ evaluation/skill-automation/*-backup-*/
 
 # Temporary installer backups
 evaluation/skill-automation/*-install-backup-*/
+
+# Java E2E paths/settings are specific to each developer machine
+/dev-e2e/e2e.properties
