@@ -316,12 +316,20 @@ public class DevE2E {
         Files.createDirectories(classes);
         Path sources = repo.resolve("e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e");
         System.out.println("== Compile Java E2E verifiers ==");
-        runProcess(List.of(javaBin("javac"), "--release", "21", "-encoding", "UTF-8", "-d", classes.toString(),
-            sources.resolve("PhaseOneBridgeVerifier.java").toString(),
-            sources.resolve("PhaseTwoBridgeVerifier.java").toString(),
-            sources.resolve("JavaFixtureQuoteClient.java").toString(),
-            sources.resolve("SpringBootDirectVerifier.java").toString(),
-            sources.resolve("SpringBootQuoteVerifier.java").toString()), repo, Map.of(), 120);
+        List<String> compile = new ArrayList<>(List.of(javaBin("javac"), "--release", "21", "-encoding", "UTF-8",
+                "-d", classes.toString()));
+        for (String file : List.of("PhaseOneBridgeVerifier.java", "PhaseTwoBridgeVerifier.java",
+                "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java"))
+            compile.add(sources.resolve(file).toString());
+        for (String optional : List.of("PendingAcceptanceVerifier.java", "BootGapVerifier.java")) {
+            Path sourceFile = sources.resolve(optional);
+            boolean required = (optional.startsWith("Pending") && selection.containsKey("acceptance"))
+                    || (optional.startsWith("BootGap") && selection.containsKey("boot-gaps"));
+            if (required) check(Files.isRegularFile(sourceFile),
+                    "Missing " + optional + ". Update the repository to the current source before running this group.");
+            if (Files.isRegularFile(sourceFile)) compile.add(sourceFile.toString());
+        }
+        runProcess(compile, repo, Map.of(), 120);
         startAndWait();
         Map<String,String> env = Map.of("AGENTDEBUG_PORT", Integer.toString(port));
         List<String> failures = new ArrayList<>();
@@ -352,6 +360,16 @@ public class DevE2E {
                         "--root",repo.toString(),"--workspace",workspace.toString(),"--port",Integer.toString(port),
                         "--approve-fixture-post","--output",report.toString()));
                 }
+                case "acceptance" -> {
+                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.PendingAcceptanceVerifier",
+                        "--root",repo.toString(),"--workspace",workspace.toString(),
+                        "--scenario",scenario,"--output",report.toString()));
+                }
+                case "boot-gaps" -> {
+                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BootGapVerifier",
+                        "--root",repo.toString(),"--workspace",workspace.toString(),
+                        "--port",Integer.toString(port),"--scenario",scenario,"--output",report.toString()));
+                }
                 default -> throw new IllegalArgumentException("Unknown suite: " + group);
             }
             System.out.println("== Java E2E: " + group + "/" + scenario + " ==");
@@ -367,7 +385,9 @@ public class DevE2E {
         "phase1", Set.of("all","conditional","exception","junit","variables","trace","pause-restart","filters"),
         "phase2", Set.of("all","validation","ownership"),
         "boot", Set.of("all","discovery","readiness"),
-        "boot-quote", Set.of("all","quote"));
+        "boot-quote", Set.of("all","quote"),
+        "acceptance", Set.of("all","core-step-into-out","sb01-target-selection","sb09-borrowed-session","sb09-expired-owner"),
+        "boot-gaps", Set.of("all","two-mains","junit-invalid-method","two-services"));
     private static LinkedHashMap<String,List<String>> select(String[] args) {
         LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
         String groups=null, tests=null;
@@ -386,7 +406,7 @@ public class DevE2E {
                 if (!cases.contains(parts[1])) cases.add(parts[1]);
             }
         } else {
-            String[] list=groups == null ? new String[]{"phase1","phase2","boot","boot-quote"} : groups.split(",");
+            String[] list=groups == null ? new String[]{"phase1","phase2","boot","boot-quote","acceptance","boot-gaps"} : groups.split(",");
             for(String raw:list) {
                 String g=raw.strip();
                 if (!SCENARIOS.containsKey(g)) throw new IllegalArgumentException("Unknown group: "+g);
@@ -402,19 +422,25 @@ public class DevE2E {
     }
     public static void main(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
-            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote] [--tests phase1:conditional,phase2:ownership] [--approve-fixture-post]");
+            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [--groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps] [--tests acceptance:core-step-into-out,boot-gaps:two-mains] [--approve-fixture-post]");
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
             System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
             return;
         }
-        if (!Set.of("config","integrate","cleanup","build","all","deploy","test").contains(args[0]))
+        if (!Set.of("config","integrate","cleanup","build","all","deploy","test","list").contains(args[0]))
             throw new IllegalArgumentException("Unknown mode: "+args[0]);
         Path root=Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         boolean approved=Arrays.asList(args).contains("--approve-fixture-post");
         DevE2E x=new DevE2E(root,args[0],approved);
         x.describe();
         if (args[0].equals("config")) return;
+        if (args[0].equals("list")) {
+            for (String group : List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps")) {
+                System.out.println(group + ": " + String.join(", ", new TreeSet<>(SCENARIOS.get(group))));
+            }
+            return;
+        }
         x.verifySources();
         if (args[0].equals("integrate") || args[0].equals("cleanup") || args[0].equals("all") || args[0].equals("deploy")) {
             x.integratePhase2JavaHttp();
