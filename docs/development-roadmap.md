@@ -7,7 +7,7 @@
 
 | Order | Priority | Target / evidence gate |
 |---|---|---|
-| **1** | **P0** | **CORE-13 bridge stability** — parallel reads, ordered state changes, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, operation tracking and timing log. Comes first because trial and regression results are not trustworthy while one slow command can stall the bridge (likely cause of the six `boot-gaps` timeouts). Gate: 3 consecutive uninterrupted 23/23 runs |
+| **1** | **P0** | **CORE-13 bridge stability — done (23 Nov 2026).** Parallel reads, ordered state changes, per-command deadlines, `BRIDGE_TIMEOUT`/`BRIDGE_BUSY`, operation tracking and timing log. Gate met: 3 consecutive uninterrupted 23/23 runs. The bridge log identified the cause of the earlier `boot-gaps` timeouts (console output blocking on an unread pipe), now fixed. Remaining: legacy comparison, ownership 32/32, overnight loop |
 | 2 | P0 | **Automated transcript grading and independent post-cleanup evidence**, plus an uninterrupted updated 23/23 regression |
 | 3 | P0 | Safe fixture synchronization into marker-verified disposable workspace |
 | 4 | P0 | Event-correlated debugger stop: exact launch/thread/reason, no stale matches |

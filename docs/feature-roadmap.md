@@ -51,7 +51,7 @@
 | CORE-09 | Managed Claude MCP registration | Implemented; installed preservation coverage pending | Existing unrelated registrations |
 | CORE-10 | Installed binary verification | Loaded class hashes matched | Match source revision and release ZIP |
 | CORE-11 | Windows build/deploy/doctor/test with fixture import | Fresh and repeat deployment recorded | Failure recovery, version changes |
-| CORE-13 | Bridge concurrency, deadlines and diagnostics: a slow launch never blocks status reads; every command answers with a result, `BRIDGE_TIMEOUT` or `BRIDGE_BUSY`; slow commands are logged with stack traces | **Implemented in source (23 Nov 2026)**; 13 unit checks and 4 fault-injection scenarios pass against the real bridge server with stand-in operations. **Not yet tested in installed Eclipse** | 3 consecutive uninterrupted 23/23 runs; legacy-mode parity; ownership 32/32; old/new MCP version mix |
+| CORE-13 | Bridge concurrency, deadlines and diagnostics: a slow launch never blocks status reads; every command answers with a result, `BRIDGE_TIMEOUT` or `BRIDGE_BUSY`; slow commands are logged with stack traces | **Tested on installed candidate (23 Nov 2026):** 3 consecutive uninterrupted 23/23 runs, bridge fault-injection 4/4, unit checks 13/13. Root cause of earlier timeouts found and fixed (Eclipse console output blocking on an unread pipe) | Legacy-mode comparison run; ownership 32/32; overnight loop; old/new MCP version mix |
 
 ### CORE-05 — Fundamental execution-control acceptance
 

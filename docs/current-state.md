@@ -12,7 +12,7 @@ Claude Code → MCP stdio server → authenticated localhost Eclipse bridge → 
 |---|---|
 | `eclipse-plugin/` | JDT execution control, bridge and investigation ownership |
 | `mcp-server/` | MCP tools and isolated test-only fixture HTTP reproduction |
-| `dev-e2e/` | Java 21 E2E runner, deployment and Claude capture |
+| `dev-e2e/` | Java 21 E2E runner, deployment, Claude capture and bridge unit-test runner |
 | `e2e-runner/`, `examples/` | Direct verifiers and intentionally buggy fixtures |
 | `skills/eclipse-debugger/` | Optional agent guidance, separate from code-enforced safety |
 | `docs/`, `maintenance/` | Documentation, evidence and one-time migration utilities |
@@ -23,8 +23,8 @@ See [capabilities](capabilities.md) for verified feature scope, [decisions](deci
 
 | Area | Verified evidence | Unverified boundary |
 |---|---|---|
-| Direct Java E2E | Historical uninterrupted **23/23 PASS** with reported cleanup | Fresh uninterrupted 23/23 on post-HTTP MCP build |
-| Latest direct sequence | First 16 PASS together before six Boot-gap timeouts; later Boot-gap **7/7 PASS** as a group, with two isolated cases passing | Cause of transient timeout and a complete updated-build run |
+| Direct Java E2E | **23/23 PASS in 3 consecutive uninterrupted runs** on the CORE-13 build (23 Nov 2026), all `cleanup=true` | Overnight loop; Linux/macOS |
+| Bridge stability (CORE-13) | Bridge fault injection **4/4**, unit checks **13/13**; earlier timeout cause found (console pipe) and fixed | Legacy-mode comparison run; 32 ownership checks |
 | Claude JUnit | Single-method discount diagnosis supported by Claude final-result capture | Independent full event verification; repeated reliability |
 | Claude Boot quote | Single event-verified trial: owned HTTP request breakpoint, `percent=10`, `rate=0`, HTTP 200, total `120.00`, cleanup response | Independent post-cleanup inventory and repeats |
 | Claude HTTP 400 | Single event-verified trial: invalid quantity, exception in `OrderService.quote`, HTTP 400/error body, cleanup response | Actual stop in handler (source/response identified handler); repeated trials |
@@ -34,7 +34,7 @@ Raw `.claude.jsonl`, manifests and direct JSON reports are under ignored `evalua
 
 ## Next priority and safe continuation
 
-1. **First — CORE-13 bridge stability** (implemented in source, not yet installed-verified). Likely cause of the six `boot-gaps` timeouts: the bridge served one connection at a time while synchronous launches of failing fixtures ran, so queued commands exceeded the 30 s client timeout and then ran late. Sequence: (a) record a **baseline on the current build** — 3 full runs, keep reports; (b) deploy, run `java dev-e2e/BridgeUnitTests.java` and `DevE2E test --groups bridge`; (c) **3 consecutive uninterrupted 23/23 runs**, plus one legacy-mode run (`AGENTDEBUG_BRIDGE_MODE=legacy`) for comparison and the 32 ownership checks; (d) read `~/.eclipse-agentdebug/bridge-<port>.log` to confirm which command was slow; on any later timeout, use that log and `GET_BRIDGE_DIAGNOSTICS` before patching anything. Full checklist: [dev-e2e/README.md](../dev-e2e/README.md#bridge-stability-tests-core-13).
+1. **Done — CORE-13 bridge stability (23 Nov 2026).** 3 consecutive uninterrupted 23/23 runs, bridge group 4/4, unit tests 13/13 on the installed Windows build. Root cause of the earlier `boot-gaps` timeouts: Eclipse console output blocking on an unread pipe (DevE2E now redirects it to `e2e-runner/target/eclipse-console.log`; diagnostic `println` removed from `listDebugSessions`). Still open for CORE-13: one legacy-mode comparison run (close the test Eclipse first so DevE2E starts it with `AGENTDEBUG_BRIDGE_MODE=legacy`), the 32 ownership checks, and an overnight loop. On any future timeout, read `~/.eclipse-agentdebug/bridge-<port>.log` and `GET_BRIDGE_DIAGNOSTICS` before patching. [Checklist](../dev-e2e/README.md#bridge-stability-tests-core-13).
 2. Build an independent Java Claude-transcript evaluator for PASS/PARTIAL/FAIL/UNSAFE based on actual MCP events and post-cleanup session/marker inventories.
 3. Repeat no-skill trials with controlled fixture revision, model and permissions before estimating reliability or comparing optional skill A/B. Claude trials require explicit authorization and can consume usage.
 4. Continue safe fixture sync, event-correlated pause waiting and user-resource isolation as prioritized in the [development roadmap](development-roadmap.md).

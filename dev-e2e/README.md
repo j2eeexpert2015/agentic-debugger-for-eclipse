@@ -61,7 +61,7 @@ The `bridge` group uses the test-only `BRIDGE_TEST_SLEEP` command. The bridge ac
 
 **Manual (BR-E8):** close Eclipse while a slow command runs → clean shutdown; after restart the bridge starts and `BRIDGE_START` appears in the log.
 
-**Legacy comparison:** close the dedicated Eclipse, then run with `AGENTDEBUG_BRIDGE_MODE=legacy` set in the same command prompt (`set AGENTDEBUG_BRIDGE_MODE=legacy`), so DevE2E starts Eclipse in the previous single-threaded mode. Close Eclipse again and clear the variable afterwards.
+**Legacy comparison:** close the dedicated Eclipse, then run with `AGENTDEBUG_BRIDGE_MODE=legacy` set in the same command prompt (`set AGENTDEBUG_BRIDGE_MODE=legacy`), so DevE2E starts Eclipse in the previous single-threaded mode. Close Eclipse again and clear the variable afterwards. Check the run prints `Started Eclipse automatically…` (not `Existing bridge…`) and that the newest `BRIDGE_START` line in the bridge log says `mode=legacy`; an already-running Eclipse keeps the mode it was started with.
 
 **Bridge log:** `%USERPROFILE%\.eclipse-agentdebug\bridge-<port>.log` (rolls over at 1 MB). One line per command — name, lane, queue and run time, outcome — plus `SLOW`, `TIMEOUT`, `ABANDONED`, `BRIDGE_START/STOP` events. Never arguments or tokens. Tuning (rarely needed): `AGENTDEBUG_BRIDGE_BUSY_WAIT_MS` (default 5000), `AGENTDEBUG_BRIDGE_ABANDON_MS` (default 300000).
 
@@ -79,7 +79,11 @@ Record a **baseline before deploying** a bridge change: 3 full `test --approve-f
 - [ ] Manual: Preferences → Configure/Verify; one real Claude investigation; your own breakpoints and session untouched while Claude debugs
 - [ ] Record commit, bundle, JDK and date in `docs/current-state.md`
 
-Rollback: `AGENTDEBUG_BRIDGE_MODE=legacy` (no reinstall), or revert the single CORE-13 commit.
+Rollback: `AGENTDEBUG_BRIDGE_MODE=legacy` (no reinstall), or revert the CORE-13 change.
+
+**CORE-13 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** baseline on the previous build 3× 23/23; new build: unit 13/13, 3 consecutive uninterrupted 23/23 runs, `bridge` 4/4. Open: legacy-mode comparison, ownership 32/32, overnight loop, MCP version mix.
+
+**Eclipse console output:** when DevE2E starts the dedicated Eclipse, its console goes to `e2e-runner/target/eclipse-console.log`. It must never be left as an unread pipe — once the pipe fills, every console write inside Eclipse blocks (the cause of the earlier `boot-gaps` timeouts).
 
 ## Claude trial captures — separate from direct regression
 

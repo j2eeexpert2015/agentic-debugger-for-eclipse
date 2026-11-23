@@ -60,7 +60,7 @@ Keep these stable IDs aligned with the [feature roadmap](feature-roadmap.md), wh
 
 | ID | Implemented capability | Current evidence boundary / outstanding check |
 |---|---|---|
-| CORE-01 | Authenticated local Eclipse↔MCP bridge | Installed loopback connection verified; keep negative authentication/port collision coverage. Concurrency/deadline rework tracked as [CORE-13](feature-roadmap.md#phase-0--core-eclipse-mcp): implemented in source, **installed verification pending** |
+| CORE-01 | Authenticated local Eclipse↔MCP bridge | Installed loopback connection verified; keep negative authentication/port collision coverage. [CORE-13](feature-roadmap.md#phase-0--core-eclipse-mcp) concurrency and deadlines **verified on installed Windows build, 23 Nov 2026** (3×23/23, bridge group 4/4) |
 | CORE-02 | Java application discovery | Main discovery and multiple Boot mains verified; ambiguous agent selection needs more trials |
 | CORE-03 | Start/reuse existing Java launch configuration | Installed owned and borrowed launches verified; custom-config negatives remain important |
 | CORE-04 | Add/list/remove source line breakpoints | Installed runtime marker hits and cleanup; never delete user markers |

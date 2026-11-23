@@ -33,6 +33,8 @@ The bridge previously handled one connection at a time on its accept thread, so 
 - The log (`~/.eclipse-agentdebug/bridge-<port>.log`) records command names and timings only — **never arguments or tokens**.
 - `AGENTDEBUG_BRIDGE_MODE=legacy` restores the previous behaviour exactly for one release, as a rollback path. The wire protocol is unchanged; only fields were added to error replies.
 
+**Outcome (23 November 2026).** On the first installed run, the slow-command log showed `LIST_DEBUG_SESSIONS` blocked for 67 s inside `System.out.println`: DevE2E started Eclipse without redirecting its console, so once the unread pipe filled, every console write in Eclipse blocked. Under the old single-threaded bridge this froze every command, which matches the earlier intermittent `boot-gaps` timeouts. Fixes: diagnostic console output removed from `EclipseDebugService.listDebugSessions()`, and DevE2E now redirects Eclipse output to `e2e-runner/target/eclipse-console.log`. Rule going forward: **no `System.out` diagnostics on bridge command paths**; use the bridge log. Acceptance: 3 consecutive uninterrupted 23/23 runs, bridge group 4/4.
+
 ## Change protocol
 
 For a feature change: update capability/roadmap status, add or extend the corresponding REG/EV scenario, run tests, note verification boundary. For new external research: create an RS entry with source URL and proven claim; link to candidates without declaring implementation. For a skill change: preserve core suite and compare stable/no-skill/candidate results.
