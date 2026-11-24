@@ -26,16 +26,22 @@ import org.learningfromexperience.agentdebug.report.format.ReportFormat;
  * <ul>
  *   <li>a short title ("Debugging OrdersApplication", from the launch step as in the report); the request cut to two
  *       lines, a click shows it in full; the local start time;</li>
- *   <li>a toolbar: Follow (keep the running step in sight), Copy as Markdown, Copy analysis, Open report;</li>
- *   <li>a banner: while running blue and pulsing, with what the agent is doing and a running timer; when finished
+ *   <li>pinned at the top while the page scrolls: a toolbar (Follow: keep the newest step in sight, pausing while the
+ *       user scrolls up, with a "Newest" button to resume; Expand All; Collapse All; Open HTML Report, the same
+ *       investigation as the standalone report file, in the browser) and the status banner;</li>
+ *   <li>a banner: while running blue, breathing, with a pulsing red "live" dot, with what the agent is doing and a running timer; when finished
  *       green, when ended without the agent finishing it amber, with the time taken; below it what the program does
  *       (running, paused at Class.method:line, ended);</li>
  *   <li>warnings: the program ended without a stop; still waiting for a stop after 30 s; no agent activity for
  *       2 minutes (the agent may have stopped or lost its connection); live events dropped;</li>
- *   <li>the current stop: where, the call chain, and the variables, with values that changed since the previous
- *       stop highlighted and their previous value shown;</li>
- *   <li>the steps: a colour bar per kind, the running step blinking blue, refused calls amber; a click on a step
- *       shows what happened at it (values, output, HTTP) and, collapsed, its technical details;</li>
+ *   <li>the current stop, after the steps (the page reads in time order): where, the call chain, and the variables,
+ *       with values that changed since the previous stop highlighted and their previous value shown; folded to one
+ *       line ("Last stop: ...") once the investigation finished;</li>
+ *   <li>the steps: a colour bar per kind, the running step red with a pulsing dot and a breathing background, done
+ *       steps green, refused calls amber; a click on a step
+ *       shows what happened at it (values, output, HTTP) and, collapsed, its additional details (tool, arguments,
+ *       raw result); steps are expanded by default, also while they arrive; Expand All / Collapse All open or close
+ *       every step at once, and a click on one step keeps that step as the user left it;</li>
  *   <li>the agent's analysis, rendered from Markdown;</li>
  *   <li>everywhere, {@code Class.method:line}, {@code Class, line N} and {@code Class.java:N} are links that open the
  *       source file at that line in Eclipse (navigation only).</li>
@@ -80,21 +86,34 @@ public final class ActivityPage {
             .req .full{white-space:pre-wrap;background:#eef4ff;border-left:4px solid #0d6efd;border-radius:6px;
             padding:6px 10px;margin-top:4px}
             .info{color:#6b7280;font-size:11.5px;margin-bottom:6px}
-            #bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 6px;font-size:12px;color:#374151}
+            #pin{position:sticky;top:0;z-index:5;background:#fff;margin:-8px -10px 6px;padding:6px 10px 6px;
+            box-shadow:0 2px 4px rgba(0,0,0,.06)}
+            #bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 5px;font-size:12px;color:#374151}
+            #jump{display:none;position:fixed;right:14px;bottom:12px;z-index:6;background:#1d4ed8;color:#fff;border-radius:14px;
+            padding:4px 12px;font-size:12px;font-weight:600;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.25)}
             #bar label{display:flex;align-items:center;gap:4px;cursor:pointer;margin-right:4px}
             #bar button{font:inherit;font-size:11.5px;padding:2px 9px;border:1px solid #cbd5e1;border-radius:5px;
             background:#f8fafc;color:#1f2937;cursor:pointer}
             #bar button:hover{background:#e2e8f0}
             #toast{color:#166534;font-weight:600}
-            .banner{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;margin:4px 0 0;
+            .banner{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:7px;margin:0;
             font-weight:600}
             .banner .what{flex:1}
             .banner .timer{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
-            .banner.running{background:#dbeafe;color:#1e40af;animation:ad-glow 1.6s ease-in-out infinite}
+            .banner.running{background:#dbeafe;color:#1e40af;
+            animation:ad-breathe 1.4s ease-in-out infinite,ad-glow 1.4s ease-in-out infinite}
+            .banner.running .what{animation:ad-text 1.4s ease-in-out infinite}
+            @keyframes ad-breathe{0%,100%{background:#dbeafe}50%{background:#bfdbfe}}
+            @keyframes ad-text{0%,100%{opacity:1}50%{opacity:.55}}
+            .live{position:relative;width:12px;height:12px;flex:none;align-self:center}
+            .live::before,.live::after{content:"";position:absolute;inset:0;border-radius:50%;background:#dc3545}
+            .live::after{animation:ad-ripple 1.2s ease-out infinite}
+            @keyframes ad-ripple{0%{transform:scale(1);opacity:.75}100%{transform:scale(2.8);opacity:0}}
+            .live::before{animation:ad-blink 1s ease-in-out infinite}
             .banner.done{background:#dcfce7;color:#166534}
             .banner.ended{background:#fef3c7;color:#92400e}
             .banner.waiting{background:#f3f4f6;color:#4b5563}
-            .prog{font-size:12px;color:#4b5563;margin:3px 2px 0}
+            .prog{font-size:11.5px;color:#4b5563;margin:2px 2px 0}
             .prog b{color:#1f2937}
             .dot{width:10px;height:10px;border-radius:50%;background:currentColor;flex:none}
             .banner.running .dot{animation:ad-blink 1s ease-in-out infinite}
@@ -102,10 +121,18 @@ public final class ActivityPage {
             @keyframes ad-glow{0%,100%{box-shadow:0 0 0 0 rgba(13,110,253,.35)}50%{box-shadow:0 0 0 4px rgba(13,110,253,.15)}}
             .warn{margin:6px 0 0;padding:6px 10px;border-radius:6px;background:#fff7ed;border-left:4px solid #f59e0b;
             color:#7c2d12;font-size:12.5px}
-            #stop:not(:empty){margin:10px 0 0;padding:7px 10px;border-radius:7px;background:#fff7ed;border-left:5px solid #fd7e14}
-            #stop h2{margin:0 0 3px;color:#9a3412}
-            #stop .where{font-weight:600}
+            #stop:not(:empty){margin:8px 0 0;padding:7px 10px;border-radius:7px;background:#fff7ed;border-left:5px solid #fd7e14}
+            #stop h2{margin:0;color:#9a3412;display:inline}
+            #stop details.stopbox>summary{list-style:none;cursor:pointer}
+            #stop details.stopbox>summary::-webkit-details-marker{display:none}
+            #stop details.stopbox>summary::after{content:"  \\25B8";color:#9a3412}
+            #stop details.stopbox[open]>summary::after{content:"  \\25BE"}
+            #stop details.stopbox[open]>summary{margin-bottom:3px}
+            #stop .where{font-size:12px;color:#6b7280}
             #stop .frames{font-size:11.5px;color:#6b7280;margin:2px 0 4px}
+            #stop .frames details.more{display:inline}
+            #stop .frames details.more summary{display:inline;cursor:pointer;color:#6b7280;text-decoration:underline dotted}
+            #stop .frames details.more[open] summary{display:none}
             table.vars{border-collapse:collapse;font-size:12px;width:100%}
             table.vars th{text-align:left;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;padding:2px 8px 2px 0}
             table.vars td{padding:2px 8px 2px 0;vertical-align:top;font-family:Consolas,'Cascadia Mono',monospace}
@@ -129,9 +156,10 @@ public final class ActivityPage {
             li.s .tech{margin-top:4px;color:#6b7280}
             li.s .tech summary{cursor:pointer;font-size:11.5px;color:#6b7280;list-style:revert}
             li.s .tech pre{color:#6b7280}
-            li.s.run{background:#eff6ff}
+            li.s.run{background:#fef2f2;animation:ad-breathe-red 1.2s ease-in-out infinite}
+            @keyframes ad-breathe-red{0%,100%{background:#fef2f2}50%{background:#fecaca}}
             li.s.run .st{animation:ad-blink 1s ease-in-out infinite}
-            li.s.run .t{font-weight:600;color:#1e40af}
+            li.s.run .t{font-weight:600;color:#b91c1c}
             li.s.refused{background:#fff8e8}
             li.s.refused .t::after{content:" (refused, the agent retried)";color:#92400e;font-size:11px}
             h2{font-size:13px;margin:14px 0 6px;color:#0b2545}
@@ -142,7 +170,7 @@ public final class ActivityPage {
             """;
 
     private static final String SCRIPT = """
-            var ad={id:null,start:0,end:0,last:0,wait:0,running:false,timer:null,follow:true,open:{}};
+            var ad={id:null,start:0,end:0,last:0,wait:0,running:false,timer:null,follow:true,paused:false,all:true,state:{}};
             function adPad(n){return n<10?'0'+n:''+n;}
             function adClock(ms){var s=Math.max(0,Math.floor(ms/1000));var m=Math.floor(s/60);
               return m>0?m+' min '+adPad(s%60)+' s':s+' s';}
@@ -156,26 +184,38 @@ public final class ActivityPage {
               var box=document.getElementById('jswarn');var html='';
               for(var i=0;i<w.length;i++)html+='<div class="warn">'+w[i]+'</div>';
               if(box.innerHTML!==html)box.innerHTML=html;}
+            // Open or closed: the user's own click on that step wins; otherwise the server's default for it (data-d,
+            // the stop panel), otherwise Expand All / Collapse All (steps are expanded by default).
+            function adApply(){var ds=document.querySelectorAll('details[data-i]');
+              for(var i=0;i<ds.length;i++){var d=ds[i],k=d.getAttribute('data-i'),def=d.getAttribute('data-d');
+                var want=(k in ad.state)?ad.state[k]:(def!==null?def==='1':ad.all);if(d.open!==want)d.open=want;}}
+            function adSteps(on){ad.all=on;var st={};if('stop' in ad.state)st.stop=ad.state.stop;ad.state=st;adApply();return false;}
+            document.addEventListener('click',function(e){var s=e.target.closest?e.target.closest('summary'):null;if(!s)return;
+              var d=s.parentElement;if(!d||!d.getAttribute)return;var k=d.getAttribute('data-i');if(k===null)return;
+              ad.state[k]=!d.open;});
+            function adAtBottom(){return window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-30;}
+            function adFollow(){if(!ad.follow||ad.paused)return;
+              requestAnimationFrame(function(){requestAnimationFrame(function(){
+                ad.scrolling=true;window.scrollTo(0,document.documentElement.scrollHeight);
+                setTimeout(function(){ad.scrolling=false;},50);});});}
+            window.addEventListener('scroll',function(){if(ad.scrolling)return;
+              ad.paused=!adAtBottom();document.getElementById('jump').style.display=ad.paused&&ad.follow?'block':'none';});
+            function adJump(){ad.paused=false;document.getElementById('jump').style.display='none';adFollow();return false;}
             function adUpdate(u){
               var newId=u.id!==ad.id;
-              if(newId){document.getElementById('head').innerHTML=u.head;ad.id=u.id;ad.open={};}
-              var wasRunning=ad.end<=0&&ad.start>0;
+              if(newId){document.getElementById('head').innerHTML=u.head;ad.id=u.id;ad.state={};ad.all=true;ad.paused=false;}
+              else{var h=document.querySelector('#head h1');if(h&&h.innerHTML!==u.title)h.innerHTML=u.title;}
               ['tools','banner','warn','stop','steps','analysis','note'].forEach(function(k){
                 document.getElementById(k).innerHTML=u[k];});
-              var ds=document.querySelectorAll('#steps details[data-i]');
-              for(var i=0;i<ds.length;i++)if(ad.open[ds[i].getAttribute('data-i')])ds[i].open=true;
+              adApply();
               ad.start=u.start;ad.end=u.end;ad.last=u.last;ad.wait=u.wait;ad.running=u.running;
               adTick();
               if(ad.timer){clearInterval(ad.timer);ad.timer=null;}
               if(ad.start>0&&ad.end<=0)ad.timer=setInterval(adTick,1000);
-              if(ad.follow){
-                if(wasRunning&&ad.end>0&&!newId){var a=document.getElementById('analysis');if(a.firstChild)a.scrollIntoView({block:'start'});}
-                else{var r=document.querySelector('#steps li.run')||document.querySelector('#steps li:last-child');
-                  if(r)r.scrollIntoView({block:'nearest'});}}
+              // Follow: the page reads in time order, so the newest step, the current stop and at the end the
+              // analysis are at the bottom; scrolled there once the browser has laid the new content out.
+              adFollow();
               return true;}
-            document.addEventListener('toggle',function(e){var d=e.target;
-              if(!d.getAttribute)return;var i=d.getAttribute('data-i');if(i===null)return;
-              if(d.open)ad.open[i]=1;else delete ad.open[i];},true);
             function adCall(name,a,b){
               if(typeof window.adAction!=='function')return adToast('Not available in this view');
               try{adToast(window.adAction(name,a===undefined?'':String(a),b===undefined?'':String(b))||'');}
@@ -189,15 +229,25 @@ public final class ActivityPage {
     private ActivityPage() {
     }
 
-    /** The whole page, loaded once; its areas are filled by {@link #update}. */
+    /**
+     * The whole page, loaded once; its areas are filled by {@link #update}. In time order from top to bottom:
+     * header, steps (oldest first), the current stop, warnings, the agent's analysis. Above them, pinned so it stays in sight
+     * while the page scrolls: the toolbar and the status banner (Running with the live dot and timer, Finished).
+     */
     public static String shell() {
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + CSS + ReportFormat.MARKDOWN_CSS
                 + "</style><script>" + SCRIPT + "</script></head><body>"
+                + "<div id=\"pin\"><div id=\"bar\"><label title=\"Keep the newest step in sight\"><input type=\"checkbox\""
+                + " id=\"follow\" checked onchange=\"ad.follow=this.checked;if(this.checked)adJump()\">Follow</label>"
+                + "<button onclick=\"return adSteps(true)\" title=\"Open the details of every step\">Expand All</button>"
+                + "<button onclick=\"return adSteps(false)\" title=\"Close the details of every step\">Collapse All</button>"
+                + "<span id=\"tools\"></span><span id=\"toast\"></span></div><div id=\"banner\"></div></div>"
                 + "<div id=\"head\">" + waitingHead() + "</div>"
-                + "<div id=\"bar\"><label title=\"Keep the running step in sight\"><input type=\"checkbox\" id=\"follow\" checked"
-                + " onchange=\"ad.follow=this.checked\">Follow</label><span id=\"tools\"></span><span id=\"toast\"></span></div>"
-                + "<div id=\"banner\"></div><div id=\"warn\"></div><div id=\"jswarn\"></div><div id=\"stop\"></div>"
-                + "<ol id=\"steps\"></ol><div id=\"analysis\"></div><div id=\"note\"></div></body></html>";
+                + "<ol id=\"steps\"></ol><div id=\"stop\"></div>"
+                // Warnings are about now, so they sit with the newest events, where Follow keeps the view.
+                + "<div id=\"warn\"></div><div id=\"jswarn\"></div><div id=\"analysis\"></div><div id=\"note\"></div>"
+                + "<a id=\"jump\" href=\"#\" onclick=\"return adJump()\" title=\"Follow the newest steps again\">&#8595; Newest</a>"
+                + "</body></html>";
     }
 
     /** The script call that shows this state of the investigation (null: nothing yet). */
@@ -207,6 +257,7 @@ public final class ActivityPage {
         Map<String, String> u = new LinkedHashMap<>();
         if (inv == null) {
             u.put("id", "");
+            u.put("title", "Agent Activity");
             u.put("head", waitingHead());
             for (String k : List.of("tools", "banner", "warn", "stop", "steps", "analysis")) u.put(k, "");
             u.put("note", note);
@@ -217,6 +268,8 @@ public final class ActivityPage {
         ActivityStore.Step running = runningStep(inv);
         long wait = running != null && "STOP".equals(running.kind()) ? epoch(running.startedAt()) : 0;
         u.put("id", inv.id());
+        // The title can change after the header was drawn ("Debugging session" until the launch names the program).
+        u.put("title", html(title(inv)));
         u.put("head", head(inv, zone));
         u.put("tools", tools(inv));
         u.put("banner", banner(inv));
@@ -246,15 +299,13 @@ public final class ActivityPage {
         return out.toString();
     }
 
-    /** Action buttons; each one calls back into Eclipse ({@code adAction}). */
+    /** Action buttons; each one calls back into Eclipse ({@code adAction}). Open HTML Report once a report exists. */
     static String tools(ActivityStore.Investigation inv) {
-        StringBuilder out = new StringBuilder(
-                "<button onclick=\"return adCall('copyMarkdown')\" title=\"The whole investigation as Markdown\">Copy as Markdown</button>");
-        if (inv.conclusion() != null && !inv.conclusion().isBlank())
-            out.append("<button onclick=\"return adCall('copyAnalysis')\">Copy analysis</button>");
+        StringBuilder out = new StringBuilder();
         if (inv.reportFile() != null && !inv.reportFile().isBlank())
-            out.append("<button onclick=\"return adCall('openReport')\" title=\"").append(html(inv.reportFile()))
-                    .append("\">Open report</button>");
+            out.append("<button onclick=\"return adCall('openReport')\" title=\"The same investigation as a standalone HTML"
+                    + " file, to keep or share; opens in your browser: ").append(html(inv.reportFile()))
+                    .append("\">Open HTML Report</button>");
         return out.toString();
     }
 
@@ -268,7 +319,8 @@ public final class ActivityPage {
                 + " refused, retried by the agent";
         String timer = inv.finished() ? "took <span id=\"timer\"></span>" : "<span id=\"timer\"></span>";
         StringBuilder out = new StringBuilder("<div class=\"banner ").append(cls)
-                .append("\"><span class=\"dot\"></span><span class=\"what\">").append(links(html(statusLine(inv) + extra)))
+                .append("\">").append(inv.finished() ? "<span class=\"dot\"></span>" : "<span class=\"live\"></span>")
+                .append("<span class=\"what\">").append(links(html(statusLine(inv) + extra)))
                 .append("</span><span class=\"timer\">").append(timer).append("</span></div>");
         String program = programLine(inv);
         if (program != null) out.append("<div class=\"prog\">").append(program).append("</div>");
@@ -300,10 +352,13 @@ public final class ActivityPage {
     static String stop(ActivityStore.Investigation inv) {
         Stop stop = currentStop(inv);
         if (stop == null) return "";
-        StringBuilder out = new StringBuilder("<h2>").append(inv.finished() ? "Last stop" : "Current stop").append("</h2>");
-        out.append("<div class=\"where\">").append(links(html(stop.where()))).append("</div>");
-        if (stop.frames() != null)
-            out.append("<div class=\"frames\">").append(links(html(stop.frames()))).append("</div>");
+        // Open while the agent works; after the finish folded to one line (the analysis is what to read then).
+        StringBuilder out = new StringBuilder("<details class=\"stopbox\" data-i=\"stop\" data-d=\"")
+                .append(inv.finished() ? "0\">" : "1\" open>").append("<summary><h2>")
+                .append(inv.finished() ? "Last stop: " : "Current stop: ").append(links(html(stop.where()))).append("</h2></summary>");
+        if (!stop.title().equals(stop.where()))
+            out.append("<div class=\"where\">").append(links(html(stop.title()))).append("</div>");
+        if (stop.frames() != null) out.append("<div class=\"frames\">").append(frames(stop.frames())).append("</div>");
         if (!stop.variables().isEmpty()) {
             out.append("<table class=\"vars\"><tr><th>Variable</th><th>Type</th><th>Value</th></tr>");
             for (Variable v : stop.variables()) {
@@ -315,6 +370,27 @@ public final class ActivityPage {
                 out.append("</td></tr>");
             }
             out.append("</table>");
+        }
+        return out.append("</details>").toString();
+    }
+
+    /** Frames shown before the rest of the call chain is folded away. */
+    static final int FRAMES_SHOWN = 3;
+
+    /**
+     * The call chain with links: the first frames, the rest (framework and JDK calls, often many) folded under
+     * "N more", so the variables stay in sight.
+     */
+    static String frames(String chain) {
+        String[] frames = chain.split("\\s+<\\s+");
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < Math.min(FRAMES_SHOWN, frames.length); i++)
+            out.append(i == 0 ? "" : " &lt; ").append(links(html(frames[i].strip())));
+        if (frames.length > FRAMES_SHOWN) {
+            out.append(" <details class=\"more\"><summary>").append(frames.length - FRAMES_SHOWN).append(" more</summary>");
+            for (int i = FRAMES_SHOWN; i < frames.length; i++)
+                out.append(i == FRAMES_SHOWN ? "" : " &lt; ").append(links(html(frames[i].strip())));
+            out.append("</details>");
         }
         return out.toString();
     }
@@ -328,6 +404,7 @@ public final class ActivityPage {
             String status = step.status() == null ? "UNKNOWN" : step.status();
             String cls = step.running() ? " run" : "FAILED".equals(status) ? " refused" : "";
             StringBuilder row = new StringBuilder()
+                    .append(step.running() ? "<span class=\"live\"></span>" : "")
                     .append("<span class=\"n\">").append(n).append("</span>")
                     .append("<span class=\"st\">").append(html(label(status))).append("</span>")
                     .append("<span class=\"t\">").append(links(html(step.title()))).append("</span>")
@@ -356,7 +433,7 @@ public final class ActivityPage {
         if (!reader.isEmpty()) out.append("<pre>").append(links(html(String.join("\n", reader)))).append("</pre>");
         List<String> technical = trimBlank(details.technical());
         if (!technical.isEmpty())
-            out.append("<details class=\"tech\"><summary>Technical details</summary><pre>")
+            out.append("<details class=\"tech\"><summary>").append(ReportFormat.MORE_DETAILS_LABEL).append("</summary><pre>")
                     .append(links(html(String.join("\n", technical)))).append("</pre></details>");
         return out.toString();
     }
@@ -401,22 +478,28 @@ public final class ActivityPage {
         }
     }
 
-    /** The current stop: the stop step's title, its call chain (may be null) and the variables last read there. */
-    public record Stop(String where, String frames, List<Variable> variables) {
+    /**
+     * The current stop: where (the top frame, "OrderService.quote:24", when known), the stop step's title, its call
+     * chain (may be null) and the variables last read there.
+     */
+    public record Stop(String where, String title, String frames, List<Variable> variables) {
     }
 
+    /** Frame lines of a "Read call stack" step: "  OrderService.quote:24". */
+    private static final Pattern FRAME_LINE = Pattern.compile("^\\s+([\\w$.<>]+\\.[\\w$<>]+:\\d+)\\s*$");
+
     /**
-     * The latest stop of the investigation ("Stopped at breakpoint: OrderService.quote, line 24" or "Stopped after
-     * step: ..."), with the variables of the latest variables table at or after it (the stop itself, or a later
-     * read of the variables). A value is marked changed when an earlier table had the same variable with another
-     * value. Null when the program has not stopped yet.
+     * The latest stop of the investigation: a stop step ("Stopped at breakpoint: OrderService.quote, line 24",
+     * "Stopped after step: ...", "Paused: ...", or "Thread suspended: ..." after a pause), with the call chain from the
+     * stop itself or from a later "Read call stack", and the variables of the latest variables table at or after it
+     * (the stop itself, or a later read of the variables). A value is marked changed when an earlier table had the
+     * same variable with another value. Null when the program has not stopped yet.
      */
     public static Stop currentStop(ActivityStore.Investigation inv) {
         List<ActivityStore.Step> steps = inv.steps();
         int stopAt = -1;
         for (int i = steps.size() - 1; i >= 0; i--) {
-            ActivityStore.Step s = steps.get(i);
-            if ("STOP".equals(s.kind()) && "OK".equals(s.status()) && s.title() != null && s.title().startsWith("Stopped")) {
+            if (isStop(steps.get(i))) {
                 stopAt = i;
                 break;
             }
@@ -425,6 +508,17 @@ public final class ActivityPage {
         String frames = null;
         for (String line : ReportFormat.split(steps.get(stopAt).details()).reader())
             if (line.startsWith("Frames: ")) frames = line.substring("Frames: ".length());
+        for (int i = stopAt + 1; i < steps.size() && frames == null; i++) {
+            List<String> chain = new ArrayList<>();
+            for (String line : ReportFormat.split(steps.get(i).details()).reader()) {
+                Matcher m = FRAME_LINE.matcher(line);
+                if (m.matches()) chain.add(m.group(1));
+            }
+            if (!chain.isEmpty()) frames = String.join("  <  ", chain);
+        }
+        String where = frames != null ? frames.split("\\s+<\\s+")[0].strip()
+                : ActivityStore.PROGRAM_PAUSED.equals(inv.program()) && inv.programWhere() != null ? inv.programWhere()
+                : steps.get(stopAt).title();
         // The latest table at or after the stop, and the latest table before that one.
         List<Variable> current = List.of();
         int currentAt = -1;
@@ -448,7 +542,7 @@ public final class ActivityPage {
             String was = before.get(v.name());
             marked.add(new Variable(v.name(), v.type(), v.value(), was != null && !was.equals(v.value()) ? was : null));
         }
-        return new Stop(steps.get(stopAt).title(), frames, List.copyOf(marked));
+        return new Stop(where, steps.get(stopAt).title(), frames, List.copyOf(marked));
     }
 
     /**
@@ -478,10 +572,15 @@ public final class ActivityPage {
     }
 
     private static boolean stopped(ActivityStore.Investigation inv) {
-        for (ActivityStore.Step s : inv.steps())
-            if ("STOP".equals(s.kind()) && "OK".equals(s.status()) && s.title() != null && s.title().startsWith("Stopped"))
-                return true;
+        for (ActivityStore.Step s : inv.steps()) if (isStop(s)) return true;
         return false;
+    }
+
+    /** A step where the program was found stopped: by a breakpoint, a step, an exception or a pause. */
+    static boolean isStop(ActivityStore.Step s) {
+        if (!"STOP".equals(s.kind()) || !"OK".equals(s.status()) || s.title() == null) return false;
+        String t = s.title();
+        return t.startsWith("Stopped") || t.startsWith("Paused") || t.startsWith("Thread suspended");
     }
 
     private static ActivityStore.Step runningStep(ActivityStore.Investigation inv) {
@@ -532,7 +631,7 @@ public final class ActivityPage {
 
     // ---- Markdown export and text fallback -----------------------------------------------------------------
 
-    /** The whole investigation as Markdown, for "Copy as Markdown". */
+    /** The whole investigation as Markdown, for the text fallback (no embedded browser). */
     public static String markdown(ActivityStore.Investigation inv, ZoneId zone) {
         StringBuilder out = new StringBuilder("# ").append(title(inv)).append("\n\n");
         if (inv.request() != null && !inv.request().isBlank())
@@ -665,7 +764,7 @@ public final class ActivityPage {
     }
 
     /** A JavaScript string literal. */
-    static String js(String text) {
+    public static String js(String text) {
         StringBuilder out = new StringBuilder("'");
         for (char c : (text == null ? "" : text).toCharArray()) {
             switch (c) {

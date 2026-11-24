@@ -161,7 +161,7 @@ class ActivityStoreTest {
         assertTrue(notified.contains("open"), "listeners are notified, a broken one does not stop the others");
     }
 
-    @Test @DisplayName("AS-U9 program state goes to the open investigation only; every event records the last activity")
+    @Test @DisplayName("AS-U9 program state goes to the open investigation only; last activity and revision follow every change")
     void asU9() {
         ActivityStore store = new ActivityStore();
         List<String> notified = new ArrayList<>();
@@ -174,6 +174,7 @@ class ActivityStoreTest {
         store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:24");
         store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:24");
         assertEquals(List.of("inv-1", "inv-1"), notified, "one notification for the start, one for the change, none for a repeat");
+        assertEquals(2, store.revision(), "the view's catch-up counter grows with every change, not with a repeat");
         assertEquals("OrderService.quote:24", store.current().programWhere());
         store.program(ActivityStore.PROGRAM_RUNNING, "ignored");
         assertNull(store.current().programWhere(), "a location only while paused");

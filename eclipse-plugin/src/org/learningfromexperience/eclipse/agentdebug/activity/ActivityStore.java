@@ -69,6 +69,7 @@ public final class ActivityStore {
 
     private final Map<String, Mutable> investigations = new LinkedHashMap<>();
     private final List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
+    private final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
     private long droppedEvents;
 
     /** Package-private: one global store in Eclipse; separate instances only in tests. */
@@ -228,7 +229,16 @@ public final class ActivityStore {
         }
     }
 
+    /**
+     * Grows with every change. The view compares it once a second with what it shows, so it catches up even if a
+     * notification was missed or arrived before its page was ready.
+     */
+    public long revision() {
+        return revision.get();
+    }
+
     private void notifyListeners(String id) {
+        revision.incrementAndGet();
         for (Consumer<String> listener : listeners) {
             try {
                 listener.accept(id);

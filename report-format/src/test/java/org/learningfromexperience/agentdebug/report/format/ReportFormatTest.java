@@ -95,5 +95,6 @@ class ReportFormatTest {
         assertEquals(new ReportFormat.Details(List.of("a"), List.of()), ReportFormat.split(List.of("a", sep)),
                 "a separator with nothing after it is dropped");
         assertEquals(new ReportFormat.Details(List.of(), List.of()), ReportFormat.split(null));
+        assertEquals("Additional Details", ReportFormat.MORE_DETAILS_LABEL, "the label of the collapsed part, report and view alike");
     }
 }

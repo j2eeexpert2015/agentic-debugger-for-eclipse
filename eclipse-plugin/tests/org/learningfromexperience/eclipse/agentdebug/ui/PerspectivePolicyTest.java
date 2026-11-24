@@ -15,9 +15,9 @@ import org.junit.jupiter.api.Test;
  */
 class PerspectivePolicyTest {
 
-    @Test @DisplayName("PP-U1 without a saved choice the perspective is kept")
+    @Test @DisplayName("PP-U1 without a saved choice Eclipse switches to the Debug perspective (first, then Agent Activity opens)")
     void ppU1() {
-        assertFalse(PerspectivePolicy.switchToDebugPerspective(null), "never set must mean: keep the perspective");
+        assertTrue(PerspectivePolicy.switchToDebugPerspective(null), "never set must mean: switch (OPEN-36)");
     }
 
     @Test @DisplayName("PP-U2 an explicitly saved choice is respected")
@@ -48,16 +48,19 @@ class PerspectivePolicyTest {
         assertFalse(PerspectivePolicy.jdkType(null));
     }
 
-    @Test @DisplayName("PP-U5 Agent Activity floats unless the user turned it off; it first opens at the bottom right")
+    @Test @DisplayName("PP-U5 Agent Activity floats unless turned off; it first opens at the right edge, from near the bottom to above the middle")
     void ppU5() {
         assertTrue(PerspectivePolicy.floatingActivityView(null), "never set: floating");
         assertTrue(PerspectivePolicy.floatingActivityView("true"));
         assertFalse(PerspectivePolicy.floatingActivityView("false"), "turned off: own area next to the Console");
-        int[] at = PerspectivePolicy.floatingPosition(100, 50, 1366, 768);
-        assertEquals(100 + 1366 - PerspectivePolicy.FLOATING_WIDTH - 40, at[0]);
-        assertEquals(50 + 768 - PerspectivePolicy.FLOATING_HEIGHT - 70, at[1]);
-        int[] small = PerspectivePolicy.floatingPosition(0, 0, 300, 200);
-        assertEquals(0, small[0], "never left of the window");
-        assertEquals(0, small[1], "never above the window");
+        // 1366 x 768 window: 478 wide (35%), 445 high (58%: from near the bottom to a little above the middle), at the right edge.
+        assertEquals(java.util.Arrays.toString(new int[] {100 + 1366 - 478 - 8, 50 + 768 - 445 - 40, 478, 445}),
+                java.util.Arrays.toString(PerspectivePolicy.floatingBounds(100, 50, 1366, 768)));
+        int[] big = PerspectivePolicy.floatingBounds(0, 0, 2560, 1400);
+        assertEquals(640, big[2], "not wider than 640");
+        assertEquals(812, big[3], "58% of the height");
+        int[] small = PerspectivePolicy.floatingBounds(0, 0, 300, 200);
+        assertTrue(small[0] >= 0 && small[1] >= 0, "never left of or above the window");
+        assertTrue(small[2] <= 300 && small[3] <= 200, "never bigger than the window");
     }
 }

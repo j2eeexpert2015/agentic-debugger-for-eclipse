@@ -12,9 +12,6 @@ import org.eclipse.swt.browser.LocationAdapter;
 import org.eclipse.swt.browser.LocationEvent;
 import org.eclipse.swt.browser.ProgressAdapter;
 import org.eclipse.swt.browser.ProgressEvent;
-import org.eclipse.swt.dnd.Clipboard;
-import org.eclipse.swt.dnd.TextTransfer;
-import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.program.Program;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
@@ -34,7 +31,7 @@ import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
  * same content is used, and the view's description says so.
  *
  * <p><b>Actions.</b> Buttons and links in the page call {@code adAction} ({@link BrowserFunction}): open a source file
- * at a line ({@link SourceOpener}), copy the investigation as Markdown or the agent's analysis, open the report.
+ * at a line ({@link SourceOpener}), open the HTML report.
  *
  * <p><b>Never in the way.</b> Updates arrive on the bridge thread and are coalesced into at most one pending UI
  * refresh. The view never activates itself and never takes the keyboard focus on an update; it is opened by
@@ -49,7 +46,11 @@ public final class AgentActivityView extends ViewPart {
 
     private Browser browser;
     private Text text;
+    /** The page's script is there (checked, not only assumed from the page-loaded event). */
     private boolean loaded;
+    /** The store revision the page shows; -1: nothing shown yet. */
+    private long shown = -1;
+    private final Runnable poll = this::poll;
     private final AtomicBoolean refreshPending = new AtomicBoolean();
     private final Consumer<String> listener = id -> scheduleRefresh();
 
@@ -69,8 +70,9 @@ public final class AgentActivityView extends ViewPart {
             browser.addProgressListener(new ProgressAdapter() {
                 @Override
                 public void completed(ProgressEvent event) {
-                    loaded = true;
-                    refresh();
+                    // Not inside the browser's own callback (a script call from there may be refused): just after it.
+                    shown = -1;
+                    browser.getDisplay().asyncExec(AgentActivityView.this::refresh);
                 }
             });
             new BrowserFunction(browser, "adAction") {
@@ -84,10 +86,21 @@ public final class AgentActivityView extends ViewPart {
             browser = null;
             text = new Text(parent, SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
             setContentDescription("Text only (no embedded browser: " + noBrowser.getMessage() + ")");
-            loaded = true;
         }
         ActivityStore.global().addListener(listener);
         refresh();
+        parent.getDisplay().timerExec(POLL_MS, poll);
+    }
+
+    /** How often the view checks that it shows the latest state (catch-up for anything missed). */
+    private static final int POLL_MS = 1000;
+
+    /** Once a second: brings the page up to date if the store changed since, then again in a second. */
+    private void poll() {
+        Control control = control();
+        if (control == null || control.isDisposed()) return;
+        if (shown != ActivityStore.global().revision()) refresh();
+        control.getDisplay().timerExec(POLL_MS, poll);
     }
 
     private void scheduleRefresh() {
@@ -106,24 +119,43 @@ public final class AgentActivityView extends ViewPart {
 
     private void refresh() {
         Control control = control();
-        if (control == null || control.isDisposed() || !loaded) return;
+        if (control == null || control.isDisposed()) return;
         ActivityStore store = ActivityStore.global();
+        long revision = store.revision();
         ActivityStore.Investigation current = store.current();
         ZoneId zone = ZoneId.systemDefault();
-        if (browser != null) {
-            if (!browser.execute(ActivityPage.update(current, store.droppedEvents(), zone))) {
-                // The page is not there (for example the browser was reset): load it again, the update follows.
-                loaded = false;
-                browser.setText(ActivityPage.shell());
-            }
-        } else {
+        if (browser == null) {
             text.setText(ActivityPage.text(current, store.droppedEvents(), zone));
+            shown = revision;
+            return;
+        }
+        if (!pageReady()) return;                     // the next poll tries again
+        if (browser.execute(ActivityPage.update(current, store.droppedEvents(), zone))) {
+            shown = revision;
+        } else {
+            // The script could not run: the page is not (or no longer) there. Load it again; a poll fills it.
+            loaded = false;
+            browser.setText(ActivityPage.shell());
         }
     }
 
     /**
-     * The page's buttons and links: {@code open} (class, line) opens the source at that line, {@code copyMarkdown}
-     * and {@code copyAnalysis} copy to the clipboard, {@code openReport} opens the HTML report in the system browser.
+     * True when the page's script is there. Asked from the page itself instead of relying only on the page-loaded
+     * event, which some browser versions do not send for a page set with setText.
+     */
+    private boolean pageReady() {
+        if (loaded) return true;
+        try {
+            loaded = "function".equals(browser.evaluate("return typeof adUpdate;"));
+        } catch (RuntimeException notYet) {
+            loaded = false;
+        }
+        return loaded;
+    }
+
+    /**
+     * The page's buttons and links: {@code open} (class, line) opens the source at that line, {@code openReport} opens
+     * the HTML report in the system browser.
      * Returns a short message the page shows for a moment. Runs on the UI thread; never throws.
      */
     private String action(Object[] arguments) {
@@ -134,17 +166,13 @@ public final class AgentActivityView extends ViewPart {
                 case "open" -> {
                     String cls = arguments.length > 1 ? String.valueOf(arguments[1]) : "";
                     int line = arguments.length > 2 ? parseLine(String.valueOf(arguments[2])) : 0;
-                    return SourceOpener.open(getSite().getPage(), cls, line);
-                }
-                case "copyMarkdown" -> {
-                    if (current == null) return "Nothing to copy yet";
-                    copy(ActivityPage.markdown(current, ZoneId.systemDefault()));
-                    return "Copied the investigation as Markdown";
-                }
-                case "copyAnalysis" -> {
-                    if (current == null || current.conclusion() == null) return "No analysis yet";
-                    copy(current.conclusion());
-                    return "Copied the agent's analysis";
+                    // Opened just after the click's callback returns, so the editor can take the focus normally.
+                    browser.getDisplay().asyncExec(() -> {
+                        String result = SourceOpener.open(getSite().getPage(), cls, line);
+                        if (!result.startsWith("Opened") && browser != null && !browser.isDisposed())
+                            browser.execute("adToast(" + ActivityPage.js(result) + ");");
+                    });
+                    return "Opening " + cls + (line > 0 ? ":" + line : "");
                 }
                 case "openReport" -> {
                     if (current == null || current.reportFile() == null) return "No report for this investigation";
@@ -169,15 +197,6 @@ public final class AgentActivityView extends ViewPart {
         }
     }
 
-    private void copy(String text) {
-        Clipboard clipboard = new Clipboard(browser.getDisplay());
-        try {
-            clipboard.setContents(new Object[] {text}, new Transfer[] {TextTransfer.getInstance()});
-        } finally {
-            clipboard.dispose();
-        }
-    }
-
     private Control control() {
         return browser != null ? browser : text;
     }
@@ -191,6 +210,8 @@ public final class AgentActivityView extends ViewPart {
     @Override
     public void dispose() {
         ActivityStore.global().removeListener(listener);
+        Control control = control();
+        if (control != null && !control.isDisposed()) control.getDisplay().timerExec(-1, poll);
         super.dispose();
     }
 }

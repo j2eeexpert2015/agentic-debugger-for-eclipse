@@ -52,7 +52,7 @@ public final class AgentDebugUiCoordinator implements AutoCloseable {
     /** Mark the exact launch object as agent-owned context, never all workspace debug sessions. */
     public void follow(ILaunch launch) {
         activeLaunch.set(launch);
-        if (launch != null && !launch.isTerminated()) ActivityStore.global().program(ActivityStore.PROGRAM_RUNNING, null);
+        reportProgram(launch);
         showSuspended(launch, false);
     }
 
@@ -146,6 +146,34 @@ public final class AgentDebugUiCoordinator implements AutoCloseable {
     }
 
     /**
+     * The agent's launch as it is now, for the Agent Activity view: paused (with the location of the thread that
+     * would be shown) when an application thread is suspended, otherwise running. Called whenever the agent works on
+     * the launch, so it must look, not assume. Never throws.
+     */
+    private static void reportProgram(ILaunch launch) {
+        try {
+            if (launch == null) return;
+            if (launch.isTerminated()) {
+                ActivityStore.global().program(ActivityStore.PROGRAM_ENDED, null);
+                return;
+            }
+            IThread thread = bestThread(launch);
+            IStackFrame frame = thread == null ? null : displayFrame(thread);
+            if (frame instanceof IJavaStackFrame javaFrame) {
+                String type = javaFrame.getDeclaringTypeName();
+                ActivityStore.global().program(ActivityStore.PROGRAM_PAUSED, type.substring(type.lastIndexOf('.') + 1)
+                        + "." + javaFrame.getMethodName() + ":" + javaFrame.getLineNumber());
+            } else if (thread != null) {
+                ActivityStore.global().program(ActivityStore.PROGRAM_PAUSED, null);
+            } else {
+                ActivityStore.global().program(ActivityStore.PROGRAM_RUNNING, null);
+            }
+        } catch (Exception | LinkageError ignored) {
+            // The view's program line is informative only.
+        }
+    }
+
+    /**
      * Tells the Agent Activity view (OPEN-36 B5) whether the agent's program is running, paused (and where) or has
      * ended. Only events of the agent's launch count; evaluations (the agent reading variables) are ignored. Never
      * throws: the view must never affect debugging.
@@ -203,7 +231,14 @@ public final class AgentDebugUiCoordinator implements AutoCloseable {
                 boolean changePerspective = PerspectivePolicy.switchToDebugPerspective(InstanceScope.INSTANCE
                         .getNode(PLUGIN_ID).get(PerspectivePolicy.SWITCH_TO_DEBUG_PERSPECTIVE, null));
                 if (changePerspective && firstStop) {
-                    page = PlatformUI.getWorkbench().showPerspective(IDebugUIConstants.ID_DEBUG_PERSPECTIVE, window);
+                    // Usually done already when the investigation started (ActivityViewOpener). Changes the page only:
+                    // the Eclipse window is not brought to the front, so the keyboard stays in the terminal.
+                    if (page.getPerspective() == null
+                            || !IDebugUIConstants.ID_DEBUG_PERSPECTIVE.equals(page.getPerspective().getId())) {
+                        var debug = PlatformUI.getWorkbench().getPerspectiveRegistry()
+                                .findPerspectiveWithId(IDebugUIConstants.ID_DEBUG_PERSPECTIVE);
+                        if (debug != null) page.setPerspective(debug);
+                    }
                 } else if (!changePerspective) {
                     showDebugViews(page, firstStop);
                 }

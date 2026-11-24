@@ -27,6 +27,12 @@ public final class ReportFormat {
     /** The line that separates reader lines from technical lines in a step's details; same as in report-model. */
     public static final String TECHNICAL_DETAILS = "--- technical details ---";
 
+    /**
+     * What the reader sees on the collapsed part of a step (the tool, its arguments and raw result), in the report and
+     * in the Agent Activity view alike.
+     */
+    public static final String MORE_DETAILS_LABEL = "Additional Details";
+
     /** Colour per step kind, in the order of {@code ReportEvent.StepKind}. */
     private static final Map<String, String> KIND_COLOURS = new LinkedHashMap<>();
 
@@ -45,8 +51,11 @@ public final class ReportFormat {
     /** The step kinds with a colour, in order. */
     public static final List<String> KINDS = List.copyOf(KIND_COLOURS.keySet());
 
-    /** Running now (blue), done (green), refused tool call (amber: the agent retried, not an application error). */
-    public static final String RUNNING = "#0d6efd", OK = "#198754", REFUSED = "#e08a00", ERROR = "#dc3545",
+    /**
+     * Running now (red, blinking in the view: the user's choice, 25 Nov), done (green), refused tool call (amber: the
+     * agent retried, not an application error).
+     */
+    public static final String RUNNING = "#dc3545", OK = "#198754", REFUSED = "#e08a00", ERROR = "#dc3545",
             NEUTRAL = "#6c757d";
 
     /** Styles for the HTML that {@link #markdown(String)} produces. */
@@ -81,7 +90,7 @@ public final class ReportFormat {
     }
 
     /**
-     * The colour of a step status: {@code RUNNING} blue, {@code OK} green, {@code FAILED} amber (a refused tool call),
+     * The colour of a step status: {@code RUNNING} red, {@code OK} green, {@code FAILED} amber (a refused tool call),
      * {@code ERROR} red; anything else ({@code INFO}, {@code UNKNOWN}) grey.
      */
     public static String statusColour(String status) {

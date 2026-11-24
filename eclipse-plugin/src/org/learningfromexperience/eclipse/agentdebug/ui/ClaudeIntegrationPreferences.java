@@ -40,12 +40,12 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
         automaticPerspective.setSelection(PerspectivePolicy.switchToDebugPerspective(
                 settings.get(PerspectivePolicy.SWITCH_TO_DEBUG_PERSPECTIVE, null)));
         Label perspectiveHelp = new Label(root, SWT.WRAP);
-        perspectiveHelp.setText("Off (recommended): Eclipse stays in the current perspective, so the terminal running "
-                + "Claude stays visible. On a stop, Variables, Breakpoints, Expressions, Debug and Console are shown "
-                + "without taking the keyboard focus; in the Java perspective they open in their own group under the "
-                + "editor (Window > Perspective > Reset Perspective applies this layout to a customised perspective). "
-                + "On: switches to the Debug perspective, which hides views that are not part of it, such as the terminal. "
-                + "Eclipse's own Run/Debug > Perspectives settings can still ask to switch.");
+        perspectiveHelp.setText("On (default): when an agent investigation starts, Eclipse switches to the Debug "
+                + "perspective first and then opens Agent Activity there, so the view is not left behind by a later "
+                + "switch. The Eclipse window is not brought to the front, so the keyboard stays in your terminal. "
+                + "Off: Eclipse stays in the current perspective; on a stop, Variables, Breakpoints, Expressions, Debug "
+                + "and Console are shown there without taking the keyboard focus. "
+                + "Eclipse's own Run/Debug > Perspectives settings can still ask to switch; Agent Activity follows.");
         GridData helpLayout = new GridData(SWT.FILL, SWT.TOP, true, false);
         helpLayout.widthHint = 500;
         perspectiveHelp.setLayoutData(helpLayout);

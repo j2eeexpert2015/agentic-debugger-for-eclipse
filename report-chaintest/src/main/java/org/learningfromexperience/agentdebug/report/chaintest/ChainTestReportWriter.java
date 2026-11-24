@@ -103,7 +103,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
      *       red, cleanup green);</li>
      *   <li>two parts with a heading each: "From the agent" (request, analysis) and "What the agent did in Eclipse"
      *       (steps, cleanup);</li>
-     *   <li>technical details of a step (tool, arguments, raw result) collapsed under "Technical details";</li>
+     *   <li>technical details of a step (tool, arguments, raw result) collapsed under "Additional Details" ({@link ReportFormat#MORE_DETAILS_LABEL});</li>
      *   <li>a refused tool call is amber, not red, and says that the agent retried it: it is not an application
      *       error;</li>
      *   <li>long lines wrap instead of scrolling sideways; step details have a taller box.</li>
@@ -248,7 +248,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
         }
         if (!details.technical().isEmpty()) {
             // Tool name, arguments and raw result: one click away, not in the reader's way.
-            step.addLog("<details class=\"ad-tech\"><summary>Technical details</summary>");
+            step.addLog("<details class=\"ad-tech\"><summary>" + ReportFormat.MORE_DETAILS_LABEL + "</summary>");
             for (String line : details.technical()) {
                 if (failed && line.startsWith("Error: ")) errors.add(line.substring("Error: ".length()));
                 else step.addLog(html(line));

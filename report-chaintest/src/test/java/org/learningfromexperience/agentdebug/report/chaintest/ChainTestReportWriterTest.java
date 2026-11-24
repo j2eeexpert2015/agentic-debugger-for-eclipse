@@ -199,8 +199,8 @@ class ChainTestReportWriterTest {
         assertTrue(html.contains("<span class=\"ad-k ad-k-breakpoint\"></span>Set breakpoint: OrderService, line 24"),
                 "breakpoint step not marked with its kind");
         assertTrue(html.contains("<span class=\"ad-k ad-k-cleanup\"></span>"), "cleanup card not marked");
-        // Tool, arguments and raw result are collapsed under "Technical details", after what a reader needs.
-        int tech = html.indexOf("<details class=\"ad-tech\"><summary>Technical details</summary>");
+        // Tool, arguments and raw result are collapsed under "Additional Details", after what a reader needs.
+        int tech = html.indexOf("<details class=\"ad-tech\"><summary>Additional Details</summary>");
         assertTrue(tech > html.indexOf("&gt; 24 |     int rate = percent / 100;")
                 && html.indexOf("Tool: set_breakpoint") > tech
                 && html.indexOf("</details>", tech) > html.indexOf("Result: created=true, owner=agent"),

@@ -6,12 +6,12 @@ import java.util.List;
  * How Eclipse's layout follows an agent-controlled debug session (OPEN-35). Plain Java, no Eclipse classes, so it is
  * unit-tested without a workbench.
  *
- * <p><b>Default: stay in the current perspective.</b> A switch to the Debug perspective hides views that are not part
- * of it, above all the terminal in which Claude runs and may ask the user something. Instead, the debug views are
- * opened in the current perspective ({@link #DEBUG_VIEWS}) and Variables is brought to the front of its group, without
- * taking the keyboard focus. Only a user who explicitly ticked "Switch to the Debug perspective" in Preferences →
- * Agentic Debugger gets the switch; the setting was "on" by default before 1.5, but a default that was never saved is
- * not a user's choice.
+ * <p><b>Default: switch to the Debug perspective (OPEN-36), first.</b> When an agent investigation starts, Eclipse
+ * switches to the Debug perspective before the Agent Activity view opens, so the view opens where the session runs and
+ * a switch at the first stop cannot leave it behind in the old perspective. The switch changes only the page, it does
+ * not bring the Eclipse window to the front, so the keyboard stays in the terminal. A user who turns "Switch to the
+ * Debug perspective" off in Preferences &gt; Agentic Debugger stays in the current perspective: the debug views are
+ * opened there ({@link #DEBUG_VIEWS}) and Variables is brought to the front of its group, without taking the focus.
  *
  * @author Ayan Dutta
  */
@@ -40,8 +40,8 @@ public final class PerspectivePolicy {
     /** Preference key: show Agent Activity (OPEN-36) as a floating window; stored only when the user changes it. */
     public static final String FLOATING_ACTIVITY_VIEW = "activityViewFloating";
 
-    /** Size of the floating Agent Activity window when it is first opened; afterwards Eclipse keeps the user's. */
-    public static final int FLOATING_WIDTH = 560, FLOATING_HEIGHT = 420;
+    /** Smallest size of the floating Agent Activity window when it is first opened. */
+    public static final int FLOATING_MIN_WIDTH = 460, FLOATING_MIN_HEIGHT = 420;
 
     private PerspectivePolicy() { }
 
@@ -54,13 +54,19 @@ public final class PerspectivePolicy {
     }
 
     /**
-     * Where the floating window first opens: the bottom-right corner of the Eclipse window, a little inside it, and
-     * never left of or above the window's own corner. Returns {x, y}.
+     * Where and how big the floating window first opens: at the right edge of the Eclipse window, reaching from near
+     * the bottom up to a little above the middle (58% of the window's height), about 35% of its width (460 to 640
+     * pixels; about 480 on a 1366 pixel screen), always inside the window. Afterwards Eclipse keeps whatever place and size the user gives it.
+     * Returns {x, y, width, height}.
      */
-    public static int[] floatingPosition(int windowX, int windowY, int windowWidth, int windowHeight) {
-        int x = windowX + Math.max(0, windowWidth - FLOATING_WIDTH - 40);
-        int y = windowY + Math.max(0, windowHeight - FLOATING_HEIGHT - 70);
-        return new int[] {x, y};
+    public static int[] floatingBounds(int windowX, int windowY, int windowWidth, int windowHeight) {
+        int width = Math.min(Math.max(FLOATING_MIN_WIDTH, windowWidth * 35 / 100), 640);
+        width = Math.max(200, Math.min(width, windowWidth - 20));
+        int height = Math.max(FLOATING_MIN_HEIGHT, windowHeight * 58 / 100);
+        height = Math.max(200, Math.min(height, windowHeight - 60));
+        int x = windowX + Math.max(0, windowWidth - width - 8);
+        int y = windowY + Math.max(0, windowHeight - height - 40);
+        return new int[] {x, y, width, height};
     }
 
     /** JDK code that the editor skips when choosing which frame to show (the Debug view still shows it). */
@@ -74,9 +80,10 @@ public final class PerspectivePolicy {
      * Whether to switch to the Debug perspective.
      *
      * @param saved the stored preference value, or null when the user never changed it
-     * @return true only when the user explicitly chose the switch
+     * @return true unless the user turned the switch off (OPEN-36: the switch happens first, then Agent Activity opens
+     *         in the Debug perspective, so a later switch cannot leave the view behind)
      */
     public static boolean switchToDebugPerspective(String saved) {
-        return Boolean.parseBoolean(saved);
+        return saved == null || Boolean.parseBoolean(saved);
     }
 }

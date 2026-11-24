@@ -31,6 +31,7 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
     private static final Color ENDED = new Color(0x92, 0x40, 0x0e);
 
     private Label label;
+    private boolean blink;
     private final Consumer<String> listener = id -> schedule();
     private final Runnable tick = this::tick;
 
@@ -68,7 +69,10 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
         if (label == null || label.isDisposed()) return;
         ActivityStore.Investigation inv = ActivityStore.global().current();
         String text = ActivityPage.statusBar(inv, System.currentTimeMillis());
-        label.setText(text == null ? "" : "● " + text);
+        // While running, the dot blinks (filled, hollow) every second, like the view's live dot.
+        boolean running = inv != null && !inv.finished();
+        blink = running && !blink;
+        label.setText(text == null ? "" : (running && !blink ? "\u25CB " : "\u25CF ") + text);
         label.setForeground(inv == null ? null : !inv.finished() ? RUNNING
                 : "FINISHED".equals(inv.outcome()) ? DONE : ENDED);
         label.getParent().layout();
@@ -85,7 +89,10 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
         try {
             IWorkbenchWindow window = getWorkbenchWindow();
             IWorkbenchPage page = window == null ? null : window.getActivePage();
-            if (page != null) page.showView(AgentActivityView.ID);
+            if (page == null) return;
+            page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_CREATE);
+            ActivityViewPlacement.ensureOwnArea(window);
+            page.showView(AgentActivityView.ID);
         } catch (Exception unavailable) {
             System.err.println("[Eclipse Agentic Debugger] Could not open Agent Activity: " + unavailable.getMessage());
         }

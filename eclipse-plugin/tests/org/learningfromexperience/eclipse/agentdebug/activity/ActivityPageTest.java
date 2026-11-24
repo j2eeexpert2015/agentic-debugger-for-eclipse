@@ -108,6 +108,8 @@ class ActivityPageTest {
         assertTrue(ActivityPage.banner(store.current()).contains("class=\"banner running\""));
         assertTrue(ActivityPage.banner(store.current()).contains("Running: Waiting for the program to stop"));
         assertTrue(ActivityPage.steps(store.current()).contains("class=\"s run\""), "the running step blinks");
+        assertTrue(ActivityPage.steps(store.current()).contains("<span class=\"live\"></span>"), "pulsing dot on the running step");
+        assertTrue(ActivityPage.banner(store.current()).contains("<span class=\"live\"></span>"), "pulsing dot in the banner");
         String running = ActivityPage.update(store.current(), 0, KOLKATA);
         assertTrue(running.contains("start:" + START + ",end:0,"), running);
         assertTrue(running.contains("wait:" + (START + 5000) + ",running:true"), "the page warns after 30 s of waiting");
@@ -118,6 +120,7 @@ class ActivityPageTest {
 
         finish(store, "FINISHED", null);
         assertTrue(ActivityPage.banner(store.current()).contains("class=\"banner done\""));
+        assertFalse(ActivityPage.banner(store.current()).contains("class=\"live\""), "no pulsing once finished");
         assertTrue(ActivityPage.banner(store.current()).contains("took <span id=\"timer\">"));
         assertTrue(ActivityPage.update(store.current(), 0, KOLKATA).contains("start:" + START + ",end:" + (START + 45000) + ","),
                 "timer stopped at the finish");
@@ -143,6 +146,8 @@ class ActivityPageTest {
         assertTrue(head.contains("<div class=\"full\">" + longRequest + "</div>"), "the full request is there when expanded");
         assertTrue(head.contains("started 15:30:00"), "local time, not UTC: " + head);
         assertTrue(head.contains("Investigation 3b80cb03"));
+        assertTrue(ActivityPage.update(store.current(), 0, KOLKATA).contains("title:'Debugging OrdersApplication'"),
+                "the title is sent with every update: the header is drawn once, before the launch names the program");
     }
 
     @Test @DisplayName("AP-U4 the update is one safe script call; with nothing yet the page waits")
@@ -156,11 +161,11 @@ class ActivityPageTest {
         assertTrue(ActivityPage.update(null, 0, KOLKATA).contains("Waiting for an agent debugging session"));
         assertTrue(ActivityPage.update(null, 3, KOLKATA).contains("3 live events were dropped"));
         assertTrue(ActivityPage.shell().contains("function adUpdate("));
-        assertTrue(ActivityPage.tools(store.current()).contains("adCall('copyMarkdown')"));
+        assertFalse(ActivityPage.tools(store.current()).contains("copyMarkdown"), "no Copy as Markdown button");
         assertFalse(ActivityPage.tools(store.current()).contains("openReport"), "no report yet");
     }
 
-    @Test @DisplayName("AP-U5 analysis rendered from Markdown; Copy as Markdown and the text fallback have the whole investigation")
+    @Test @DisplayName("AP-U5 analysis rendered from Markdown; the text fallback has the whole investigation as Markdown")
     void apU5() {
         ActivityStore store = started("Why?");
         step(store, "stepRecorded", "HTTP", "FAILED", "Sent HTTP request");
@@ -176,7 +181,7 @@ class ActivityPageTest {
         assertTrue(markdown.contains("## From the agent\n\n## Root cause"), markdown);
         String text = ActivityPage.text(store.current(), 2, KOLKATA);
         assertTrue(text.contains("Finished in 45.0 s") && text.contains("2 live events were dropped"), text);
-        assertTrue(ActivityPage.tools(store.current()).contains("copyAnalysis"));
+        assertFalse(ActivityPage.tools(store.current()).contains("copyAnalysis"), "no separate Copy Analysis button");
     }
 
     @Test @DisplayName("AP-U6 current stop: where, call chain, variables; values changed since the previous stop are marked")
@@ -192,23 +197,55 @@ class ActivityPageTest {
                 stopDetails("OrderService.quote:24  <  OrderController.quote:21",
                         table("quantity", "int", "2", "percent", "int", "10", "rate", "int", "0", "total", "BigDecimal", "120")));
         ActivityPage.Stop stop = ActivityPage.currentStop(store.current());
-        assertEquals("Stopped after step: OrderService.quote, line 24", stop.where());
+        assertEquals("OrderService.quote:24", stop.where(), "the top frame");
+        assertEquals("Stopped after step: OrderService.quote, line 24", stop.title());
         assertEquals("OrderService.quote:24  <  OrderController.quote:21", stop.frames());
         assertEquals(4, stop.variables().size(), "the Note line after the table is not a variable");
         assertEquals(new ActivityPage.Variable("total", "BigDecimal", "120", "0"), stop.variables().get(3));
         assertFalse(stop.variables().get(0).changed(), "unchanged value");
         assertFalse(stop.variables().get(2).changed(), "a new variable is not a change");
         String html = ActivityPage.stop(store.current());
-        assertTrue(html.contains("<h2>Current stop</h2>"));
+        assertTrue(html.contains("<h2>Current stop: <a class=\"src\""), html);
         assertTrue(html.contains("<tr class=\"changed\"><td>total</td><td>BigDecimal</td><td>120 <span class=\"was\">(was 0)</span>"), html);
         assertTrue(html.contains("adGo(event,'OrderService',24)"), "the stop location is a link");
         assertTrue(ActivityPage.markdown(store.current(), KOLKATA).contains("| total | BigDecimal | 120 (was 0) |"));
-        // A step with details opens on a click: what happened, then the technical details collapsed.
+        // A long call chain shows its first frames; the rest (framework and JDK) is folded under "N more".
+        String chain = ActivityPage.frames("OrderService.quote:24  <  OrderController.quote:21  <  Method.invoke:565"
+                + "  <  InvocableHandlerMethod.doInvoke:258  <  FrameworkServlet.service:885");
+        assertTrue(chain.contains("<details class=\"more\"><summary>2 more</summary>"), chain);
+        assertTrue(chain.indexOf("Method.invoke:565") < chain.indexOf("<details"), "the first three frames are shown");
+        assertTrue(chain.indexOf("InvocableHandlerMethod.doInvoke:258") > chain.indexOf("<details"), "the rest is folded");
+        assertFalse(ActivityPage.frames("A.b:1  <  C.d:2").contains("<details"), "a short chain is shown whole");
+        // A step with details opens on a click: what happened, then the additional details collapsed.
         String steps = ActivityPage.steps(store.current());
         assertTrue(steps.contains("<details data-i=\"3\"><summary class=\"row\">"), steps);
-        assertTrue(steps.contains("<details class=\"tech\"><summary>Technical details</summary><pre>Tool: wait_for_stop</pre>"), steps);
+        assertTrue(steps.contains("<details class=\"tech\"><summary>Additional Details</summary><pre>Tool: wait_for_stop</pre>"), steps);
+        String shell = ActivityPage.shell();
+        assertTrue(shell.contains("onclick=\"return adSteps(true)\"") && shell.contains(">Expand All</button>"), "Expand All button");
+        assertTrue(shell.contains("onclick=\"return adSteps(false)\"") && shell.contains(">Collapse All</button>"), "Collapse All button");
+        assertTrue(shell.contains("all:true"), "steps are expanded by default");
+        // Time order: steps, then the current stop, then the analysis; toolbar and banner pinned above them.
+        assertTrue(shell.indexOf("id=\"steps\"") < shell.indexOf("id=\"stop\"")
+                && shell.indexOf("id=\"stop\"") < shell.indexOf("id=\"analysis\""), "steps, stop, analysis in that order");
+        assertTrue(shell.indexOf("id=\"pin\"") < shell.indexOf("id=\"banner\"") && shell.indexOf("id=\"banner\"") < shell.indexOf("id=\"head\""),
+                "the banner is in the pinned strip at the top");
+        assertTrue(html.contains("<details class=\"stopbox\" data-i=\"stop\" data-d=\"1\" open>"), "current stop open while running");
         finish(store, "FINISHED", null);
-        assertTrue(ActivityPage.stop(store.current()).contains("<h2>Last stop</h2>"));
+        assertTrue(ActivityPage.stop(store.current()).contains("<h2>Last stop: "));
+        assertTrue(ActivityPage.stop(store.current()).contains("data-d=\"0\"><summary><h2>Last stop: "), "folded after the finish");
+
+        // A pause ("Thread suspended") has no frames of its own: they come from a later "Read call stack".
+        ActivityStore paused = started("Why?");
+        step(paused, "stepRecorded", "STOP", "OK", "Thread suspended: http-nio-127.0.0.1-auto-1-exec-3 (thread 4)");
+        step(paused, "stepRecorded", "INSPECT", "OK", "Read call stack", List.of("  OrderService.quote:24",
+                "  OrderController.quote:21", ReportFormat.TECHNICAL_DETAILS, "Tool: get_stack_frames"));
+        List<String> vars = new ArrayList<>(table("quantity", "int", "2", "rate", "int", "0"));
+        vars.add(ReportFormat.TECHNICAL_DETAILS);
+        step(paused, "stepRecorded", "INSPECT", "OK", "Read variables", vars);
+        ActivityPage.Stop fromPause = ActivityPage.currentStop(paused.current());
+        assertEquals("OrderService.quote:24", fromPause.where());
+        assertEquals("OrderService.quote:24  <  OrderController.quote:21", fromPause.frames());
+        assertEquals(2, fromPause.variables().size());
     }
 
     @Test @DisplayName("AP-U7 source locations become links that open the file; tags, attributes and other text are left alone")

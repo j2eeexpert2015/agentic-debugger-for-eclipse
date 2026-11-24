@@ -2,7 +2,11 @@ package org.learningfromexperience.eclipse.agentdebug.ui;
 
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.eclipse.core.runtime.Platform;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.IPerspectiveDescriptor;
+import org.eclipse.ui.PerspectiveAdapter;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
@@ -89,16 +93,80 @@ public final class ActivityViewOpener {
                 if (windows.length == 0) return;
                 window = windows[0];
             }
+            listenToPerspectives(window);
             IWorkbenchPage page = window.getActivePage();
             if (page == null) return;
-            // Create it, give it an area of its own if it shares one with Variables or the Console, then bring it to
-            // the front of that area. Never activated: the keyboard stays where the user types.
-            page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_CREATE);
-            ActivityViewPlacement.ensureOwnArea(window);
-            page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_VISIBLE);
-        } catch (Exception unavailable) {
+            // First the perspective the session will end up in, then the view: a switch after the view was shown
+            // would leave it behind in the old perspective.
+            if (switchToDebug()) {
+                IPerspectiveDescriptor debug = PlatformUI.getWorkbench().getPerspectiveRegistry()
+                        .findPerspectiveWithId(DEBUG_PERSPECTIVE);
+                if (debug != null && (page.getPerspective() == null || !DEBUG_PERSPECTIVE.equals(page.getPerspective().getId())))
+                    page.setPerspective(debug);          // the page only: the Eclipse window is not brought to the front
+            }
+            place(window, page);
+        } catch (Exception | LinkageError unavailable) {
             // Showing the view is a convenience; it must never affect debugging.
-            System.err.println("[Eclipse Agentic Debugger] Could not open Agent Activity: " + unavailable.getMessage());
+            Platform.getLog(ActivityViewOpener.class).warn("[Agentic Debugger] Could not open Agent Activity: " + unavailable);
+        }
+    }
+
+    /** Creates the view in the page's perspective, puts it where nothing hides it, brings it to the front. */
+    private static void place(IWorkbenchWindow window, IWorkbenchPage page) throws Exception {
+        // Never activated: the keyboard stays where the user types.
+        page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_CREATE);
+        ActivityViewPlacement.ensureOwnArea(window);
+        page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_VISIBLE);
+    }
+
+    /**
+     * Whether the session will run in the Debug perspective: this plugin's preference, or Eclipse's own Run/Debug >
+     * Perspectives setting "Open the associated perspective when an application suspends" set to Always.
+     */
+    static boolean switchToDebug() {
+        boolean ours = PerspectivePolicy.switchToDebugPerspective(InstanceScope.INSTANCE
+                .getNode("org.learningfromexperience.eclipse.agentdebug").get(PerspectivePolicy.SWITCH_TO_DEBUG_PERSPECTIVE, null));
+        String eclipse = InstanceScope.INSTANCE.getNode("org.eclipse.debug.ui")
+                .get("org.eclipse.debug.ui.switch_perspective_on_suspend", "prompt");
+        return ours || "always".equalsIgnoreCase(eclipse);
+    }
+
+    private static final String DEBUG_PERSPECTIVE = "org.eclipse.debug.ui.DebugPerspective";
+    private static final java.util.Set<IWorkbenchWindow> watched = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
+
+    /**
+     * Whatever changes the perspective during an investigation (this plugin, Eclipse's own setting, the user), the
+     * view is shown again in the new perspective, so it is never left behind.
+     */
+    private static void listenToPerspectives(IWorkbenchWindow window) {
+        synchronized (watched) {
+            if (!watched.add(window)) return;
+        }
+        window.addPerspectiveListener(new PerspectiveAdapter() {
+            @Override
+            public void perspectiveActivated(IWorkbenchPage page, IPerspectiveDescriptor perspective) {
+                ActivityStore.Investigation current = ActivityStore.global().current();
+                if (current == null || !recent(current)) return;
+                Display display = Display.getDefault();
+                if (display == null || display.isDisposed()) return;
+                display.asyncExec(() -> {
+                    try {
+                        place(window, page);
+                    } catch (Exception | LinkageError ignored) {
+                        // A convenience only.
+                    }
+                });
+            }
+        });
+    }
+
+    /** Running, or finished less than ten minutes ago (its result is still worth seeing). */
+    private static boolean recent(ActivityStore.Investigation inv) {
+        if (!inv.finished()) return true;
+        try {
+            return java.time.Duration.between(java.time.Instant.parse(inv.finishedAt()), java.time.Instant.now()).toMinutes() < 10;
+        } catch (RuntimeException unknown) {
+            return false;
         }
     }
 }
