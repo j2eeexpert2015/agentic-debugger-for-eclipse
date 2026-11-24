@@ -23,6 +23,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseDebugService;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseDebugService.DebugSessionInfo;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseAgentOperations;
@@ -42,6 +43,9 @@ public class EclipseBridgeServer implements AutoCloseable {
     private static final int PORT = Integer.parseInt(System.getenv().getOrDefault("AGENTDEBUG_PORT", "8765"));
 
     private static final String HOST = "127.0.0.1";
+
+    /** Live events for the Agent Activity view (OPEN-36); handled before the lanes. */
+    static final String ACTIVITY_EVENT_PREFIX = "ACTIVITY_EVENT ";
 
     /** {@code AGENTDEBUG_BRIDGE_MODE=legacy} restores the previous single-threaded bridge. */
     private static final boolean LEGACY_MODE =
@@ -228,6 +232,13 @@ public class EclipseBridgeServer implements AutoCloseable {
             }
 
             String command = parts[2];
+
+            // Agent Activity (OPEN-36): outside the READ/MUTATE lanes, so live events never wait
+            // behind a debugger operation and never delay one. Memory update only; never throws.
+            if (command.startsWith(ACTIVITY_EVENT_PREFIX)) {
+                writer.println(ActivityStore.global().accept(command.substring(ACTIVITY_EVENT_PREFIX.length())));
+                return;
+            }
 
             if (!LEGACY_MODE) {
                 // Lanes, deadlines, BUSY/TIMEOUT replies and timing log; never throws.

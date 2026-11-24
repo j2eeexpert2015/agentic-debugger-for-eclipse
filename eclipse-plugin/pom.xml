@@ -24,6 +24,12 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
           <version>3.5.4</version>
+          <configuration>
+            <!-- The embedded lib/report-format.jar (Bundle-ClassPath) for the unit tests, too -->
+            <additionalClasspathElements>
+              <additionalClasspathElement>${project.basedir}/lib/report-format.jar</additionalClasspathElement>
+            </additionalClasspathElements>
+          </configuration>
           <executions>
             <execution>
               <id>execute-tests</id>
@@ -52,6 +58,10 @@
                 <mkdir dir="${project.basedir}/lib"/>
                 <copy file="${project.basedir}/../mcp-server/target/agentic-debugger-mcp-1.0.0-SNAPSHOT.jar"
                       tofile="${project.basedir}/lib/agentic-debugger-mcp.jar" overwrite="true"/>
+                <!-- OPEN-36: shared escaping, Markdown and colours for the Agent Activity view
+                     (on the bundle's class path: MANIFEST.MF Bundle-ClassPath) -->
+                <copy file="${project.basedir}/../report-format/target/agentic-debugger-report-format-1.0.0-SNAPSHOT.jar"
+                      tofile="${project.basedir}/lib/report-format.jar" overwrite="true"/>
               </target></configuration>
             </execution>
           </executions>

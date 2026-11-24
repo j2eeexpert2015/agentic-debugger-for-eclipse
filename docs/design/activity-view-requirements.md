@@ -132,9 +132,9 @@ Eclipse:     Activity store (per investigation) ◄── forwarded events
 
 ### 2.2a Deliveries
 
-1. **MCP server side** (delivered 24 Nov): `StepStarted`, `CompositeReportRecorder`, `ActivityForwarder`, `AGENTDEBUG_LIVE`; tests RM-U11..U13, AF-U1..U4, SR-U14.
-2. **Eclipse side, data**: `ACTIVITY_EVENT` outside the lanes, store per investigation, JDT listener; check of the embedded browser (WebView2) in a view.
-3. **`report-format`** module (moved from the ChainTest writer, report unchanged).
+1. **MCP server side** (done 24 Nov, build and trial PASS): `StepStarted`, `CompositeReportRecorder`, `ActivityForwarder`, `AGENTDEBUG_LIVE`; tests RM-U11..U13, AF-U1..U4, SR-U14.
+2. **Eclipse side, data** (delivered 24 Nov, waiting for check): `ACTIVITY_EVENT` handled in `EclipseBridgeServer` before the lanes; `ActivityStore` per investigation (at most 20 investigations, oldest finished dropped first; at most 1000 steps each; a step result replaces the running step; a successful finish completes its running cleanup step as OK (the finish tool sends no step result of its own), any other step still running at the end becomes UNKNOWN; events of a missed start still shown; never throws); preview view `AgentActivityView` (SWT `Browser`, JavaScript off, text fallback on `SWTError`, the view description names which one is used; updates coalesced, never takes focus); tests AS-U1..U8. The JDT listener (running, paused, ended) moves to delivery 4, where the banner uses it.
+3. **`report-format`** module (delivered 24 Nov, waiting for check): plain Java, no dependencies; `ReportFormat` with `html`, `markdown` and `codeSpans` (moved unchanged from the ChainTest writer), `MARKDOWN_CSS`, colour per step kind (`kindColour`, `kindCss`, `KINDS`) and per status (`statusColour`: running blue, OK green, refused amber, error red, other grey), `split` for reader and technical details. Report writer uses it (same output). The plugin embeds it as `lib/report-format.jar` (Bundle-ClassPath); the preview view now renders the agent's analysis from Markdown, colours steps like the report and wraps long lines. Tests RF-U1..U4 (RF-U1, RF-U2 = old RC-U4, RC-U6), RC-U4 (model and format agree), AS-U7 extended.
 4. **The view**: banner, timeline, current stop, finish, notification, status bar, liveliness.
 5. **Navigation** to the code and the finishing touches (follow, copy as Markdown).
 

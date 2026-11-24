@@ -10,6 +10,18 @@
           name="Agentic Debugger"
           class="org.learningfromexperience.eclipse.agentdebug.ui.ClaudeIntegrationPreferences"/>
    </extension>
+   <!-- OPEN-36: Agent Activity view, under its own category in Window > Show View > Other... -->
+   <extension point="org.eclipse.ui.views">
+      <category
+          id="org.learningfromexperience.eclipse.agentdebug.viewCategory"
+          name="Agentic Debugger"/>
+      <view
+          id="org.learningfromexperience.eclipse.agentdebug.activityView"
+          name="Agent Activity"
+          category="org.learningfromexperience.eclipse.agentdebug.viewCategory"
+          class="org.learningfromexperience.eclipse.agentdebug.ui.AgentActivityView"
+          restorable="true"/>
+   </extension>
    <!-- OPEN-35: where the debug views go when an agent session opens them in the Java perspective: their own group
         under the editor, never the group of the terminal that runs Claude. Placeholders only (visible="false"): the
         Java perspective looks unchanged until debugging starts. Applies to a new or reset Java perspective. -->

@@ -32,6 +32,7 @@ import org.learningfromexperience.agentdebug.report.ReportEvent.StepStatus;
 import org.learningfromexperience.agentdebug.report.ReportRecorder;
 import org.learningfromexperience.agentdebug.report.ReportRecorders;
 import org.learningfromexperience.agentdebug.report.ReportSettings;
+import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 
 /**
  * OPEN-30 step R1a: ChainTest prototype. Drives ChainTest's core engine through our own report layer, with no TestNG
@@ -284,50 +285,15 @@ class ChainTestReportWriterTest {
     }
 
     @Test
-    @DisplayName("RC-U4 HTML escaping of report text, backticks shown as code")
+    @DisplayName("RC-U4 report and view share report-format: same separator, a colour for every step kind, shared styles in the report")
     void rcU4() {
-        assertEquals("a &lt;b&gt; &amp; &quot;c&quot; &#39;d&#39; &#8364;", ChainTestReportWriter.html("a <b> & \"c\" 'd' €"));
-        assertEquals("", ChainTestReportWriter.html(null));
-        // Backticks in the agent's conclusion become code; text without a closing backtick stays as it is.
-        assertEquals("line 23: <code>int rate = percent / 100</code> is integer division",
-                ChainTestReportWriter.codeSpans(ChainTestReportWriter.html("line 23: `int rate = percent / 100` is integer division")));
-        assertEquals("a ` b", ChainTestReportWriter.codeSpans("a ` b"));
-    }
-
-    @Test
-    @DisplayName("RC-U6 the agent's Markdown analysis is rendered: headings, paragraphs, lists, tables, code, bold; text stays escaped")
-    void rcU6() {
-        String analysis = String.join("\n",
-                "## Root cause",
-                "Line 23 computes `int rate = percent / 100`, which is **integer division**.",
-                "So the discount is never applied.",
-                "",
-                "- percent = 10",
-                "- rate = 0",
-                "",
-                "1. Stop at line 24",
-                "2. Read the locals",
-                "",
-                "| Variable | Value |",
-                "|---|---|",
-                "| `rate` | **0** |",
-                "",
-                "```java",
-                "int rate = percent / 100; // <0>",
-                "```",
-                "<script>alert(1)</script>");
-        String html = ChainTestReportWriter.markdown(analysis);
-        assertEquals("<div class=\"ad-md\">"
-                + "<div class=\"ad-h\">Root cause</div>"
-                + "<p>Line 23 computes <code>int rate = percent / 100</code>, which is <strong>integer division</strong>. "
-                + "So the discount is never applied.</p>"
-                + "<ul><li>percent = 10</li><li>rate = 0</li></ul>"
-                + "<ol><li>Stop at line 24</li><li>Read the locals</li></ol>"
-                + "<table><tr><th>Variable</th><th>Value</th></tr><tr><td><code>rate</code></td><td><strong>0</strong></td></tr></table>"
-                + "<code class=\"ad-block\">int rate = percent / 100; // &lt;0&gt;</code>"
-                + "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>"
-                + "</div>", html);
-        assertEquals("<div class=\"ad-md\"><p>Plain text only.</p></div>", ChainTestReportWriter.markdown("Plain text only."));
-        assertEquals("<div class=\"ad-md\"></div>", ChainTestReportWriter.markdown(null));
+        // report-format depends on nothing, so it names kinds and the separator itself; they must match report-model.
+        assertEquals(ReportEvent.TECHNICAL_DETAILS, ReportFormat.TECHNICAL_DETAILS);
+        assertEquals(Stream.of(StepKind.values()).map(Enum::name).toList(), ReportFormat.KINDS);
+        for (StepKind kind : StepKind.values())
+            assertTrue(ChainTestReportWriter.CSS.contains(".card:has(." + ReportFormat.kindClass(kind.name()) + "){--k:"
+                    + ReportFormat.kindColour(kind.name()) + "}"), "no colour rule for " + kind);
+        assertTrue(ChainTestReportWriter.CSS.contains(ReportFormat.MARKDOWN_CSS), "Markdown styles missing");
+        assertEquals("<span class=\"ad-k ad-k-http\"></span>", ChainTestReportWriter.kindMark(StepKind.HTTP));
     }
 }

@@ -16,6 +16,8 @@
     <modules>
         <!-- Debugging session report (OPEN-30, ADR-009): event model, then the ChainTest writer; used by mcp-server -->
         <module>report-model</module>
+        <!-- Shared by the report writer and the Eclipse plugin's Agent Activity view (OPEN-36); before both -->
+        <module>report-format</module>
         <module>report-chaintest</module>
         <module>mcp-server</module>
         <!-- Standalone setup utility; must follow mcp-server because it embeds the mcp-server jar -->
