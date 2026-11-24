@@ -1,5 +1,6 @@
 package org.learningfromexperience.eclipse.agentdebug.mcp;
 
+import org.learningfromexperience.agentdebug.report.format.Json;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -202,9 +203,9 @@ final class SessionReport {
     static String startedTitle(String tool, Map<String, Object> args) {
         return switch (tool) {
             case "wait_for_stop", "wait_for_debug_pause" -> "Waiting for the program to stop";
-            case "start_java_application" -> "Starting application in debug mode: " + simple(MiniJson.str(args.get("mainType")));
-            case "start_junit_test" -> "Starting JUnit test in debug mode: " + simple(MiniJson.str(args.get("typeName")));
-            case "start_fixture_http_request" -> "Sending HTTP request (" + MiniJson.str(args.get("scenario")) + " scenario)";
+            case "start_java_application" -> "Starting application in debug mode: " + simple(Json.str(args.get("mainType")));
+            case "start_junit_test" -> "Starting JUnit test in debug mode: " + simple(Json.str(args.get("typeName")));
+            case "start_fixture_http_request" -> "Sending HTTP request (" + Json.str(args.get("scenario")) + " scenario)";
             case "finish_debug_investigation" -> "Finishing the investigation and cleaning up";
             default -> title(tool, args, Map.of());
         };
@@ -216,15 +217,15 @@ final class SessionReport {
         if (!events.active()) return;
         try {
             Map<String, Object> args = arguments == null ? Map.of() : arguments;
-            Map<String, Object> reply = MiniJson.obj(MiniJson.parse(text));
+            Map<String, Object> reply = Json.obj(Json.parse(text));
             if (tool.equals("begin_debug_investigation")) {
-                String id = MiniJson.str(reply.get("investigationId"));
+                String id = Json.str(reply.get("investigationId"));
                 if (!failed && id != null) {
                     open.add(id);
                     Instant now = Instant.now();
                     starts.put(id, now);
-                    String mode = MiniJson.str(reply.getOrDefault("mode", args.get("mode")));
-                    String request = exactPrompt != null ? exactPrompt : MiniJson.str(args.get("request"));
+                    String mode = Json.str(reply.getOrDefault("mode", args.get("mode")));
+                    String request = exactPrompt != null ? exactPrompt : Json.str(args.get("request"));
                     events.record(new ReportEvent.InvestigationStarted(id, now, mode == null ? "NORMAL" : mode, client,
                             request, exactPrompt != null));
                 }
@@ -234,7 +235,7 @@ final class SessionReport {
             if (id == null) return;
             if (tool.equals("finish_debug_investigation") && !failed) {
                 events.record(new ReportEvent.InvestigationFinished(id, Instant.now(), ReportEvent.Outcome.FINISHED,
-                        MiniJson.str(args.get("summary")), cleanupLines(id, reply), chooseReport(id)));
+                        Json.str(args.get("summary")), cleanupLines(id, reply), chooseReport(id)));
                 forget(id);
                 return;
             }
@@ -344,18 +345,18 @@ final class SessionReport {
     private String investigationFor(Map<String, Object> args, Map<String, Object> reply) {
         for (Object candidate : new Object[]{args.get("investigationId"), reply.get("attachedToInvestigation"),
                 reply.get("investigationId")}) {
-            String id = MiniJson.str(candidate);
+            String id = Json.str(candidate);
             if (id != null && open.contains(id)) return id;
         }
-        String launch = MiniJson.str(args.get("launchName"));
+        String launch = Json.str(args.get("launchName"));
         if (launch != null && launchOwner.containsKey(launch)) return launchOwner.get(launch);
         return open.size() == 1 ? open.iterator().next() : null;
     }
 
     private void remember(String id, String tool, Map<String, Object> args, Map<String, Object> reply) {
-        String launch = MiniJson.str(reply.get("launchName"));
+        String launch = Json.str(reply.get("launchName"));
         if (LAUNCH.contains(tool) && launch != null) launchOwner.put(launch, id);
-        String location = MiniJson.str(reply.get("projectLocation"));
+        String location = Json.str(reply.get("projectLocation"));
         if (LAUNCH.contains(tool) && location != null && !location.isBlank() && !projects.containsKey(id)) {
             try { projects.put(id, Path.of(location)); } catch (RuntimeException invalid) { /* fallback folder */ }
         }
@@ -368,7 +369,7 @@ final class SessionReport {
         if (tool.equals("set_breakpoint") || tool.equals("set_conditional_breakpoint") || tool.equals("set_tracepoint"))
             ownBreakpoints.computeIfAbsent(id, k -> new ArrayList<>()).add(where(args));
         if (tool.equals("set_exception_breakpoint"))
-            ownBreakpoints.computeIfAbsent(id, k -> new ArrayList<>()).add(simple(MiniJson.str(args.get("exceptionName"))));
+            ownBreakpoints.computeIfAbsent(id, k -> new ArrayList<>()).add(simple(Json.str(args.get("exceptionName"))));
     }
 
     private void forget(String id) {
@@ -400,46 +401,46 @@ final class SessionReport {
      * "Received HTTP response: 200".
      */
     static String title(String tool, Map<String, Object> a, Map<String, Object> reply) {
-        String type = simple(MiniJson.str(a.get("typeName")));
-        String line = MiniJson.str(a.get("lineNumber"));
-        String launch = launchLabel(MiniJson.str(a.get("launchName")));
+        String type = simple(Json.str(a.get("typeName")));
+        String line = Json.str(a.get("lineNumber"));
+        String launch = launchLabel(Json.str(a.get("launchName")));
         return switch (tool) {
-            case "start_java_application" -> "Started application in debug mode: " + simple(MiniJson.str(a.get("mainType")));
+            case "start_java_application" -> "Started application in debug mode: " + simple(Json.str(a.get("mainType")));
             case "start_junit_test" -> "Started JUnit test in debug mode: " + type
-                    + (blank(MiniJson.str(a.get("methodName"))) ? "" : "." + MiniJson.str(a.get("methodName")));
+                    + (blank(Json.str(a.get("methodName"))) ? "" : "." + Json.str(a.get("methodName")));
             case "start_debug_session" -> "Started debug session: " + launch;
             case "restart_debug_session" -> "Restarted debug session: " + launch;
             case "set_breakpoint" -> "Set breakpoint: " + type + ", line " + line;
             case "set_conditional_breakpoint" -> "Set conditional breakpoint: " + type + ", line " + line
-                    + " (when " + MiniJson.str(a.get("condition")) + ")";
+                    + " (when " + Json.str(a.get("condition")) + ")";
             case "set_tracepoint" -> "Set tracepoint: " + type + ", line " + line;
             case "remove_breakpoint" -> "Removed breakpoint: " + type + ", line " + line;
-            case "set_exception_breakpoint" -> "Break on exception: " + simple(MiniJson.str(a.get("exceptionName")));
-            case "remove_exception_breakpoint" -> "Stopped breaking on exception: " + simple(MiniJson.str(a.get("exceptionName")));
+            case "set_exception_breakpoint" -> "Break on exception: " + simple(Json.str(a.get("exceptionName")));
+            case "remove_exception_breakpoint" -> "Stopped breaking on exception: " + simple(Json.str(a.get("exceptionName")));
             case "list_breakpoints", "list_exception_breakpoints" -> "Listed breakpoints";
             case "wait_for_stop" -> stopTitle(reply);
             case "wait_for_debug_pause" -> pauseTitle(reply);
-            case "control_debug_session" -> controlTitle(MiniJson.str(a.get("action")));
-            case "get_frame_variables" -> "Read variables (frame " + MiniJson.str(a.get("frameIndex")) + ")";
-            case "expand_frame_variable" -> "Expanded variable: " + MiniJson.str(a.get("path"));
+            case "control_debug_session" -> controlTitle(Json.str(a.get("action")));
+            case "get_frame_variables" -> "Read variables (frame " + Json.str(a.get("frameIndex")) + ")";
+            case "expand_frame_variable" -> "Expanded variable: " + Json.str(a.get("path"));
             case "get_stack_frames" -> "Read call stack";
             case "get_debug_threads" -> "Listed threads";
             case "get_debug_status" -> "Checked debug status";
-            case "evaluate_expression" -> "Evaluated expression: " + Redaction.shorten(MiniJson.str(a.get("expression")));
+            case "evaluate_expression" -> "Evaluated expression: " + Redaction.shorten(Json.str(a.get("expression")));
             case "show_debug_location" -> "Showed the current line in the editor";
             case "get_process_output" -> "Read program output";
             case "configure_step_filters" -> "Configured step filters";
             // No request id in the reply: the request was refused before anything was sent (fixture not ready).
             case "start_fixture_http_request" -> reply.get("requestId") == null
-                    ? "HTTP request not sent (" + MiniJson.str(a.get("scenario")) + " scenario)"
+                    ? "HTTP request not sent (" + Json.str(a.get("scenario")) + " scenario)"
                     : "Sent HTTP request: "
-                    + Text.firstNonNull(MiniJson.str(reply.get("method")), "POST")
-                    + (reply.get("url") != null ? " " + path(MiniJson.str(reply.get("url"))) : "")
-                    + " (" + MiniJson.str(a.get("scenario")) + " scenario)";
+                    + Text.firstNonNull(Json.str(reply.get("method")), "POST")
+                    + (reply.get("url") != null ? " " + path(Json.str(reply.get("url"))) : "")
+                    + " (" + Json.str(a.get("scenario")) + " scenario)";
             case "get_fixture_http_request" -> reply.get("httpStatus") != null
-                    ? "Received HTTP response: " + MiniJson.str(reply.get("httpStatus"))
-                    : "COMPLETE".equals(MiniJson.str(reply.get("status"))) || reply.isEmpty() ? "Checked HTTP response"
-                    : "HTTP response: " + Text.firstNonNull(MiniJson.str(reply.get("status")), "unknown").toLowerCase(Locale.ROOT);
+                    ? "Received HTTP response: " + Json.str(reply.get("httpStatus"))
+                    : "COMPLETE".equals(Json.str(reply.get("status"))) || reply.isEmpty() ? "Checked HTTP response"
+                    : "HTTP response: " + Text.firstNonNull(Json.str(reply.get("status")), "unknown").toLowerCase(Locale.ROOT);
             case "finish_debug_investigation" -> "Finished investigation and cleaned up";
             default -> "Called " + tool;
         };
@@ -468,16 +469,16 @@ final class SessionReport {
 
     private static String stopTitle(Map<String, Object> reply) {
         if (!Boolean.TRUE.equals(reply.get("stopped"))) {
-            String reason = Text.firstNonNull(MiniJson.str(reply.get("reason")), "no reply");
+            String reason = Text.firstNonNull(Json.str(reply.get("reason")), "no reply");
             return reason.equals("TERMINATED") ? "Program ended without stopping" : "Waited for a stop: none (" + reason + ")";
         }
-        Map<String, Object> at = MiniJson.obj(reply.get("location"));
-        String where = at.isEmpty() ? "" : ": " + simple(MiniJson.str(at.get("className"))) + "."
-                + MiniJson.str(at.get("methodName")) + ", line " + MiniJson.str(at.get("lineNumber"));
-        String reason = Text.firstNonNull(MiniJson.str(reply.get("reason")), "");
+        Map<String, Object> at = Json.obj(reply.get("location"));
+        String where = at.isEmpty() ? "" : ": " + simple(Json.str(at.get("className"))) + "."
+                + Json.str(at.get("methodName")) + ", line " + Json.str(at.get("lineNumber"));
+        String reason = Text.firstNonNull(Json.str(reply.get("reason")), "");
         return switch (reason) {
             case "BREAKPOINT" -> "Stopped at breakpoint" + where;
-            case "EXCEPTION" -> "Stopped on exception " + Text.firstNonNull(simple(MiniJson.str(reply.get("exceptionType"))), "") + where;
+            case "EXCEPTION" -> "Stopped on exception " + Text.firstNonNull(simple(Json.str(reply.get("exceptionType"))), "") + where;
             case "STEP_END" -> "Stopped after step" + where;
             case "PAUSED" -> "Paused" + where;
             default -> "Stopped" + where;
@@ -485,10 +486,10 @@ final class SessionReport {
     }
 
     private static String pauseTitle(Map<String, Object> reply) {
-        for (Object t : MiniJson.arr(reply.get("threads"))) {
-            Map<String, Object> thread = MiniJson.obj(t);
+        for (Object t : Json.arr(reply.get("threads"))) {
+            Map<String, Object> thread = Json.obj(t);
             if (Boolean.TRUE.equals(thread.get("suspended")))
-                return "Thread suspended: " + MiniJson.str(thread.get("name")) + " (thread " + MiniJson.str(thread.get("index")) + ")";
+                return "Thread suspended: " + Json.str(thread.get("name")) + " (thread " + Json.str(thread.get("index")) + ")";
         }
         return "Waited for a pause: no thread suspended";
     }
@@ -507,7 +508,7 @@ final class SessionReport {
         for (var entry : a.entrySet()) {
             if (HIDDEN_ARGUMENTS.contains(entry.getKey())) continue;
             String value = entry.getKey().equals("launchName")
-                    ? launchLabel(MiniJson.str(entry.getValue())) : MiniJson.str(entry.getValue());
+                    ? launchLabel(Json.str(entry.getValue())) : Json.str(entry.getValue());
             lines.add(entry.getKey() + ": " + Redaction.value(entry.getKey(), value));
         }
         int technicalEnd = lines.size();
@@ -518,13 +519,13 @@ final class SessionReport {
         // A reply that is not JSON (an old plugin, a plain message) is shown as it is, whatever the tool.
         switch (reply.isEmpty() ? "" : tool) {
             case "wait_for_stop" -> stopDetails(reply, lines);
-            case "get_frame_variables", "expand_frame_variable" -> variables(MiniJson.arr(
+            case "get_frame_variables", "expand_frame_variable" -> variables(Json.arr(
                     reply.containsKey("variables") ? reply.get("variables") : reply.get("children")), lines);
             case "get_stack_frames" -> {
                 lines.add("");
                 List<Object> frames = new ArrayList<>();
-                for (Object f : MiniJson.arr(reply.get("frames"))) if (!hiddenFrame(MiniJson.obj(f))) frames.add(f);
-                for (int i = 0; i < Math.min(MAX_FRAMES, frames.size()); i++) lines.add("  " + frame(MiniJson.obj(frames.get(i))));
+                for (Object f : Json.arr(reply.get("frames"))) if (!hiddenFrame(Json.obj(f))) frames.add(f);
+                for (int i = 0; i < Math.min(MAX_FRAMES, frames.size()); i++) lines.add("  " + frame(Json.obj(frames.get(i))));
                 if (frames.size() > MAX_FRAMES) lines.add("  ... (" + (frames.size() - MAX_FRAMES) + " more frames)");
             }
             case "wait_for_debug_pause" -> {
@@ -533,25 +534,25 @@ final class SessionReport {
             }
             case "get_debug_threads" -> {
                 lines.add("");
-                for (Object t : MiniJson.arr(reply.get("threads"))) {
-                    Map<String, Object> thread = MiniJson.obj(t);
-                    lines.add("  " + MiniJson.str(thread.get("index")) + "  " + MiniJson.str(thread.get("name"))
+                for (Object t : Json.arr(reply.get("threads"))) {
+                    Map<String, Object> thread = Json.obj(t);
+                    lines.add("  " + Json.str(thread.get("index")) + "  " + Json.str(thread.get("name"))
                             + (Boolean.TRUE.equals(thread.get("suspended")) ? "  (suspended)" : ""));
                 }
             }
             case "get_process_output" -> processOutput(reply, lines);
             case "start_fixture_http_request" -> {
                 lines.add("");
-                lines.add(Text.firstNonNull(MiniJson.str(reply.get("method")), "POST") + " " + MiniJson.str(reply.get("url")));
-                if (reply.get("bodySent") != null) lines.add("Body sent: " + Redaction.shorten(MiniJson.str(reply.get("bodySent"))));
-                lines.add("Request id: " + MiniJson.str(reply.get("requestId")) + " (" + MiniJson.str(reply.get("status")) + ")");
+                lines.add(Text.firstNonNull(Json.str(reply.get("method")), "POST") + " " + Json.str(reply.get("url")));
+                if (reply.get("bodySent") != null) lines.add("Body sent: " + Redaction.shorten(Json.str(reply.get("bodySent"))));
+                lines.add("Request id: " + Json.str(reply.get("requestId")) + " (" + Json.str(reply.get("status")) + ")");
             }
             case "get_fixture_http_request" -> {
                 lines.add("");
-                if (reply.get("httpStatus") != null) lines.add("HTTP " + MiniJson.str(reply.get("httpStatus")));
-                else lines.add("Request " + MiniJson.str(reply.get("status")));
-                if (reply.get("body") != null) lines.add("Body: " + Redaction.shorten(MiniJson.str(reply.get("body"))));
-                if (reply.get("error") != null) lines.add("Error: " + Redaction.shorten(MiniJson.str(reply.get("error"))));
+                if (reply.get("httpStatus") != null) lines.add("HTTP " + Json.str(reply.get("httpStatus")));
+                else lines.add("Request " + Json.str(reply.get("status")));
+                if (reply.get("body") != null) lines.add("Body: " + Redaction.shorten(Json.str(reply.get("body"))));
+                if (reply.get("error") != null) lines.add("Error: " + Redaction.shorten(Json.str(reply.get("error"))));
             }
             default -> {
                 String result = resultSummary(a, reply, text);
@@ -559,7 +560,7 @@ final class SessionReport {
                     lines.add("");
                     lines.add("Result: " + result);
                 }
-                if (reply.get("projectLocation") != null) lines.add("Project folder: " + MiniJson.str(reply.get("projectLocation")));
+                if (reply.get("projectLocation") != null) lines.add("Project folder: " + Json.str(reply.get("projectLocation")));
             }
         }
         return readerFirst(lines, technicalEnd, plainResult(tool, reply));
@@ -611,21 +612,21 @@ final class SessionReport {
     private static void stopDetails(Map<String, Object> reply, List<String> lines) {
         lines.add("");
         if (!Boolean.TRUE.equals(reply.get("stopped"))) {
-            lines.add("No stop: " + MiniJson.str(reply.get("reason")));
+            lines.add("No stop: " + Json.str(reply.get("reason")));
             return;
         }
-        lines.add("Thread: " + MiniJson.str(reply.get("threadName")) + " (index " + MiniJson.str(reply.get("threadIndex")) + ")");
-        if (reply.get("exceptionType") != null) lines.add("Exception: " + MiniJson.str(reply.get("exceptionType")));
+        lines.add("Thread: " + Json.str(reply.get("threadName")) + " (index " + Json.str(reply.get("threadIndex")) + ")");
+        if (reply.get("exceptionType") != null) lines.add("Exception: " + Json.str(reply.get("exceptionType")));
         List<String> frames = new ArrayList<>();
-        for (Object f : MiniJson.arr(reply.get("frames")))
-            if (!hiddenFrame(MiniJson.obj(f))) frames.add(frame(MiniJson.obj(f)));
+        for (Object f : Json.arr(reply.get("frames")))
+            if (!hiddenFrame(Json.obj(f))) frames.add(frame(Json.obj(f)));
         if (!frames.isEmpty()) {
             Object total = reply.get("totalFrames");
             int more = total instanceof Double d ? d.intValue() - frames.size() : 0;
             lines.add("Frames: " + String.join("  <  ", frames) + (more > 0 ? "  <  (" + more + " more)" : ""));
         }
-        variables(MiniJson.arr(reply.get("locals")), lines);
-        if (reply.get("localsNote") != null) lines.add("Note: " + MiniJson.str(reply.get("localsNote")));
+        variables(Json.arr(reply.get("locals")), lines);
+        if (reply.get("localsNote") != null) lines.add("Note: " + Json.str(reply.get("localsNote")));
     }
 
     /** Variables as an aligned three-column table, secrets masked and long values shortened. */
@@ -634,11 +635,11 @@ final class SessionReport {
         List<String[]> rows = new ArrayList<>();
         rows.add(new String[]{"Variable", "Type", "Value"});
         for (Object item : items) {
-            Map<String, Object> v = MiniJson.obj(item);
-            String name = Text.firstNonNull(MiniJson.str(v.get("name")), "?");
+            Map<String, Object> v = Json.obj(item);
+            String name = Text.firstNonNull(Json.str(v.get("name")), "?");
             if (name.equals(NO_RETURN_VALUE)) continue;
-            rows.add(new String[]{name, Text.firstNonNull(simple(MiniJson.str(v.get("type"))), ""),
-                    Redaction.value(name, MiniJson.str(v.get("value")))});
+            rows.add(new String[]{name, Text.firstNonNull(simple(Json.str(v.get("type"))), ""),
+                    Redaction.value(name, Json.str(v.get("value")))});
         }
         int w0 = 0, w1 = 0;
         for (String[] r : rows) { w0 = Math.max(w0, r[0].length()); w1 = Math.max(w1, r[1].length()); }
@@ -652,32 +653,32 @@ final class SessionReport {
 
     private List<String> cleanupLines(String id, Map<String, Object> reply) {
         List<String> lines = new ArrayList<>();
-        if (reply.get("action") != null) lines.add("Action: " + MiniJson.str(reply.get("action")));
-        String action = MiniJson.str(reply.get("action"));
+        if (reply.get("action") != null) lines.add("Action: " + Json.str(reply.get("action")));
+        String action = Json.str(reply.get("action"));
         for (String bp : ownBreakpoints.getOrDefault(id, List.of()))
             lines.add(("KEEP_SUSPENDED".equals(action) ? "Kept own breakpoint " : "Removed own breakpoint ") + bp);
         if (reply.get("launchName") != null && Boolean.TRUE.equals(reply.get("ownedSession")))
-            lines.add("Own launch: " + launchLabel(MiniJson.str(reply.get("launchName"))));
+            lines.add("Own launch: " + launchLabel(Json.str(reply.get("launchName"))));
         if (reply.get("processesEnded") != null)
-            lines.add("JVM ended: " + MiniJson.str(reply.get("processesEnded")));
+            lines.add("JVM ended: " + Json.str(reply.get("processesEnded")));
         List<String> steps = new ArrayList<>();
-        for (Object step : MiniJson.arr(reply.get("terminationSteps"))) steps.add(render(step));
+        for (Object step : Json.arr(reply.get("terminationSteps"))) steps.add(render(step));
         if (!steps.isEmpty()) lines.add("Termination: " + Redaction.shorten(String.join(", ", steps)));
-        if (reply.get("warning") != null) lines.add("Warning: " + MiniJson.str(reply.get("warning")));
+        if (reply.get("warning") != null) lines.add("Warning: " + Json.str(reply.get("warning")));
         return lines;
     }
 
     /** Last lines of each process's output (console first, else stdout and stderr). */
     private static void processOutput(Map<String, Object> reply, List<String> lines) {
-        for (Object item : MiniJson.arr(reply.get("processes"))) {
-            Map<String, Object> process = MiniJson.obj(item);
+        for (Object item : Json.arr(reply.get("processes"))) {
+            Map<String, Object> process = Json.obj(item);
             lines.add("");
-            String label = Text.firstNonNull(MiniJson.str(process.get("label")), "process");
+            String label = Text.firstNonNull(Json.str(process.get("label")), "process");
             int pid = label.indexOf("[pid:");
             lines.add("Process" + (pid >= 0 ? " " + label.substring(pid) : ""));
-            String output = MiniJson.str(process.get("console"));
-            if (blank(output)) output = Text.firstNonNull(MiniJson.str(process.get("stdout")), "")
-                    + Text.firstNonNull(MiniJson.str(process.get("stderr")), "");
+            String output = Json.str(process.get("console"));
+            if (blank(output)) output = Text.firstNonNull(Json.str(process.get("stdout")), "")
+                    + Text.firstNonNull(Json.str(process.get("stderr")), "");
             List<String> all = new ArrayList<>();
             for (String line : output.split("\\R")) if (!line.isBlank()) all.add(line);
             if (all.isEmpty()) { lines.add("  (no output)"); continue; }
@@ -685,7 +686,7 @@ final class SessionReport {
             if (from > 0) lines.add("  ... last " + OUTPUT_TAIL + " of " + all.size() + " lines");
             for (String line : all.subList(from, all.size())) lines.add("  | " + Redaction.shorten(line));
         }
-        if (MiniJson.arr(reply.get("processes")).isEmpty()) {
+        if (Json.arr(reply.get("processes")).isEmpty()) {
             lines.add("");
             lines.add("(no process output)");
         }
@@ -698,13 +699,13 @@ final class SessionReport {
     static String resultSummary(Map<String, Object> args, Map<String, Object> reply, String text) {
         if (reply.isEmpty()) return Redaction.shorten(text == null ? "" : text.strip());
         Set<String> shownInArguments = new java.util.HashSet<>();
-        for (Object v : args.values()) shownInArguments.add(MiniJson.str(v));
+        for (Object v : args.values()) shownInArguments.add(Json.str(v));
         List<String> parts = new ArrayList<>();
         for (var e : reply.entrySet()) {
             if (e.getKey().equals("status") || e.getKey().equals("attachedToInvestigation")
                     || e.getKey().equals("projectLocation")) continue;   // the project folder gets its own line
-            String value = e.getKey().equals("launchName") ? launchLabel(MiniJson.str(e.getValue())) : render(e.getValue());
-            if (shownInArguments.contains(MiniJson.str(e.getValue()))) continue;
+            String value = e.getKey().equals("launchName") ? launchLabel(Json.str(e.getValue())) : render(e.getValue());
+            if (shownInArguments.contains(Json.str(e.getValue()))) continue;
             parts.add(e.getKey() + "=" + Redaction.value(e.getKey(), value));
         }
         return Redaction.shorten(String.join(", ", parts));
@@ -722,17 +723,17 @@ final class SessionReport {
             for (Object item : list) parts.add(render(item));
             return "[" + String.join(", ", parts) + "]";
         }
-        return MiniJson.str(value);
+        return Json.str(value);
     }
 
     private static String errorText(Map<String, Object> reply, String text) {
-        String message = MiniJson.str(reply.get("message"));
-        if (message == null) message = MiniJson.str(reply.get("error"));
+        String message = Json.str(reply.get("message"));
+        if (message == null) message = Json.str(reply.get("error"));
         return message != null ? message : text == null ? "" : text.strip();
     }
 
     private static String where(Map<String, Object> a) {
-        return simple(MiniJson.str(a.get("typeName"))) + ":" + MiniJson.str(a.get("lineNumber"));
+        return simple(Json.str(a.get("typeName"))) + ":" + Json.str(a.get("lineNumber"));
     }
 
     /**
@@ -740,14 +741,14 @@ final class SessionReport {
      * "0x000000008d24c000.invokeVirtual:-1" or "Invokers$Holder.invokeExact_MT:-1"): left out of the report and counted.
      */
     static boolean hiddenFrame(Map<String, Object> f) {
-        String className = Text.firstNonNull(MiniJson.str(f.get("className")), "");
-        String line = MiniJson.str(f.get("lineNumber"));
+        String className = Text.firstNonNull(Json.str(f.get("className")), "");
+        String line = Json.str(f.get("lineNumber"));
         return className.startsWith("0x") || "-1".equals(line);
     }
 
     private static String frame(Map<String, Object> f) {
-        return simple(MiniJson.str(f.get("className"))) + "." + MiniJson.str(f.get("methodName"))
-                + ":" + MiniJson.str(f.get("lineNumber"));
+        return simple(Json.str(f.get("className"))) + "." + Json.str(f.get("methodName"))
+                + ":" + Json.str(f.get("lineNumber"));
     }
 
     /** org.example.OrderService -> OrderService (inner classes and generics kept as they are). */

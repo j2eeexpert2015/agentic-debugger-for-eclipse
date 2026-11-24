@@ -1,5 +1,6 @@
 package org.learningfromexperience.eclipse.agentdebug.activity;
 
+import org.learningfromexperience.agentdebug.report.format.Json;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -99,8 +100,8 @@ public final class ActivityStore {
             if (encoded == null || encoded.length() > MAX_EVENT_CHARS * 2)
                 return error("Activity event missing or too large");
             String json = new String(Base64.getUrlDecoder().decode(encoded.strip()), StandardCharsets.UTF_8);
-            Map<String, Object> event = ActivityJson.obj(ActivityJson.parse(json));
-            String type = ActivityJson.str(event.get("type"));
+            Map<String, Object> event = Json.obj(Json.parse(json));
+            String type = Json.str(event.get("type"));
             if (type == null) return error("Activity event without type");
             synchronized (this) {
                 id = apply(type, event);
@@ -165,38 +166,38 @@ public final class ActivityStore {
             droppedEvents += Math.max(0, number(e.get("count")));
             return null;
         }
-        String id = ActivityJson.str(e.get("investigationId"));
+        String id = Json.str(e.get("investigationId"));
         if (id == null || id.isBlank()) throw new IllegalArgumentException("investigationId");
-        String at = ActivityJson.str(e.get("at"));
+        String at = Json.str(e.get("at"));
         Mutable inv;
         switch (type) {
             case "investigationStarted" -> {
                 inv = investigations.computeIfAbsent(id, Mutable::new);
-                inv.mode = ActivityJson.str(e.get("mode"));
-                inv.client = ActivityJson.str(e.get("client"));
-                inv.request = ActivityJson.str(e.get("request"));
+                inv.mode = Json.str(e.get("mode"));
+                inv.client = Json.str(e.get("client"));
+                inv.request = Json.str(e.get("request"));
                 inv.requestExact = Boolean.TRUE.equals(e.get("requestExact"));
                 inv.startedAt = at;
                 trim();
             }
             case "stepStarted" -> {
                 inv = known(id, at);
-                inv.add(new Step(ActivityJson.str(e.get("kind")), ActivityJson.str(e.get("title")), "RUNNING",
+                inv.add(new Step(Json.str(e.get("kind")), Json.str(e.get("title")), "RUNNING",
                         List.of(), -1, at, null));
             }
             case "stepRecorded" -> {
                 inv = known(id, at);
-                Step done = new Step(ActivityJson.str(e.get("kind")), ActivityJson.str(e.get("title")),
-                        ActivityJson.str(e.get("status")), strings(e.get("details")), number(e.get("durationMs")),
+                Step done = new Step(Json.str(e.get("kind")), Json.str(e.get("title")),
+                        Json.str(e.get("status")), strings(e.get("details")), number(e.get("durationMs")),
                         null, at);
                 inv.finishRunning(done);
             }
             case "investigationFinished" -> {
                 inv = known(id, at);
-                inv.outcome = ActivityJson.str(e.get("outcome"));
-                inv.conclusion = ActivityJson.str(e.get("conclusion"));
+                inv.outcome = Json.str(e.get("outcome"));
+                inv.conclusion = Json.str(e.get("conclusion"));
                 inv.cleanup = strings(e.get("cleanup"));
-                inv.reportFile = ActivityJson.str(e.get("reportFile"));
+                inv.reportFile = Json.str(e.get("reportFile"));
                 inv.finishedAt = at;
                 inv.endRunning("FINISHED".equals(inv.outcome));
             }
@@ -254,7 +255,7 @@ public final class ActivityStore {
 
     private static List<String> strings(Object value) {
         List<String> out = new ArrayList<>();
-        for (Object o : ActivityJson.arr(value)) out.add(o == null ? "" : ActivityJson.str(o));
+        for (Object o : Json.arr(value)) out.add(o == null ? "" : Json.str(o));
         return List.copyOf(out);
     }
 

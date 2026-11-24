@@ -1,5 +1,6 @@
 package org.learningfromexperience.eclipse.agentdebug.mcp;
 
+import org.learningfromexperience.agentdebug.report.format.Json;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -380,13 +381,13 @@ class SessionReportTest {
     @Test
     @DisplayName("SR-U8 the small JSON reader handles the bridge's replies and rejects invalid text")
     void srU8() {
-        var stop = MiniJson.obj(MiniJson.parse(STOP));
-        assertEquals("3", MiniJson.str(stop.get("threadIndex")));
+        var stop = Json.obj(Json.parse(STOP));
+        assertEquals("3", Json.str(stop.get("threadIndex")));
         assertEquals(Boolean.TRUE, stop.get("stopped"));
-        assertEquals(3, MiniJson.arr(stop.get("locals")).size());
-        assertEquals("a\"b\né", MiniJson.parse("\"a\\\"b\\n\\u00e9\""));
-        assertEquals(null, MiniJson.parse("{\"a\":"));
-        assertEquals(null, MiniJson.parse("{} trailing"));
+        assertEquals(3, Json.arr(stop.get("locals")).size());
+        assertEquals("a\"b\né", Json.parse("\"a\\\"b\\n\\u00e9\""));
+        assertEquals(null, Json.parse("{\"a\":"));
+        assertEquals(null, Json.parse("{} trailing"));
         assertEquals("OrderService", SessionReport.simple("org.example.OrderService"));
         assertEquals("List<java.lang.String>", SessionReport.simple("java.util.List<java.lang.String>"));
     }

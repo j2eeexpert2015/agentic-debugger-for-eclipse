@@ -1,4 +1,4 @@
-package org.learningfromexperience.eclipse.agentdebug.activity;
+package org.learningfromexperience.agentdebug.report.format;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -6,24 +6,27 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Small, lenient JSON reader for the Agent Activity events (OPEN-36), the same as the MCP server's MiniJson: the
- * plugin cannot use the MCP server's classes. Objects become {@code Map<String,Object>}, arrays {@code List<Object>}, numbers
- * {@code Double}. Anything it cannot read gives {@code null}; it never throws.
+ * Small, lenient JSON reader shared by the MCP server (bridge replies, fixture checks, the session report) and the
+ * Eclipse plugin (Agent Activity events). It replaces three copies: {@code MiniJson} (MCP server), {@code ActivityJson}
+ * (plugin) and the reader inside {@code FixtureHttpTools} (OPEN-38 step 3). No dependencies.
+ *
+ * <p>Objects become {@code Map<String,Object>} (in order), arrays {@code List<Object>}, numbers {@code Double}.
+ * Anything it cannot read gives {@code null}; it never throws.
  *
  * @author Ayan Dutta
  */
-final class ActivityJson {
+public final class Json {
 
     private final String s;
     private int i;
 
-    private ActivityJson(String s) { this.s = s; }
+    private Json(String s) { this.s = s; }
 
     /** The parsed value, or null when the text is not valid JSON. */
-    static Object parse(String text) {
+    public static Object parse(String text) {
         if (text == null) return null;
         try {
-            ActivityJson p = new ActivityJson(text.strip());
+            Json p = new Json(text.strip());
             Object value = p.value();
             p.ws();
             return p.i == p.s.length() ? value : null;
@@ -33,13 +36,13 @@ final class ActivityJson {
     }
 
     @SuppressWarnings("unchecked")
-    static Map<String, Object> obj(Object o) { return o instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of(); }
+    public static Map<String, Object> obj(Object o) { return o instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of(); }
 
     @SuppressWarnings("unchecked")
-    static List<Object> arr(Object o) { return o instanceof List<?> l ? (List<Object>) l : List.of(); }
+    public static List<Object> arr(Object o) { return o instanceof List<?> l ? (List<Object>) l : List.of(); }
 
     /** Text of a value: strings as they are, whole numbers without ".0", null as null. */
-    static String str(Object o) {
+    public static String str(Object o) {
         if (o == null) return null;
         if (o instanceof Double d && d == Math.rint(d) && !d.isInfinite()) return Long.toString(d.longValue());
         return o.toString();

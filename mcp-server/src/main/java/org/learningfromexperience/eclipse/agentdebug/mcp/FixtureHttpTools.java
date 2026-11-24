@@ -1,5 +1,6 @@
 package org.learningfromexperience.eclipse.agentdebug.mcp;
 
+import org.learningfromexperience.agentdebug.report.format.Json;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -257,52 +258,5 @@ public final class FixtureHttpTools {
     private static CallToolResult failure(String text) {
         return CallToolResult.builder().isError(true)
                 .content(List.of(new McpSchema.TextContent(text == null ? "Unknown fixture error" : text))).build();
-    }
-
-    /** Minimal strict JSON decoder for bridge and fixture identity responses, no external dependency. */
-    static final class Json {
-        private final String text; private int p;
-        private Json(String text) { this.text = text; }
-        static Object parse(String text) {
-            Json j = new Json(text); Object result=j.read(); j.ws();
-            if(j.p != text.length()) throw new IllegalArgumentException("Trailing JSON");
-            return result;
-        }
-        private void ws(){while(p<text.length() && Character.isWhitespace(text.charAt(p)))p++;}
-        private char peek(){ws();return p<text.length()?text.charAt(p):'\0';}
-        private char take(){if(p>=text.length())throw new IllegalArgumentException("Unexpected end of JSON");return text.charAt(p++);}
-        private void expect(char c){ws();if(take()!=c)throw new IllegalArgumentException("Unexpected JSON token");}
-        private Object read() {
-            char c=peek();
-            if(c=='"') return string();
-            if(c=='{') { take();java.util.Map<String,Object> m=new java.util.LinkedHashMap<>();
-                if(peek()=='}'){take();return m;}
-                while(true){String k=string();expect(':');m.put(k,read());c=peek();
-                    if(c=='}'){take();return m;}expect(',');}
-            }
-            if(c=='['){take();java.util.List<Object> l=new java.util.ArrayList<>();
-                if(peek()==']'){take();return l;}
-                while(true){l.add(read());c=peek();if(c==']'){take();return l;}expect(',');}
-            }
-            if(text.startsWith("true",p)){p+=4;return true;}
-            if(text.startsWith("false",p)){p+=5;return false;}
-            if(text.startsWith("null",p)){p+=4;return null;}
-            int start=p; if(peek()=='-')p++;
-            while(p<text.length() && "0123456789.eE+-".indexOf(text.charAt(p))>=0)p++;
-            if(start==p)throw new IllegalArgumentException("Bad JSON number");
-            return new java.math.BigDecimal(text.substring(start,p));
-        }
-        private String string(){expect('"');StringBuilder b=new StringBuilder();
-            while(true){char c=take();if(c=='"')return b.toString();
-                if(c!='\\'){b.append(c);continue;}
-                char e=take();switch(e){
-                    case '"' -> b.append('"');case '\\' -> b.append('\\');case '/' -> b.append('/');
-                    case 'n' -> b.append('\n');case 'r' -> b.append('\r');case 't' -> b.append('\t');
-                    case 'b' -> b.append('\b');case 'f' -> b.append('\f');
-                    case 'u' -> {String hex=text.substring(p,p+4);p+=4;b.append((char)Integer.parseInt(hex,16));}
-                    default -> throw new IllegalArgumentException("Invalid JSON string escape");
-                }
-            }
-        }
     }
 }

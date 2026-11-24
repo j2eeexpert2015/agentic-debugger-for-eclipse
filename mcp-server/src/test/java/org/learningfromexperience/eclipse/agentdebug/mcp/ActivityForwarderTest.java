@@ -1,5 +1,6 @@
 package org.learningfromexperience.eclipse.agentdebug.mcp;
 
+import org.learningfromexperience.agentdebug.report.format.Json;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,7 +39,7 @@ class ActivityForwarderTest {
         assertTrue(command.startsWith("ACTIVITY_EVENT "), command);
         String json = new String(Base64.getUrlDecoder().decode(command.substring("ACTIVITY_EVENT ".length())),
                 StandardCharsets.UTF_8);
-        return MiniJson.obj(MiniJson.parse(json));
+        return Json.obj(Json.parse(json));
     }
 
     @Test
@@ -67,8 +68,8 @@ class ActivityForwarderTest {
         Map<String, Object> step = decode(sent.get(2));
         assertEquals("OK", step.get("status"));
         assertEquals(List.of("rate        int     0", ReportEvent.TECHNICAL_DETAILS, "Tool: wait_for_stop"),
-                MiniJson.arr(step.get("details")));
-        assertEquals("37", MiniJson.str(step.get("durationMs")));
+                Json.arr(step.get("details")));
+        assertEquals("37", Json.str(step.get("durationMs")));
         Map<String, Object> finished = decode(sent.get(3));
         assertEquals("FINISHED", finished.get("outcome"));
         assertEquals("## Root cause\n`percent / 100`", finished.get("conclusion"));

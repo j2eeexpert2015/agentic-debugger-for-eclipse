@@ -52,6 +52,12 @@
             <artifactId>agentic-debugger-report-model</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
+        <!-- Shared JSON reader (Json), also used by the Eclipse plugin (OPEN-38 step 3) -->
+        <dependency>
+            <groupId>org.learningfromexperience</groupId>
+            <artifactId>agentic-debugger-report-format</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>org.learningfromexperience</groupId>
             <artifactId>agentic-debugger-report-chaintest</artifactId>

@@ -49,7 +49,7 @@ Two levels, both separate from the 23-scenario regression (the `bridge` group is
 ::    testing (18):        EV-U1..U18 (Claude transcript grader)
 ::    installer (7):       IP-U1..U4, CD-U1..U3 (setup utility)
 ::    report-model (13):   RM-U1..U13 (session report: isolation rules of ADR-009, report file names, several consumers)
-::    report-format (4):   RF-U1..U4 (escaping, Markdown, colours shared by the report and the Agent Activity view)
+::    report-format (5):   RF-U1..U5 (escaping, Markdown, colours, the shared JSON reader)
 ::    report-chaintest (5): RC-U1..U5 (session report: ChainTest writer, prototype reports)
 ::    A failing unit test fails the build. Integration tests and Claude trials are never run by Maven.
 mvn clean package
@@ -70,8 +70,6 @@ The `bridge` group uses the test-only `BRIDGE_TEST_SLEEP` command. The bridge ac
 
 **Manual (BR-E8):** close Eclipse while a slow command runs → clean shutdown; after restart the bridge starts and `BRIDGE_START` appears in the log.
 
-**Legacy comparison:** close the dedicated Eclipse, then run with `AGENTDEBUG_BRIDGE_MODE=legacy` set in the same command prompt (`set AGENTDEBUG_BRIDGE_MODE=legacy`), so DevE2E starts Eclipse in the previous single-threaded mode. Close Eclipse again and clear the variable afterwards. Check the run prints `Started Eclipse automatically…` (not `Existing bridge…`) and that the newest `BRIDGE_START` line in the bridge log says `mode=legacy`; an already-running Eclipse keeps the mode it was started with.
-
 **Bridge log:** `%USERPROFILE%\.eclipse-agentdebug\bridge-<port>.log` (rolls over at 1 MB). One line per command — name, lane, queue and run time, outcome — plus `SLOW`, `TIMEOUT`, `ABANDONED`, `BRIDGE_START/STOP` events. Never arguments or tokens. Tuning (rarely needed): `AGENTDEBUG_BRIDGE_BUSY_WAIT_MS` (default 5000), `AGENTDEBUG_BRIDGE_ABANDON_MS` (default 300000).
 
 ### Go / no-go checklist for bridge changes
@@ -82,13 +80,12 @@ Record a **baseline before deploying** a bridge change: 3 full `test --approve-f
 - [ ] `test --groups bridge` — 4/4, plus the manual shutdown check
 - [ ] **3 consecutive uninterrupted 23/23 runs**, all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
 - [ ] Every scenario that passed in the baseline still passes; no scenario more than ~20 % slower
-- [ ] One full run in `legacy` mode on the same build gives the same results (apart from timeouts that disappear in concurrent mode)
 - [ ] Ownership checks 32/32 (`e2e-runner/ownership-tests/`)
 - [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass
 - [ ] Manual: Preferences → Configure/Verify; one real Claude investigation; your own breakpoints and session untouched while Claude debugs
 - [ ] Record commit, bundle, JDK and date in the README tracking table
 
-Rollback: `AGENTDEBUG_BRIDGE_MODE=legacy` (no reinstall), or revert the CORE-13 change.
+Rollback: install the previous plugin build (the single-threaded `legacy` bridge mode was removed on 25 Nov 2026, OPEN-38 step 3).
 
 **CORE-13 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** baseline on the previous build 3× 23/23; new build: unit 13/13, 3 consecutive uninterrupted 23/23 runs, `bridge` 4/4. Open: legacy-mode comparison, ownership 32/32, overnight loop, MCP version mix.
 

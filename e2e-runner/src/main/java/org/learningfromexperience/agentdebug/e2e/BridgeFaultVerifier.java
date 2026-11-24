@@ -63,7 +63,7 @@ public final class BridgeFaultVerifier {
     private void preflight() throws Exception {
         Map<String, Object> diag = call("GET_BRIDGE_DIAGNOSTICS", 5_000);
         require("success".equals(diag.get("status")),
-                "Bridge has no GET_BRIDGE_DIAGNOSTICS: plugin not updated, or AGENTDEBUG_BRIDGE_MODE=legacy. Reply: " + diag);
+                "Bridge has no GET_BRIDGE_DIAGNOSTICS: plugin not updated. Reply: " + diag);
         Map<String, Object> hook = call("BRIDGE_TEST_SLEEP 0 READ", 5_000);
         require("success".equals(hook.get("status")),
                 "Test hook disabled. Close the dedicated Eclipse and let DevE2E start it (sets AGENTDEBUG_E2E=1). Reply: " + hook);

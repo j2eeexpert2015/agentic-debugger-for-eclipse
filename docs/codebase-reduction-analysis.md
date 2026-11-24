@@ -27,7 +27,7 @@ and **the same small helpers written again in each module**.
 | Debugger operations in Eclipse (breakpoints, launch, step, stack, variables, exceptions, JUnit, Spring Boot) | `debug/*` (8 files, 2,300 lines; `EclipseAgentOperations` 1,150) | keep |
 | Bridge (authenticated socket, READ/MUTATE lanes) | `bridge/*` (4 files) | keep; remove the old single-threaded "legacy" mode (D3) |
 | Claude Code registration (Preferences page, jar install) | `integration/*` (3 files) **and** the whole `installer` module (5 classes) | two implementations of the same thing (C3) |
-| MCP server (tools, investigation tracking) | `DebugMcpServer`, `InvestigationTracker`, `MiniJson` | keep |
+| MCP server (tools, investigation tracking) | `DebugMcpServer`, `InvestigationTracker` (and `MiniJson`, replaced by the shared `Json` in step 3) | keep |
 | Trial-only HTTP tools for the Orders fixture | `FixtureHttpTools` (in the shipped MCP server) | keep, but switch off unless a test asks (D2) |
 | Session report (HTML file) | `report-model` (11 classes), `report-format`, `report-chaintest` (3 modules) | over-built for one writer (C4, C5) |
 | Agent Activity view | `activity/*`, `ui/*` (new) | keep |
@@ -136,7 +136,7 @@ Each step is one delivery with the usual checks: `mvn clean package`, regression
 |---|---|---|
 | 1 | Delete the unused files of A, and the `integrate`/`cleanup` modes of `DevE2E` (done 25 Nov: build, regression 23/23 and trial PASS) | none: nothing uses them |
 | 2 | Documentation down to 5 files in `docs/` plus the designs (B; delivered 25 Nov) | none for the code |
-| 3 | One JSON reader and one bridge client (C1, C2); remove the legacy bridge (D3) | low |
+| 3 | One JSON reader in the product (C1) and no legacy bridge (D3) (delivered 25 Nov); the test tools' JSON readers and bridge clients (C2) move to step 6, because `DevE2E` compiles those tools without the project's jars | low |
 | 4 | Report: merge modules, remove the plug-in mechanism, then our own HTML writer if decided (C4, C5) | medium; checked by the report trial |
 | 5 | Test support switched off unless a test asks (D2); installer decision (C3) | low |
 | 6 | One e2e runner, grader moved (C6) | medium; checked by the full regression |

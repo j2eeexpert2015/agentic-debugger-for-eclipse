@@ -9,7 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * JUnit 5 unit tests for {@link ReportFormat} (RF-U1 to RF-U4, OPEN-36 delivery 3). RF-U1 and RF-U2 are the former
+ * JUnit 5 unit tests for {@link ReportFormat} and {@link Json} (RF-U1 to RF-U5, OPEN-36 delivery 3). RF-U1 and RF-U2 are the former
  * report tests RC-U4 and RC-U6, moved here with the code, unchanged. Run by {@code mvn clean package}.
  *
  * @author Ayan Dutta
@@ -96,5 +96,26 @@ class ReportFormatTest {
                 "a separator with nothing after it is dropped");
         assertEquals(new ReportFormat.Details(List.of(), List.of()), ReportFormat.split(null));
         assertEquals("Additional Details", ReportFormat.MORE_DETAILS_LABEL, "the label of the collapsed part, report and view alike");
+    }
+
+    @Test
+    @DisplayName("RF-U5 the shared JSON reader: objects, arrays, escapes, numbers; invalid text gives null, never an exception")
+    void rfU5() {
+        Object parsed = Json.parse("{\"status\":\"success\",\"line\":24,\"rate\":0.5,\"ok\":true,\"none\":null,"
+                + "\"items\":[1,\"two\",{\"k\":\"v\"}],\"text\":\"a\\\"b\\n\\u00e9\"}");
+        java.util.Map<String, Object> m = Json.obj(parsed);
+        assertEquals("success", Json.str(m.get("status")));
+        assertEquals("24", Json.str(m.get("line")), "whole numbers without .0");
+        assertEquals("0.5", Json.str(m.get("rate")));
+        assertEquals(Boolean.TRUE, m.get("ok"));
+        assertTrue(m.containsKey("none") && m.get("none") == null);
+        assertEquals(3, Json.arr(m.get("items")).size());
+        assertEquals("v", Json.str(Json.obj(Json.arr(m.get("items")).get(2)).get("k")));
+        assertEquals("a\"b\n\u00e9", Json.str(m.get("text")));
+        assertEquals(List.of("status", "line", "rate", "ok", "none", "items", "text"), List.copyOf(m.keySet()), "order kept");
+        for (String bad : new String[] {null, "", "{", "{\"a\":}", "[1,2", "{\"a\":1} trailing", "nope"})
+            assertEquals(null, Json.parse(bad), "invalid: " + bad);
+        assertTrue(Json.obj("not a map").isEmpty());
+        assertTrue(Json.arr(null).isEmpty());
     }
 }

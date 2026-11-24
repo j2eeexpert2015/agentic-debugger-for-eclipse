@@ -31,10 +31,10 @@ import org.learningfromexperience.eclipse.agentdebug.debug.EclipseAgentOperation
 /**
  * Accepts authenticated local requests from the MCP server.
  *
- * <p>Default ("concurrent") mode: each connection is handled on a bounded pool and every
- * command goes through {@link BridgeDispatcher} (parallel reads, ordered state changes,
- * deadlines, timing log). Set {@code AGENTDEBUG_BRIDGE_MODE=legacy} to restore the previous
- * one-connection-at-a-time behaviour exactly; only a timing log line is added.
+ * <p>Each connection is handled on a bounded pool and every command goes through
+ * {@link BridgeDispatcher} (parallel reads, ordered state changes, deadlines, timing log). The
+ * earlier single-threaded mode ({@code AGENTDEBUG_BRIDGE_MODE=legacy}) was removed on 25 Nov 2026
+ * (OPEN-38): the concurrent bridge passed every regression since CORE-13.
  *
  * @author Ayan Dutta
  */
@@ -46,10 +46,6 @@ public class EclipseBridgeServer implements AutoCloseable {
 
     /** Live events for the Agent Activity view (OPEN-36); handled before the lanes. */
     static final String ACTIVITY_EVENT_PREFIX = "ACTIVITY_EVENT ";
-
-    /** {@code AGENTDEBUG_BRIDGE_MODE=legacy} restores the previous single-threaded bridge. */
-    private static final boolean LEGACY_MODE =
-            "legacy".equalsIgnoreCase(System.getenv().getOrDefault("AGENTDEBUG_BRIDGE_MODE", ""));
 
     /** Test-only fault injection (BRIDGE_TEST_SLEEP); enabled only for the dedicated E2E Eclipse. */
     private static final boolean TEST_HOOKS = "1".equals(System.getenv("AGENTDEBUG_E2E"));
@@ -111,19 +107,16 @@ public class EclipseBridgeServer implements AutoCloseable {
             throw failure;
         }
 
-        if (!LEGACY_MODE) {
-            dispatcher = new BridgeDispatcher(this::executeCommand, log,
-                    BridgeDispatcher.Config.defaults(TEST_HOOKS));
-            connections = new ThreadPoolExecutor(CONNECTION_THREADS, CONNECTION_THREADS,
-                    30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(64), runnable -> {
-                        Thread thread = new Thread(runnable, "Eclipse-AgentDebug-Bridge-Connection");
-                        thread.setDaemon(true);
-                        return thread;
-                    });
-            connections.allowCoreThreadTimeOut(true);
-        }
-        log.event("BRIDGE_START port=" + PORT + " mode=" + (LEGACY_MODE ? "legacy" : "concurrent")
-                + " testHooks=" + TEST_HOOKS);
+        dispatcher = new BridgeDispatcher(this::executeCommand, log,
+                BridgeDispatcher.Config.defaults(TEST_HOOKS));
+        connections = new ThreadPoolExecutor(CONNECTION_THREADS, CONNECTION_THREADS,
+                30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(64), runnable -> {
+                    Thread thread = new Thread(runnable, "Eclipse-AgentDebug-Bridge-Connection");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+        connections.allowCoreThreadTimeOut(true);
+        log.event("BRIDGE_START port=" + PORT + " mode=concurrent testHooks=" + TEST_HOOKS);
 
         serverThread = new Thread(
                 this::acceptConnections,
@@ -148,12 +141,7 @@ public class EclipseBridgeServer implements AutoCloseable {
 
                 Socket client = serverSocket.accept();
 
-                if (LEGACY_MODE) {
-                    // Previous behaviour: one connection at a time on this thread.
-                    handleClient(client);
-                } else {
-                    dispatchConnection(client);
-                }
+                dispatchConnection(client);
 
             } catch (IOException e) {
 
@@ -187,10 +175,10 @@ public class EclipseBridgeServer implements AutoCloseable {
                 )
         ) {
 
-            // Concurrent mode: a client gets a few seconds to send its one request line, so an
-            // idle connection cannot occupy a connection thread. Command time is governed by
-            // the dispatcher's per-command deadlines, not by this socket timeout.
-            client.setSoTimeout(LEGACY_MODE ? 30000 : REQUEST_READ_TIMEOUT_MS);
+            // A client gets a few seconds to send its one request line, so an idle connection
+            // cannot occupy a connection thread. Command time is governed by the dispatcher's
+            // per-command deadlines, not by this socket timeout.
+            client.setSoTimeout(REQUEST_READ_TIMEOUT_MS);
 
             String request = reader.readLine();
 
@@ -240,38 +228,8 @@ public class EclipseBridgeServer implements AutoCloseable {
                 return;
             }
 
-            if (!LEGACY_MODE) {
-                // Lanes, deadlines, BUSY/TIMEOUT replies and timing log; never throws.
-                writer.println(dispatcher.dispatch(command));
-                return;
-            }
-
-            // Legacy mode: unchanged behaviour, plus one timing line in the bridge log.
-            long started = System.nanoTime();
-            String outcome = "OK";
-            // Always answer the client, including when a debugger operation throws an
-            // unchecked exception or a linkage error. Otherwise callers only see EOF.
-            try {
-                String response = switch (command) {
-                    case "LIST_DEBUG_SESSIONS" -> listDebugSessionsAsJson();
-                    default -> operations.execute(command);
-                };
-                if (response != null && response.contains("\"status\":\"error\"")) outcome = "ERROR";
-                writer.println(response);
-            } catch (Throwable failure) {
-                outcome = "EXCEPTION";
-                System.err.println("[Eclipse Agentic Debugger] Bridge command failed: "
-                        + BridgeCommands.name(command));
-                failure.printStackTrace(System.err);
-                String detail = failure.getClass().getName() + ": "
-                        + String.valueOf(failure.getMessage());
-                writer.println("{\"status\":\"error\",\"message\":"
-                        + EclipseAgentOperations.q(detail) + "}");
-            } finally {
-                String name = BridgeCommands.name(command);
-                log.command(0, name, BridgeCommands.lane(name), 0,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started), outcome);
-            }
+            // Lanes, deadlines, BUSY/TIMEOUT replies and timing log; never throws.
+            writer.println(dispatcher.dispatch(command));
 
         } catch (IOException e) {
 
@@ -282,7 +240,7 @@ public class EclipseBridgeServer implements AutoCloseable {
         }
     }
 
-    /** Concurrent mode: hand the connection to the pool; if the pool is full, say so and close. */
+    /** Hands the connection to the pool; if the pool is full, says so and closes. */
     private void dispatchConnection(Socket client) {
         try {
             connections.execute(() -> handleClient(client));
@@ -298,7 +256,7 @@ public class EclipseBridgeServer implements AutoCloseable {
         }
     }
 
-    /** The command executor behind the dispatcher; identical routing to legacy mode. */
+    /** The command executor behind the dispatcher. */
     private String executeCommand(String command) {
         return switch (command) {
             case "LIST_DEBUG_SESSIONS" -> listDebugSessionsAsJson();

@@ -366,9 +366,6 @@ public class DevE2E {
         Map<String,String> env=new LinkedHashMap<>(Map.of("AGENTDEBUG_PORT",Integer.toString(port),
             "AGENTDEBUG_FIXTURE_SOURCE",repo.resolve("examples/phase-one-debugging")+File.pathSeparator+repo.resolve("examples/spring-boot-debugging"),
             "AGENTDEBUG_E2E","1"));
-        // Comparison runs: AGENTDEBUG_BRIDGE_MODE=legacy in the runner's environment reaches the dedicated Eclipse.
-        String bridgeMode=System.getenv("AGENTDEBUG_BRIDGE_MODE");
-        if (bridgeMode != null && !bridgeMode.isBlank()) env.put("AGENTDEBUG_BRIDGE_MODE", bridgeMode);
         ProcessBuilder pb=new ProcessBuilder(eclipseExe().toString(),"-clean","-data",workspace.toString());
         pb.directory(eclipse.toFile());pb.environment().putAll(env);
         // Eclipse's console output must go to a file. Left as an unread pipe, it fills up and any
