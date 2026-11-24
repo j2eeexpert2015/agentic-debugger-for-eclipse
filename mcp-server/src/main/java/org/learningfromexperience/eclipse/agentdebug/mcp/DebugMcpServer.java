@@ -52,6 +52,9 @@ public class DebugMcpServer {
                 "[Eclipse Agentic Debugger] Starting MCP server..."
         );
 
+        // OPEN-30: debugging session report. Off unless AGENTDEBUG_REPORT names a writer (ADR-009).
+        REPORT = SessionReport.fromEnvironment(System.getenv(), System.err);
+
         // CORE-17: notice when the agent goes away (stdin closed) and finish its open investigations.
         System.setIn(new java.io.FilterInputStream(System.in) {
             @Override
@@ -459,7 +462,8 @@ public class DebugMcpServer {
                                 .tools(false)
                                 .build()
                 )
-                .tools(allTools)
+                // Every tool is also recorded in the session report; with reporting off the list is unchanged.
+                .tools(ReportingTools.wrap(allTools, REPORT))
                 .build();
 
         System.err.println(
@@ -475,6 +479,9 @@ public class DebugMcpServer {
 
         new CountDownLatch(1).await();
     }
+
+    /** Debugging session report of this MCP server process (OPEN-30); off until main() reads the settings. */
+    private static volatile SessionReport REPORT = new SessionReport(org.learningfromexperience.agentdebug.report.ReportRecorder.off());
 
     private static final java.util.concurrent.atomic.AtomicBoolean CLIENT_GONE = new java.util.concurrent.atomic.AtomicBoolean();
     private static final java.util.concurrent.atomic.AtomicBoolean CLEANUP_STARTED = new java.util.concurrent.atomic.AtomicBoolean();
@@ -512,8 +519,11 @@ public class DebugMcpServer {
                     System.err.println("[Eclipse Agentic Debugger] " + why + "; could not finish " + id + ": " + e.getMessage()
                             + " (Eclipse cleans it up when its idle lease ends)");
                 }
+                REPORT.endedWithoutFinish(id, why);
             }
         } finally {
+            // The session ends here: write the report (bounded to 5 s, never throws).
+            REPORT.close();
             CLEANUP_DONE.countDown();
         }
     }

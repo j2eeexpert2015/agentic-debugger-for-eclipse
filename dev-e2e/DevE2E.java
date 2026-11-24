@@ -18,6 +18,8 @@ public class DevE2E {
     /** Claude trials only: runs per scenario (--repeat N) and skill mode (--no-skill). */
     private int claudeRepeat = 1;
     private boolean claudeNoSkill;
+    /** Claude trials only: the MCP server also writes a debugging session report (--report, OPEN-30). */
+    private boolean claudeReport;
     private static final String IU = "org.learningfromexperience.eclipse.agentdebug.feature.feature.group";
 
     private DevE2E(Path source, String mode, boolean approval) throws Exception {
@@ -411,6 +413,7 @@ public class DevE2E {
                             "--batch",batch));
                     if(approval) args.add("--approve-fixture-post");
                     if(claudeNoSkill) args.add("--no-skill");
+                    if(claudeReport) args.add("--report");
                 }
                 case "bridge" -> {
                     // CORE-13 bridge stability fault injection; needs the E2E-started Eclipse (AGENTDEBUG_E2E=1).
@@ -553,7 +556,7 @@ public class DevE2E {
             else if (args[i].equals("--suite") && i+1<args.length) suite=args[++i];
             else if (args[i].equals("--repeat") && i+1<args.length) i++;
             else if (!args[i].equals("--approve-fixture-post") && !args[i].equals("--approve-claude")
-                    && !args[i].equals("--no-skill")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
+                    && !args[i].equals("--no-skill") && !args[i].equals("--report")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
         }
         long selectors=java.util.stream.Stream.of(groups,tests,features,suite).filter(Objects::nonNull).count();
         if (selectors > 1) throw new IllegalArgumentException("Use only one of --suite, --feature, --groups, --tests");
@@ -605,7 +608,7 @@ public class DevE2E {
             System.out.println("  --groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps,stops,lease,bridge   (verifier groups)");
             System.out.println("  --tests acceptance:core-step-into-out,boot-gaps:two-mains,stops:step             (single scenarios)");
             System.out.println("'list' shows every suite, feature, group and scenario.");
-            System.out.println("Claude trials (use Claude usage): test --groups claude|--tests claude:boot-quote --approve-claude [--approve-fixture-post] [--repeat N] [--no-skill]");
+            System.out.println("Claude trials (use Claude usage): test --groups claude|--tests claude:boot-quote --approve-claude [--approve-fixture-post] [--repeat N] [--no-skill] [--report]");
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
             System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
@@ -618,6 +621,7 @@ public class DevE2E {
         DevE2E x=new DevE2E(root,args[0],approved);
         x.claudeApproval=Arrays.asList(args).contains("--approve-claude");
         x.claudeNoSkill=Arrays.asList(args).contains("--no-skill");
+        x.claudeReport=Arrays.asList(args).contains("--report");
         int repeatAt=Arrays.asList(args).indexOf("--repeat");
         if (repeatAt >= 0) {
             x.claudeRepeat=Integer.parseInt(args[repeatAt+1]);

@@ -168,6 +168,8 @@ class ChainTestReportWriterTest {
         assertTrue(html.contains("CONCLUSION - diagnosis by the agent")
                 && html.contains("percent / 100 is integer division"), "conclusion missing");
         assertTrue(html.contains("CLEANUP - finish_debug_investigation"), "cleanup step missing");
+        assertTrue(html.contains("test-container passed"), "a recovered tool error must not fail the investigation");
+        assertTrue(html.contains("1 tool call failed; the agent continued."), "failed call count missing");
         assertTrue(html.contains("List&lt;String&gt; &amp; &quot;quotes&quot; &amp; caf&#233;"), "text not escaped");
         assertFalse(html.contains("List<String>"), "unescaped text in report");
         assertFalse(html.contains("cdn.jsdelivr.net"), "report is not offline");
@@ -202,6 +204,29 @@ class ChainTestReportWriterTest {
         recorder.close(Duration.ofSeconds(30));
         assertTrue(Files.isRegularFile(dir.resolve("index.html")), "report not written through the recorder");
         assertEquals("", errBytes.toString(StandardCharsets.UTF_8), "unexpected warnings");
+    }
+
+    @Test
+    @DisplayName("RC-U5 a failed step shows its error once, and step kinds are not copied onto the investigation")
+    void rcU5() throws Exception {
+        Path dir = fresh("failed-step");
+        ChainTestReportWriter writer = new ChainTestReportWriter(new ReportSettings("chaintest", dir, "Agentic Debugger prototype"));
+        writer.investigationStarted(new ReportEvent.InvestigationStarted("0d4fe8bf-c038-4799-8476-4ddfeda72efe", Instant.now(), "NORMAL", "claude-code"));
+        writer.stepRecorded(new ReportEvent.StepRecorded("0d4fe8bf-c038-4799-8476-4ddfeda72efe", Instant.now(), StepKind.HTTP,
+                StepStatus.FAILED, "start_fixture_http_request scenario=discount",
+                List.of("scenario: discount", "", "Error: Orders fixture not ready"), List.of(), 61));
+        writer.investigationFinished(new ReportEvent.InvestigationFinished("0d4fe8bf-c038-4799-8476-4ddfeda72efe", Instant.now(),
+                ReportEvent.Outcome.FINISHED, null, List.of("Action: CLEANUP", "JVM ended: false")));
+        writer.close();
+        String html = Files.readString(dir.resolve("index.html"), StandardCharsets.ISO_8859_1);
+        assertEquals(1, html.split("Orders fixture not ready", -1).length - 1, "error shown more than once");
+        assertTrue(html.contains("Investigation 0d4fe8bf<"), "long ID not shortened in the name: " + html.contains("Investigation 0d4fe8bf"));
+        assertTrue(html.contains("ID: 0d4fe8bf-c038-4799-8476-4ddfeda72efe"), "full ID missing from the description");
+        assertTrue(html.contains("test-container failed"), "a cleanup problem must fail the investigation");
+        // The investigation's own column runs from its container to its description (the tag table at the top is excluded).
+        int start = html.indexOf("test-container");
+        int end = html.indexOf("<code class=\"mt-2\">", start);
+        assertFalse(html.substring(start, end).contains(">HTTP<"), "step kind copied onto the investigation");
     }
 
     @Test

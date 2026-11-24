@@ -78,7 +78,12 @@ public final class ClaudeSymptomTrial {
         return jar;
     }
 
-    private static String testMcpConfig(Path jar, int port, Path workspace, Path root, boolean approvedPost) {
+    /**
+     * @param reportFolder when not null, the MCP server writes a debugging session report (OPEN-30) into this
+     *                     folder, next to the transcript ({@code --report})
+     */
+    private static String testMcpConfig(Path jar, int port, Path workspace, Path root, boolean approvedPost,
+                                        Path reportFolder) {
         String javaExe = Path.of(System.getProperty("java.home"), "bin",
                 System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "java.exe" : "java")
                 .toAbsolutePath().toString();
@@ -91,6 +96,8 @@ public final class ClaudeSymptomTrial {
                 + ", \"AGENTDEBUG_E2E_WORKSPACE\": " + json(workspace.toString())
                 + ", \"AGENTDEBUG_E2E_ROOT\": " + json(root.toString())
                 + ", \"AGENTDEBUG_E2E_POST_APPROVED\": " + json(approvedPost ? "1" : "0")
+                + (reportFolder == null ? "" : ", \"AGENTDEBUG_REPORT\": \"chaintest\", \"AGENTDEBUG_REPORT_DIR\": "
+                        + json(reportFolder.toString()))
                 + "}\n"
                 + "    }\n  }\n}\n";
     }
@@ -231,7 +238,7 @@ public final class ClaudeSymptomTrial {
     }
 
     public static void main(String[] args) throws Exception {
-        require(args.length>=3,"Usage: ClaudeSymptomTrial REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post] [--batch ID] [--no-skill]");
+        require(args.length>=3,"Usage: ClaudeSymptomTrial REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post] [--batch ID] [--no-skill] [--report]");
         Path root=Path.of(args[0]).toRealPath();
         String scenario=args[1];
         Path reports=Path.of(args[2]).toAbsolutePath();
@@ -240,6 +247,8 @@ public final class ClaudeSymptomTrial {
         boolean post=Arrays.asList(args).contains("--approve-fixture-post");
         // --no-skill: Claude may not invoke any skill (the Skill tool is disallowed), giving a controlled baseline.
         boolean noSkill=Arrays.asList(args).contains("--no-skill");
+        // --report: the MCP server also writes its debugging session report (OPEN-30) next to the transcript.
+        boolean sessionReport=Arrays.asList(args).contains("--report");
         int batchAt=Arrays.asList(args).indexOf("--batch");
         String batch=batchAt >= 0 && batchAt + 1 < args.length ? args[batchAt + 1] : "single";
         require(consent,"Claude CLI execution requires --approve-claude (may consume tokens)");
@@ -278,11 +287,12 @@ public final class ClaudeSymptomTrial {
         Path stderr=reports.resolve(stem+".stderr.log");
         Path mcpConfig=reports.resolve(stem+".mcp.json");
         Path inventoryFile=reports.resolve(stem+".inventory.json");
+        Path reportFolder=sessionReport ? reports.resolve(stem+".report") : null;
         require(!Files.exists(transcript) && !Files.exists(metadata),"Existing evidence collision");
         Files.writeString(prompt,PROMPTS.get(scenario)+"\n",StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
         // Test-scoped MCP config binds this process to the configured E2E port.
         // The user-level Claude MCP registration and normal IDE bridge remain untouched.
-        Files.writeString(mcpConfig, testMcpConfig(jar, port, workspace, root, post), StandardCharsets.UTF_8,
+        Files.writeString(mcpConfig, testMcpConfig(jar, port, workspace, root, post, reportFolder), StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW);
         // Approve only this installed debugger's tools, not Bash/Write/Edit/other MCP servers.
         // No dangerously-skip-permissions and no broad user configuration changes.

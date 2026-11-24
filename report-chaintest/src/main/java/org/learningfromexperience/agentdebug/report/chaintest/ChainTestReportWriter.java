@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +18,7 @@ import org.learningfromexperience.agentdebug.report.ReportSettings;
 
 import com.aventstack.chaintest.domain.Build;
 import com.aventstack.chaintest.domain.Result;
+import com.aventstack.chaintest.domain.Tag;
 import com.aventstack.chaintest.domain.Test;
 import com.aventstack.chaintest.generator.ChainTestSimpleGenerator;
 
@@ -26,16 +28,19 @@ import com.aventstack.chaintest.generator.ChainTestSimpleGenerator;
  * <p><b>Mapping.</b> ChainTest's model is a test run; ours is a debugging session:
  * <ul>
  *   <li>one MCP server process (one agent session) = one ChainTest build = one report file;</li>
- *   <li>one investigation = one top-level test; its result is PASSED when every step succeeded, FAILED when a step
- *       failed, SKIPPED when it ended without {@code finish_debug_investigation} (idle lease, disconnect);</li>
+ *   <li>one investigation = one top-level test; its result is PASSED when it was finished and cleaned up, FAILED when
+ *       cleanup reported a problem (JVM still running), SKIPPED when it ended without
+ *       {@code finish_debug_investigation} (idle lease, disconnect). A failed tool call the agent recovered from does
+ *       not fail the investigation: the step is red, the investigation says how many calls failed;</li>
  *   <li>one step (tool call) = one child test named {@code KIND - title}, tagged with its kind, with its details as
  *       log lines and its attachments (screenshots) as embedded images;</li>
  *   <li>the agent's conclusion = a {@code CONCLUSION} child, the cleanup result = a final {@code CLEANUP} child.</li>
  * </ul>
  * ChainTest's page shows logs and images only for child tests; for an investigation it shows name, tags, times
  * and description, so investigation-level notes (how it ended) go into the description. Tags give badges on each
- * card and the tag chart at the top: every step is tagged with its kind (so the investigation lists what it did),
- * the investigation with its mode, client and outcome. The investigation is renamed after its first launch target.
+ * card and the tag chart at the top: every step is tagged with its kind, the investigation only with its mode, client
+ * and outcome (step tags are added directly, because ChainTest would otherwise copy them to the investigation).
+ * The investigation is renamed after its first launch target; long IDs are shortened to 8 characters in the name.
  *
  * <p><b>Look.</b> Dark theme, title "Agentic Debugger - Debugging Session Report", header with the project name and
  * the session start time. ChainTest's own CSS and scripts are used unchanged.
@@ -67,6 +72,8 @@ public final class ChainTestReportWriter implements DebugReportListener {
     private final Queue<Test> finished = new ConcurrentLinkedQueue<>();
     /** Investigations already named after their launch target. */
     private final java.util.Set<String> named = new java.util.HashSet<>();
+    /** Failed tool calls per investigation. */
+    private final Map<String, Integer> failedCalls = new java.util.HashMap<>();
     private long droppedEvents;
 
     public ChainTestReportWriter(ReportSettings settings) throws Exception {
@@ -106,6 +113,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
                 + " | Started: " + TIME.format(event.at())));
         if (event.mode() != null) investigation.addTag(html(event.mode()));
         if (event.client() != null && !event.client().isBlank()) investigation.addTag(html(event.client()));
+        investigation.setDescription(investigation.getDescription() + html(" | ID: " + event.investigationId()));
     }
 
     @Override
@@ -113,21 +121,29 @@ public final class ChainTestReportWriter implements DebugReportListener {
         Test investigation = investigation(event.investigationId());
         Test step = new Test(html(event.kind() + " - " + event.title()));
         investigation.addChild(step);
-        step.addTag(event.kind().name());   // badge on the card; also added to the investigation and the tag chart
+        // Directly into the set: Test.addTag would copy the tag to the investigation as well.
+        step.getTags().add(new Tag(event.kind().name()));
         if (event.kind() == ReportEvent.StepKind.LAUNCH && named.add(event.investigationId())) {
             // "start_java_application OrdersApplication" -> "Investigation inv-7f3a - OrdersApplication"
             int space = event.title().indexOf(' ');
-            if (space > 0) investigation.setName(html("Investigation " + event.investigationId() + " - "
+            if (space > 0) investigation.setName(html("Investigation " + shortId(event.investigationId()) + " - "
                     + event.title().substring(space + 1).strip()));
         }
-        for (String line : event.details()) step.addLog(html(line));
+        boolean failed = event.status() == ReportEvent.StepStatus.FAILED;
+        List<String> errors = new java.util.ArrayList<>();
+        for (String line : event.details()) {
+            // A failed step shows its error once, in ChainTest's error box, not again among the log lines.
+            if (failed && line.startsWith("Error: ")) errors.add(line.substring("Error: ".length()));
+            else step.addLog(html(line));
+        }
         for (Path attachment : event.attachments()) {
             String type = mediaType(attachment);
             if (type != null && Files.isRegularFile(attachment)) step.addEmbed(attachment.toFile(), type);
         }
-        if (event.status() == ReportEvent.StepStatus.FAILED) {
+        if (failed) {
             step.setResult(Result.FAILED.getResult());
-            step.setError(html(event.details().isEmpty() ? event.title() : String.join("\n", event.details())));
+            step.setError(html(errors.isEmpty() ? "The tool call failed." : String.join("\n", errors)));
+            failedCalls.merge(event.investigationId(), 1, Integer::sum);
         }
         step.complete();   // also raises the investigation's result to FAILED when the step failed
         long end = event.at().toEpochMilli();
@@ -142,7 +158,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
         if (event.conclusion() != null && !event.conclusion().isBlank()) {
             Test conclusion = new Test("CONCLUSION - diagnosis by the agent");
             investigation.addChild(conclusion);
-            conclusion.addTag("CONCLUSION");
+            conclusion.getTags().add(new Tag("CONCLUSION"));
             conclusion.addLog(html(event.conclusion()));
             conclusion.complete();
         }
@@ -150,11 +166,13 @@ public final class ChainTestReportWriter implements DebugReportListener {
             Test cleanup = new Test(html(ReportEvent.StepKind.CLEANUP + " - " + (event.outcome() == ReportEvent.Outcome.FINISHED
                     ? "finish_debug_investigation" : "automatic cleanup")));
             investigation.addChild(cleanup);
-            cleanup.addTag(ReportEvent.StepKind.CLEANUP.name());
+            cleanup.getTags().add(new Tag(ReportEvent.StepKind.CLEANUP.name()));
             for (String line : event.cleanup()) cleanup.addLog(html(line));
             cleanup.complete();
         }
-        end(investigation, event.outcome(), event.at().toEpochMilli(), null);
+        boolean cleanupProblem = event.cleanup().stream()
+                .anyMatch(line -> line.startsWith("Warning:") || line.equals("JVM ended: false"));
+        end(investigation, event.investigationId(), event.outcome(), cleanupProblem, event.at().toEpochMilli(), null);
     }
 
     @Override
@@ -165,9 +183,9 @@ public final class ChainTestReportWriter implements DebugReportListener {
     @Override
     public void close() {
         // Investigations still open when the session ends are reported as ended without finish.
-        for (Test investigation : open.values())
-            end(investigation, ReportEvent.Outcome.ENDED_WITHOUT_FINISH, System.currentTimeMillis(),
-                    "The agent session ended before this investigation was finished.");
+        for (var entry : open.entrySet())
+            end(entry.getValue(), entry.getKey(), ReportEvent.Outcome.ENDED_WITHOUT_FINISH, false,
+                    System.currentTimeMillis(), "The agent session ended before this investigation was finished.");
         open.clear();
         if (droppedEvents > 0) {
             Test notice = new Test("Report incomplete");
@@ -182,18 +200,34 @@ public final class ChainTestReportWriter implements DebugReportListener {
     }
 
     private Test investigation(String id) {
-        return open.computeIfAbsent(id, key -> new Test(html("Investigation " + key)));
+        return open.computeIfAbsent(id, key -> new Test(html("Investigation " + shortId(key))));
     }
 
-    private void end(Test investigation, ReportEvent.Outcome outcome, long endedAt, String note) {
+    /** UUIDs are long; the first 8 characters identify an investigation in the name (the full ID is in the description). */
+    static String shortId(String id) {
+        return id != null && id.length() > 12 ? id.substring(0, 8) : id;
+    }
+
+    private void end(Test investigation, String id, ReportEvent.Outcome outcome, boolean cleanupProblem,
+                     long endedAt, String note) {
         investigation.addTag(outcome == ReportEvent.Outcome.FINISHED ? "finished" : "ended-without-finish");
+        List<String> notes = new java.util.ArrayList<>();
+        // The investigation's result is decided by how it ended, not by tool calls the agent recovered from.
         if (outcome == ReportEvent.Outcome.ENDED_WITHOUT_FINISH) {
-            String reason = note != null ? note
-                    : "Ended without finish_debug_investigation: cleaned up automatically (idle lease, MCP disconnect or restart).";
+            notes.add(note != null ? note
+                    : "Ended without finish_debug_investigation: cleaned up automatically (idle lease, MCP disconnect or restart).");
+            investigation.setResult(Result.SKIPPED.getResult());
+        } else if (cleanupProblem) {
+            notes.add("Cleanup reported a problem (see the CLEANUP step).");
+            investigation.setResult(Result.FAILED.getResult());
+        } else {
+            investigation.setResult(Result.PASSED.getResult());
+        }
+        int failures = failedCalls.getOrDefault(id, 0);
+        if (failures > 0) notes.add(failures + (failures == 1 ? " tool call" : " tool calls") + " failed; the agent continued.");
+        if (!notes.isEmpty()) {
             String before = investigation.getDescription();
-            investigation.setDescription((before == null || before.isBlank() ? "" : before + " | ") + html(reason));
-            if (Result.PASSED.getResult().equals(investigation.getResult()))
-                investigation.setResult(Result.SKIPPED.getResult());
+            investigation.setDescription((before == null || before.isBlank() ? "" : before + " | ") + html(String.join(" ", notes)));
         }
         investigation.setEndedAt(endedAt);
         build.updateStats(investigation);
