@@ -340,6 +340,27 @@ class SessionReportTest {
                 atHome.reportFile().getParent());
     }
 
+    @Test
+    @DisplayName("SR-U14 live view only: a running step is announced before the call, the report recorder stays off")
+    void srU14() {
+        Captured live = new Captured();
+        SessionReport session = new SessionReport(ReportRecorder.off(), live, null, null,
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+        assertTrue(session.active(), "the live view alone makes the session active");
+        session.toolStarting("eclipse_ping", Map.of());                         // outside an investigation: ignored
+        session.toolCalled("claude-code", "begin_debug_investigation", Map.of(), false, BEGIN, 5);
+        session.toolStarting("wait_for_stop", Map.of("investigationId", "inv-1", "launchName", "Orders"));
+        session.toolCalled("claude-code", "wait_for_stop", Map.of("investigationId", "inv-1", "launchName", "Orders"), false, STOP, 40);
+        assertTrue(live.events.get(0) instanceof ReportEvent.InvestigationStarted, live.events::toString);
+        var running = (ReportEvent.StepStarted) live.events.get(1);
+        assertEquals("Waiting for the program to stop", running.title());
+        assertEquals(StepKind.STOP, running.kind());
+        assertTrue(live.events.get(2) instanceof ReportEvent.StepRecorded);
+        assertTrue(session.reportInfo(null).contains("\"enabled\":false"), "reports are still off");
+        assertEquals("Starting application in debug mode: OrdersApplication",
+                SessionReport.startedTitle("start_java_application", Map.of("mainType", "org.example.OrdersApplication")));
+    }
+
     /** A JSON string literal, for building bridge replies with Windows paths. */
     private static String quoted(String text) {
         return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";

@@ -14,6 +14,9 @@ public interface DebugReportListener {
 
     void investigationStarted(ReportEvent.InvestigationStarted event) throws Exception;
 
+    /** A step has started (OPEN-36). Report writers ignore it; live listeners show the step as running. */
+    default void stepStarted(ReportEvent.StepStarted event) throws Exception { }
+
     void stepRecorded(ReportEvent.StepRecorded event) throws Exception;
 
     void investigationFinished(ReportEvent.InvestigationFinished event) throws Exception;

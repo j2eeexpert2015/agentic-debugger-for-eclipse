@@ -1,4 +1,4 @@
-# Agentic Debugger Activity view and related changes — agreed requirements
+# Agent Activity view and related changes — agreed requirements
 
 **Status:** requirements agreed 24 Nov 2026, not implemented. Tracked as OPEN-35, OPEN-36 and OPEN-37 in the [README](../../README.md#status-and-tracking), done in that order.
 **Background:** the external design in [AGENTIC_DEBUGGER_LIVE_VIEW_AND_REPORT_DESIGN.md](AGENTIC_DEBUGGER_LIVE_VIEW_AND_REPORT_DESIGN.md) and its [review notes](README.md). Where this document and the external design differ, this document applies.
@@ -45,13 +45,15 @@ Layout in the Java perspective (the Activity view column comes with OPEN-36):
 
 ---
 
-## 2. OPEN-36 Agentic Debugger Activity view
+## 2. OPEN-36 Agent Activity view
+
+**Name:** **Agent Activity**, in Window → Show View under the category **Agentic Debugger**. It shows what the AI agent is doing while it debugs.
 
 ### 2.1 What the user sees
 
 **Behaviour**
 
-- A1 The view opens by itself when an investigation starts and is pinned. It comes to the front of its area without taking the keyboard focus from the Claude terminal. It can also be opened with Window → Show View → Agentic Debugger Activity.
+- A1 The view opens by itself when an investigation starts and is pinned. It comes to the front of its area without taking the keyboard focus from the Claude terminal. It can also be opened with Window → Show View → Agentic Debugger → Agent Activity.
 - A2 It works with reports on or off, and when the agent is not connected (then it says so).
 
 **Status banner** (top, always visible)
@@ -66,8 +68,13 @@ Layout in the Java perspective (the Activity view column comes with OPEN-36):
 
 - A7 One row per step, with the same plain-language titles as the report, in order, newest at the bottom, auto-scrolling unless the user has scrolled up.
 - A8 Step states and colours: **running now** = blue, pulsing (only one row at a time); **done** = green; **refused, the agent retried** = amber; **failed** = red. Users with "reduce motion" get steady colours.
-- A9 A row expands to its details; tool name, arguments and raw result stay under "Technical details".
-- A10 A click on a class and line opens the Java editor there (shared with OPEN-33).
+- A9 A click on a step expands it: a stop step shows its location, thread and the variable values **as they were at that stop** (labelled as an earlier stop, never as the current state); a breakpoint step shows class and line; tool name, arguments and raw result stay under "Technical details".
+- A10 A click on a class and line (`OrderService.quote:24`) in a step, in the current-stop panel or in any frame of a call stack opens the Java editor at that line, highlighted. It only navigates: no resume, no change of the debugger's selected thread, so the user can look back while the agent works. JDK classes open in Eclipse's class viewer; a class not found in the workspace gives a short note in the view; changed code opens at the recorded line number. The navigation code is shared with OPEN-33.
+- A10a **Liveliness**: while the investigation runs, the banner marker, the running step (a soft light sweeping across its row, blinking status text and its duration counting up) and the status-bar indicator pulse blue. When it finishes, all blinking stops at once and the colours change (green finished, orange ended without finish). Only one step pulses at a time; "reduce motion" gives steady colours.
+- A10b **Status-bar indicator** at the bottom of Eclipse: "Agent debugging · step 7 · 0:32", then "Agent finished"; a click opens the view. Visible also when the view is hidden or another perspective is open.
+- A10c **Follow** toggle in the view toolbar: on, the view scrolls to the running step and highlights the current stop; off, the user reads earlier steps undisturbed.
+- A10d **Copy as Markdown**: the timeline as a numbered list, for a chat, an issue or a blog post.
+- A10e Follows Eclipse's light or dark theme.
 
 **Current stop**
 
@@ -92,6 +99,7 @@ Layout in the Java perspective (the Activity view column comes with OPEN-36):
 - A20 Earlier investigations of the session in a drop-down, each with its report.
 - A21 "Stop and clean up" button: the user ends the agent's investigation from Eclipse; the agent's next call is told why it fails.
 - A22 The agent's breakpoints labelled "agent" in the editor.
+- A23 One tab per investigation when the agent runs two in parallel.
 
 ### 2.2 Architecture: decoupled, from the same events as the report
 
@@ -104,13 +112,31 @@ Eclipse:     Activity store (per investigation) ◄── forwarded events
              Activity view ◄── store
 ```
 
-- B1 **Same events as the report**: the Activity forwarder is a second listener next to the ChainTest writer; titles, request, analysis, technical-details split and Markdown rendering are shared, not copied.
+- B1 **Same events as the report, fully independent consumers.** The view does not know the report and the report does not know the view; the view works with reports off, the report with the view closed. Each has its own switch (`AGENTDEBUG_REPORT`, `AGENTDEBUG_LIVE`, both on by default) and its own recorder: `CompositeReportRecorder` hands each event to an `AsyncReportRecorder` per consumer, each with its own queue, thread and failure counting. The only shared things:
+
+  | Shared | What | Where |
+  |---|---|---|
+  | Event contract | request, step started, step, finish, cleanup, conclusion | `report-model` (`ReportEvent`) |
+  | Plain titles and details | "Set breakpoint: OrderService, line 24", variables as a table, technical details after `ReportEvent.TECHNICAL_DETAILS` | made once in `SessionReport`, delivered to both |
+  | Masking of secrets | `Redaction` | applied when events are made |
+  | Isolation machinery | bounded queue, background thread, failure isolation | `AsyncReportRecorder`, one per consumer |
+  | Presentation pieces | HTML escaping, Markdown rendering of the analysis, colour per step kind, technical-details split | new small module **`report-format`** (plain Java and a stylesheet, no ChainTest), used by the report writer and the view |
+
+  Not shared: ChainTest, file writing, the report's layout and switch.
 - B2 **One new event** `StepStarted` (sent before a tool runs), so the view can show "running now" and waits. The report writer ignores it.
 - B3 **ADR-009 rules apply unchanged**: the debugger only publishes; the forwarder runs on the recorder's background thread with a bounded queue; a slow, failing or absent Eclipse view never delays or changes a tool result; failures go to stderr; it can be switched off independently of the report.
-- B4 **Bridge**: a new authenticated command only puts the event into the store and returns at once (no UI work, no waiting), so debugging commands are never held up; size limits on events.
+- B4 **Bridge**: a new authenticated command `ACTIVITY_EVENT <base64url(JSON)>` only puts the event into the store and returns at once (no UI work, no waiting). It is answered **outside the READ and MUTATE lanes** of `BridgeDispatcher` (like `GET_OPERATION`), so it can never wait behind, or delay, a debugging command; events over 64 000 characters are not sent. JSON fields per event type are listed in `ActivityForwarder` (mcp-server).
 - B5 **JDT listener** in the plugin for the agent's launch: running, paused, ended, between tool calls. It does not read from `DebugStopTracker`'s queue.
 - B6 **Store**: bounded per investigation, kept when the view is closed; the view subscribes and updates on the UI thread.
-- B7 **Versions**: an older MCP server without the forwarder, or an older plugin without the command, must not break debugging; the view then says "no live data from this MCP server version".
+- B7 **Versions**: an older MCP server without the forwarder, or an older plugin without the command, must not break debugging. An older plugin answers "Unknown command" to the first event; the forwarder then stops for the session and says so once on stderr. The view says "no live data from this MCP server version" when it gets nothing.
+
+### 2.2a Deliveries
+
+1. **MCP server side** (delivered 24 Nov): `StepStarted`, `CompositeReportRecorder`, `ActivityForwarder`, `AGENTDEBUG_LIVE`; tests RM-U11..U13, AF-U1..U4, SR-U14.
+2. **Eclipse side, data**: `ACTIVITY_EVENT` outside the lanes, store per investigation, JDT listener; check of the embedded browser (WebView2) in a view.
+3. **`report-format`** module (moved from the ChainTest writer, report unchanged).
+4. **The view**: banner, timeline, current stop, finish, notification, status bar, liveliness.
+5. **Navigation** to the code and the finishing touches (follow, copy as Markdown).
 
 ### 2.3 Technology
 

@@ -53,7 +53,8 @@ public class DebugMcpServer {
         );
 
         // OPEN-30: debugging session report. On by default; AGENTDEBUG_REPORT=off switches it off (ADR-009).
-        REPORT = SessionReport.fromEnvironment(System.getenv(), System.err);
+        // OPEN-36: the same events go to the Agent Activity view in Eclipse; AGENTDEBUG_LIVE=off switches it off.
+        REPORT = SessionReport.fromEnvironment(System.getenv(), System.err, command -> sendToEclipse(command, true));
 
         // CORE-17: notice when the agent goes away (stdin closed) and finish its open investigations.
         System.setIn(new java.io.FilterInputStream(System.in) {

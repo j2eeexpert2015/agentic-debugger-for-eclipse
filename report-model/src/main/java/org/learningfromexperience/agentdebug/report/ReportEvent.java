@@ -64,6 +64,22 @@ public sealed interface ReportEvent {
     }
 
     /**
+     * A step has started: the tool call is running and its result is not known yet (OPEN-36). Lets a live view show
+     * "running now" and waits ("Waiting for the program to stop"); a report writer may ignore it, because the
+     * {@link StepRecorded} that follows describes the finished step.
+     *
+     * @param title one line, in the same plain language as {@link StepRecorded#title()}
+     */
+    record StepStarted(String investigationId, Instant at, StepKind kind, String title) implements ReportEvent {
+        public StepStarted {
+            Objects.requireNonNull(investigationId, "investigationId");
+            Objects.requireNonNull(at, "at");
+            Objects.requireNonNull(kind, "kind");
+            Objects.requireNonNull(title, "title");
+        }
+    }
+
+    /**
      * One step the agent took (normally one tool call).
      *
      * @param title       one line, for example {@code set_breakpoint OrderService.java:24}
