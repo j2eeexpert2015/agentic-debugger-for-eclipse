@@ -38,8 +38,8 @@ import org.learningfromexperience.agentdebug.report.ReportSettings;
  * or JUnit integration of ChainTest, for a scripted investigation modelled on the {@code boot-quote} scenario.
  * No Eclipse and no Claude needed; run by {@code mvn clean package}.
  *
- * <p>The reports are kept for viewing: open {@code report-chaintest/target/report-prototype/boot-quote/index.html}
- * (and {@code .../abandoned/index.html}) in a browser after the build.
+ * <p>The reports are kept for viewing: open the {@code .html} files in
+ * {@code report-chaintest/target/report-prototype/boot-quote/} (and {@code .../abandoned/}) in a browser after the build.
  *
  * @author Ayan Dutta
  */
@@ -107,12 +107,14 @@ class ChainTestReportWriterTest {
         Path shot = screenshot(PROTOTYPE.resolve("screenshots"));
         ChainTestReportWriter writer = new ChainTestReportWriter(new ReportSettings("chaintest", dir, "Agentic Debugger prototype"));
 
-        writer.investigationStarted(new ReportEvent.InvestigationStarted("inv-7f3a", Instant.now(), "NORMAL", "Claude Code"));
-        writer.stepRecorded(step(StepKind.LAUNCH, StepStatus.OK, "start_java_application OrdersApplication", 4200,
+        writer.investigationStarted(new ReportEvent.InvestigationStarted("inv-7f3a", Instant.now(), "NORMAL", "Claude Code",
+                "The order quote total is wrong: 2 items at 60 with a 10% discount should cost 108.00, but the API returns 120.00.\n"
+                        + "Debug the running Spring Boot app in Eclipse and find the cause.", true));
+        writer.stepRecorded(step(StepKind.LAUNCH, StepStatus.OK, "Started application in debug mode: OrdersApplication", 4200,
                 "Project: spring-boot-debugging", "Main class: org.learningfromexperience.bootfixture.orders.OrdersApplication",
                 "Launch: Agentic Debugger - spring-boot-debugging - OrdersApplication", "Server port: 53737"));
         // R1 will take the source lines from Eclipse; here they are scripted to show the intended look.
-        writer.stepRecorded(step(StepKind.BREAKPOINT, StepStatus.OK, "set_breakpoint OrderService.java:24", 35,
+        writer.stepRecorded(step(StepKind.BREAKPOINT, StepStatus.OK, "Set breakpoint: OrderService, line 24", 35,
                 "File: src/main/java/org/learningfromexperience/bootfixture/orders/OrderService.java",
                 "Owner: agent   Condition: none",
                 "",
@@ -121,10 +123,10 @@ class ChainTestReportWriterTest {
                 "> 24 |     int rate = percent / 100;",
                 "  25 |     BigDecimal discount = subtotal.multiply(BigDecimal.valueOf(rate));",
                 "  26 |     return new Quote(subtotal.subtract(discount));"));
-        writer.stepRecorded(step(StepKind.HTTP, StepStatus.OK, "start_fixture_http_request scenario=discount", 20,
+        writer.stepRecorded(step(StepKind.HTTP, StepStatus.OK, "Sent HTTP request: POST /orders/quote (discount scenario)", 20,
                 "POST /orders/quote {\"quantity\":2,\"unitPrice\":60,\"discountPercent\":10}", "Request id: r1 (pending)"));
         writer.stepRecorded(new ReportEvent.StepRecorded("inv-7f3a", Instant.now(), StepKind.STOP, StepStatus.OK,
-                "wait_for_stop: BREAKPOINT at OrderService.quote:24", List.of(
+                "Stopped at breakpoint: OrderService.quote, line 24", List.of(
                         "Thread: http-nio-exec-1 (suspended)",
                         "Frames: OrderService.quote:24  <  OrderController.quote:31  <  (58 more)",
                         "",
@@ -136,10 +138,10 @@ class ChainTestReportWriterTest {
                         "",
                         "Generic check that HTML is escaped: List<String> & \"quotes\" & café"),
                 List.of(shot), 640));
-        writer.stepRecorded(step(StepKind.STEP, StepStatus.OK, "control_debug_session RESUME thread 3", 12));
-        writer.stepRecorded(step(StepKind.HTTP, StepStatus.OK, "get_fixture_http_request r1", 8,
+        writer.stepRecorded(step(StepKind.STEP, StepStatus.OK, "Resumed execution", 12));
+        writer.stepRecorded(step(StepKind.HTTP, StepStatus.OK, "Received HTTP response: 200", 8,
                 "HTTP 200", "Body: {\"total\":120.00}", "Expected 108.00"));
-        writer.stepRecorded(step(StepKind.INSPECT, StepStatus.FAILED, "evaluate_expression percent / 100.0", 15,
+        writer.stepRecorded(step(StepKind.INSPECT, StepStatus.FAILED, "Evaluated expression: percent / 100.0", 15,
                 "Rejected: evaluation is disabled for NORMAL investigations"));
         writer.investigationFinished(new ReportEvent.InvestigationFinished("inv-7f3a", Instant.now(), ReportEvent.Outcome.FINISHED,
                 "In OrderService.quote, percent / 100 is integer division, so rate = 0 and the 10% discount is lost: "
@@ -148,7 +150,11 @@ class ChainTestReportWriterTest {
                         "Terminated launch OrdersApplication; JVM exit confirmed")));
         writer.close();
 
-        Path report = dir.resolve("index.html");
+        assertEquals(1, writer.writtenReports().size(), "one report per investigation");
+        Path report = writer.writtenReports().get(0);
+        assertTrue(report.getFileName().toString().matches("OrdersApplication_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}\\.html"),
+                "report not named after the application, date and time: " + report.getFileName());
+        assertEquals(dir.toAbsolutePath().normalize(), report.getParent(), "report not in the configured folder");
         assertTrue(Files.isRegularFile(report), "report missing: " + report.toAbsolutePath());
         assertTrue(Files.isRegularFile(dir.resolve("resources/chaintest-pkg.css")), "offline CSS missing");
         assertTrue(Files.isRegularFile(dir.resolve("resources/chaintest-pkg.js")), "offline script missing");
@@ -156,18 +162,28 @@ class ChainTestReportWriterTest {
             assertTrue(files.anyMatch(p -> p.getFileName().toString().endsWith(".png")), "screenshot was not embedded");
         }
         String html = Files.readString(report, StandardCharsets.ISO_8859_1);
-        assertTrue(html.contains("BREAKPOINT - set_breakpoint OrderService.java:24"), "breakpoint step missing");
+        assertTrue(html.contains("Set breakpoint: OrderService, line 24"), "breakpoint step missing");
+        assertTrue(html.contains("Request from the user") && html.contains("Exact prompt sent to the agent:")
+                && html.contains("should cost 108.00"), "request card missing");
+        assertTrue(html.indexOf("Request from the user") < html.indexOf("Conclusion by the agent")
+                && html.indexOf("Conclusion by the agent") < html.indexOf("Set breakpoint: OrderService"),
+                "order must be: request, conclusion, then the steps");
+        assertTrue(html.contains(ChainTestReportWriter.REQUEST_MARK) && html.contains(ChainTestReportWriter.CONCLUSION_MARK),
+                "highlight markers missing");
+        assertTrue(html.contains("Took "), "duration missing from the investigation line");
+        assertTrue(html.contains("Stopped at breakpoint: OrderService.quote, line 24"), "stop step missing");
+        assertTrue(html.contains("<style>" + ChainTestReportWriter.CSS + "</style>"), "filter bar not hidden");
         assertTrue(html.contains("rate        int           0"), "variable value missing");
         assertTrue(html.contains("&gt; 24 |     int rate = percent / 100;"), "source line missing");
         assertTrue(html.contains("Investigation inv-7f3a - OrdersApplication"), "investigation not named after its launch");
-        assertTrue(html.contains("data-bs-theme=\"dark\""), "dark theme not set");
+        assertTrue(html.contains("data-bs-theme=\"\""), "light theme not set");
         assertTrue(html.contains("<title>Agentic Debugger - Debugging Session Report</title>"), "page title missing");
         assertTrue(html.contains("Debugging Session Report  |"), "header missing");
         for (String tag : List.of("BREAKPOINT", "STOP", "HTTP", "CONCLUSION", "CLEANUP", "Claude Code", "finished"))
             assertTrue(html.contains(">" + tag + "<"), "tag badge missing: " + tag);
-        assertTrue(html.contains("CONCLUSION - diagnosis by the agent")
+        assertTrue(html.contains("Conclusion by the agent")
                 && html.contains("percent / 100 is integer division"), "conclusion missing");
-        assertTrue(html.contains("CLEANUP - finish_debug_investigation"), "cleanup step missing");
+        assertTrue(html.contains("Finished investigation and cleaned up"), "cleanup step missing");
         assertTrue(html.contains("test-container passed"), "a recovered tool error must not fail the investigation");
         assertTrue(html.contains("1 tool call failed; the agent continued."), "failed call count missing");
         assertTrue(html.contains("List&lt;String&gt; &amp; &quot;quotes&quot; &amp; caf&#233;"), "text not escaped");
@@ -182,11 +198,13 @@ class ChainTestReportWriterTest {
         ChainTestReportWriter writer = new ChainTestReportWriter(new ReportSettings("chaintest", dir, "Agentic Debugger prototype"));
         writer.investigationStarted(new ReportEvent.InvestigationStarted("inv-idle", Instant.now(), "NORMAL", "Claude Code"));
         writer.stepRecorded(new ReportEvent.StepRecorded("inv-idle", Instant.now(), StepKind.BREAKPOINT, StepStatus.OK,
-                "set_breakpoint Calculator.java:10", List.of(), List.of(), 20));
+                "Set breakpoint: Calculator, line 10", List.of(), List.of(), 20));
         writer.investigationFinished(new ReportEvent.InvestigationFinished("inv-idle", Instant.now(),
                 ReportEvent.Outcome.ENDED_WITHOUT_FINISH, null, List.of("Idle lease expired after 10 min", "Removed breakpoint Calculator.java:10")));
         writer.close();
-        String html = Files.readString(dir.resolve("index.html"), StandardCharsets.ISO_8859_1);
+        Path report = writer.writtenReports().get(0);
+        assertTrue(report.getFileName().toString().startsWith("Investigation_"), "no launch: file must start with Investigation_");
+        String html = Files.readString(report, StandardCharsets.ISO_8859_1);
         assertTrue(html.contains("Ended without finish_debug_investigation"), "reason missing");
         assertTrue(html.toLowerCase().contains("skipped"), "not shown as skipped");
     }
@@ -199,10 +217,12 @@ class ChainTestReportWriterTest {
         assertTrue(recorder.active(), () -> "chaintest writer not found: " + errBytes.toString(StandardCharsets.UTF_8));
         recorder.record(new ReportEvent.InvestigationStarted("inv-sl", Instant.now(), "NORMAL", "test"));
         recorder.record(new ReportEvent.StepRecorded("inv-sl", Instant.now(), StepKind.STOP, StepStatus.OK,
-                "wait_for_stop: BREAKPOINT", List.of("x = 1"), List.of(), 5));
+                "Stopped at breakpoint", List.of("x = 1"), List.of(), 5));
         recorder.record(new ReportEvent.InvestigationFinished("inv-sl", Instant.now(), ReportEvent.Outcome.FINISHED, "ok", List.of()));
         recorder.close(Duration.ofSeconds(30));
-        assertTrue(Files.isRegularFile(dir.resolve("index.html")), "report not written through the recorder");
+        try (Stream<Path> files = Files.list(dir)) {
+            assertEquals(1, files.filter(f -> f.toString().endsWith(".html")).count(), "report not written through the recorder");
+        }
         assertEquals("", errBytes.toString(StandardCharsets.UTF_8), "unexpected warnings");
     }
 
@@ -215,13 +235,14 @@ class ChainTestReportWriterTest {
         writer.stepRecorded(new ReportEvent.StepRecorded("0d4fe8bf-c038-4799-8476-4ddfeda72efe", Instant.now(), StepKind.HTTP,
                 StepStatus.FAILED, "start_fixture_http_request scenario=discount",
                 List.of("scenario: discount", "", "Error: Orders fixture not ready"), List.of(), 61));
+        Path chosen = dir.resolve("Chosen-by-recorder_2026-11-24_10-39-31.html");
         writer.investigationFinished(new ReportEvent.InvestigationFinished("0d4fe8bf-c038-4799-8476-4ddfeda72efe", Instant.now(),
-                ReportEvent.Outcome.FINISHED, null, List.of("Action: CLEANUP", "JVM ended: false")));
+                ReportEvent.Outcome.FINISHED, null, List.of("Action: CLEANUP", "JVM ended: false"), chosen));
         writer.close();
-        String html = Files.readString(dir.resolve("index.html"), StandardCharsets.ISO_8859_1);
+        assertTrue(Files.isRegularFile(chosen), "the file chosen by the recorder was not used");
+        String html = Files.readString(chosen, StandardCharsets.ISO_8859_1);
         assertEquals(1, html.split("Orders fixture not ready", -1).length - 1, "error shown more than once");
         assertTrue(html.contains("Investigation 0d4fe8bf<"), "long ID not shortened in the name: " + html.contains("Investigation 0d4fe8bf"));
-        assertTrue(html.contains("ID: 0d4fe8bf-c038-4799-8476-4ddfeda72efe"), "full ID missing from the description");
         assertTrue(html.contains("test-container failed"), "a cleanup problem must fail the investigation");
         // The investigation's own column runs from its container to its description (the tag table at the top is excluded).
         int start = html.indexOf("test-container");

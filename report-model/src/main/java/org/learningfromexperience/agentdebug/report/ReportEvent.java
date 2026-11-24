@@ -36,11 +36,23 @@ public sealed interface ReportEvent {
         ENDED_WITHOUT_FINISH
     }
 
-    /** begin_debug_investigation succeeded. */
-    record InvestigationStarted(String investigationId, Instant at, String mode, String client) implements ReportEvent {
+    /**
+     * begin_debug_investigation succeeded.
+     *
+     * @param request      what the user asked for, or null when unknown; shown first in the report
+     * @param requestExact true when {@code request} is the exact prompt sent to the agent (known only to a test
+     *                     harness); false when the agent passed it on in its own words
+     */
+    record InvestigationStarted(String investigationId, Instant at, String mode, String client,
+                                String request, boolean requestExact) implements ReportEvent {
         public InvestigationStarted {
             Objects.requireNonNull(investigationId, "investigationId");
             Objects.requireNonNull(at, "at");
+        }
+
+        /** Without a request. */
+        public InvestigationStarted(String investigationId, Instant at, String mode, String client) {
+            this(investigationId, at, mode, client, null, false);
         }
     }
 
@@ -70,14 +82,22 @@ public sealed interface ReportEvent {
      *
      * @param conclusion the agent's own summary when it gave one (finish_debug_investigation), otherwise null
      * @param cleanup    what cleanup removed or verified, one line per item
+     * @param reportFile where the writer must write this investigation's report (decided by the recorder, see
+     *                   {@link ReportFiles}); null lets the writer choose
      */
     record InvestigationFinished(String investigationId, Instant at, Outcome outcome, String conclusion,
-                                 List<String> cleanup) implements ReportEvent {
+                                 List<String> cleanup, Path reportFile) implements ReportEvent {
         public InvestigationFinished {
             Objects.requireNonNull(investigationId, "investigationId");
             Objects.requireNonNull(at, "at");
             Objects.requireNonNull(outcome, "outcome");
             cleanup = cleanup == null ? List.of() : List.copyOf(cleanup);
+        }
+
+        /** Without a chosen report file. */
+        public InvestigationFinished(String investigationId, Instant at, Outcome outcome, String conclusion,
+                                     List<String> cleanup) {
+            this(investigationId, at, outcome, conclusion, cleanup, null);
         }
     }
 }

@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.learningfromexperience.agentdebug.report.DebugReportListener;
 import org.learningfromexperience.agentdebug.report.ReportEvent;
+import org.learningfromexperience.agentdebug.report.ReportFiles;
 import org.learningfromexperience.agentdebug.report.ReportSettings;
 
 import com.aventstack.chaintest.domain.Build;
@@ -27,14 +28,19 @@ import com.aventstack.chaintest.generator.ChainTestSimpleGenerator;
  *
  * <p><b>Mapping.</b> ChainTest's model is a test run; ours is a debugging session:
  * <ul>
- *   <li>one MCP server process (one agent session) = one ChainTest build = one report file;</li>
+ *   <li>one investigation = one ChainTest build = one report file, named by {@link ReportFiles}
+ *       ({@code OrdersApplication_2026-11-24_10-39-31.html}); the file is the one the recorder chose and passed in
+ *       {@link ReportEvent.InvestigationFinished#reportFile()}. All reports of a folder share one
+ *       {@code resources} folder next to them (ChainTest's CSS, scripts and embedded images);</li>
+ *   <li>what the user asked = the first child, "Request from the user", when known;</li>
  *   <li>one investigation = one top-level test; its result is PASSED when it was finished and cleaned up, FAILED when
  *       cleanup reported a problem (JVM still running), SKIPPED when it ended without
  *       {@code finish_debug_investigation} (idle lease, disconnect). A failed tool call the agent recovered from does
  *       not fail the investigation: the step is red, the investigation says how many calls failed;</li>
- *   <li>one step (tool call) = one child test named {@code KIND - title}, tagged with its kind, with its details as
- *       log lines and its attachments (screenshots) as embedded images;</li>
- *   <li>the agent's conclusion = a {@code CONCLUSION} child, the cleanup result = a final {@code CLEANUP} child.</li>
+ *   <li>one step (tool call) = one child test named by its plain-language title ("Set breakpoint: OrderService,
+ *       line 24"), tagged with its kind (badge), with its details as log lines and its attachments (screenshots) as
+ *       embedded images;</li>
+ *   <li>the agent's conclusion = a "Conclusion by the agent" child, the cleanup result = a final cleanup child.</li>
  * </ul>
  * ChainTest's page shows logs and images only for child tests; for an investigation it shows name, tags, times
  * and description, so investigation-level notes (how it ended) go into the description. Tags give badges on each
@@ -43,12 +49,15 @@ import com.aventstack.chaintest.generator.ChainTestSimpleGenerator;
  * The investigation is renamed after its first launch target; long IDs are shortened to 8 characters in the name.
  *
  * <p><b>Look.</b> Dark theme, title "Agentic Debugger - Debugging Session Report", header with the project name and
- * the session start time. ChainTest's own CSS and scripts are used unchanged.
+ * the session start time. ChainTest's own CSS and scripts are used unchanged, except one CSS rule ({@link #CSS}) that
+ * hides what a debugging session report does not need: the dashboard (Tests / Methods / Summary charts and the Tags
+ * table, element {@code #summary}) and the search and filter bar. They are hidden, not removed from the page, because
+ * ChainTest's script looks them up when the page loads and would stop (theme switch, image viewer) without them.
  *
  * <p>Uses only ChainTest's core engine ({@link Build}, {@link Test}) and {@link ChainTestSimpleGenerator}, configured
  * in code (no {@code chaintest.properties}), offline (CSS and scripts copied next to the report). Not
  * {@code ChainTestListener}: that is a TestNG adapter whose {@code log}/{@code embed} only work during a TestNG test.
- * The report is rewritten after every finished investigation, so it exists even if the session is killed later.
+ * A report is written as soon as its investigation finishes, so it exists even if the session is killed later.
  *
  * <p>Runs only on the report thread of {@code AsyncReportRecorder}; not thread-safe by design. ChainTest's templates
  * do not escape text, so everything is HTML-escaped here ({@link #html}).
@@ -58,76 +67,97 @@ import com.aventstack.chaintest.generator.ChainTestSimpleGenerator;
 public final class ChainTestReportWriter implements DebugReportListener {
 
     static final String RUNNER = "agentic-debugger";
-    static final String REPORT_FILE = "index.html";
     private static final String PREFIX = "chaintest.generator.simple.";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm:ss", Locale.ENGLISH)
             .withZone(ZoneId.systemDefault());
     /** Format of the start and end times ChainTest shows on each investigation (java.text.SimpleDateFormat). */
     private static final String CARD_TIME_FORMAT = "dd MMM yyyy, HH:mm:ss";
+    /** Invisible markers in the first log line of the request and conclusion cards, so the CSS can highlight them. */
+    static final String REQUEST_MARK = "<span class=\"ad-request\"></span>";
+    static final String CONCLUSION_MARK = "<span class=\"ad-conclusion\"></span>";
+    /**
+     * Our additions to ChainTest's page, in one place:
+     * <ul>
+     *   <li>hidden: the dashboard and tag table ({@code #summary}), the search and filter bar, the build badges in the
+     *       header (duration and times of writing the file), and the time badges and tag pills of the investigation;
+     *       hidden rather than removed, because ChainTest's script looks these elements up when the page loads;</li>
+     *   <li>the request card (blue) and the conclusion card (green) highlighted, without their duration badge;</li>
+     *   <li>long lines wrap instead of scrolling sideways; the investigation's summary line is plain text.</li>
+     * </ul>
+     */
+    static final String CSS = "#summary,div.py-3.mb-5:has(#q),.navbar .container>div:last-child,"
+            + ".test-container .col-4 .small,.test-container .col-4 .my-2{display:none}"
+            + ".card:has(.ad-request){border-left:6px solid #0d6efd;background:rgba(13,110,253,.07)}"
+            + ".card:has(.ad-conclusion){border-left:6px solid #198754;background:rgba(25,135,84,.09)}"
+            + ".card:has(.ad-request) .badge,.card:has(.ad-conclusion) .badge,"
+            + ".card:has(.ad-request) .mx-1,.card:has(.ad-conclusion) .mx-1{display:none}"
+            + ".card:has(.ad-request) pre,.card:has(.ad-conclusion) pre{font-size:.95rem}"
+            + "pre{white-space:pre-wrap;word-break:break-word}"
+            + ".test-container .col-4 code{color:inherit;white-space:normal;font-family:inherit}";
 
-    private final Path reportFile;
-    private final Build build;
-    private final ChainTestSimpleGenerator generator;
+    private final Path folder;
+    private final String projectName;
     private final Map<String, Test> open = new LinkedHashMap<>();
-    private final Queue<Test> finished = new ConcurrentLinkedQueue<>();
-    /** Investigations already named after their launch target. */
-    private final java.util.Set<String> named = new java.util.HashSet<>();
+    /** Investigations already named after their launch target, and that target (for the file name). */
+    private final Map<String, String> targets = new java.util.HashMap<>();
+    private final Map<String, java.time.Instant> starts = new java.util.HashMap<>();
+    /** Report files chosen in this session, so two reports never get the same name. */
+    private final java.util.Set<Path> taken = new java.util.HashSet<>();
     /** Failed tool calls per investigation. */
     private final Map<String, Integer> failedCalls = new java.util.HashMap<>();
+    private final List<Path> written = new java.util.ArrayList<>();
     private long droppedEvents;
 
     public ChainTestReportWriter(ReportSettings settings) throws Exception {
-        Files.createDirectories(settings.outputDirectory());
-        reportFile = settings.outputDirectory().resolve(REPORT_FILE);
-        build = new Build(settings.projectName(), RUNNER);
-        generator = new ChainTestSimpleGenerator();
-        // "js" and "css" must be present, even empty: ChainTestSimpleGenerator.flush() puts them into Map.of(...),
-        // which rejects null values (NullPointerException in flush when they are missing).
-        // Header next to ChainTest's logo: project, report kind and when the session started.
-        String header = html(settings.projectName() + "  |  Debugging Session Report  |  "
-                + TIME.format(java.time.Instant.now()));
-        Map<String, String> config = Map.of(
-                PREFIX + "enabled", "true",
-                PREFIX + "output-file", reportFile.toString(),
-                PREFIX + "offline", "true",
-                PREFIX + "dark-theme", "true",
-                PREFIX + "document-title", "Agentic Debugger - Debugging Session Report",
-                PREFIX + "datetime-format", CARD_TIME_FORMAT,
-                PREFIX + "js", "",
-                PREFIX + "css", "",
-                "chaintest.project.name", header);
-        generator.start(Optional.of(config), RUNNER, build);
-        if (!generator.started()) throw new IllegalStateException("ChainTest report generator did not start");
+        folder = Files.createDirectories(settings.outputDirectory()).toAbsolutePath().normalize();
+        projectName = settings.projectName();
     }
 
-    /** The report this writer produces. */
-    public Path reportFile() {
-        return reportFile;
+    /** Report files written so far in this session, in order (for tests and diagnostics). */
+    public List<Path> writtenReports() {
+        return List.copyOf(written);
     }
 
     @Override
     public void investigationStarted(ReportEvent.InvestigationStarted event) {
         Test investigation = investigation(event.investigationId());
         investigation.setStartedAt(event.at().toEpochMilli());
-        investigation.setDescription(html("Mode: " + nullToDash(event.mode()) + " | Client: " + nullToDash(event.client())
-                + " | Started: " + TIME.format(event.at())));
+        investigation.setDescription(html(TIME.format(event.at()) + "  |  " + nullToDash(event.client())
+                + ", " + nullToDash(event.mode()) + " mode"));
         if (event.mode() != null) investigation.addTag(html(event.mode()));
         if (event.client() != null && !event.client().isBlank()) investigation.addTag(html(event.client()));
-        investigation.setDescription(investigation.getDescription() + html(" | ID: " + event.investigationId()));
+        starts.put(event.investigationId(), event.at());
+        if (event.request() != null && !event.request().isBlank()) {
+            // First card: what the user asked, so the report reads request -> steps -> conclusion.
+            Test request = new Test("Request from the user");
+            investigation.addChild(request);
+            request.getTags().add(new Tag("REQUEST"));
+            request.addLog(REQUEST_MARK + html(event.requestExact() ? "Exact prompt sent to the agent:" : "As passed on by the agent:"));
+            request.addLog("");
+            for (String line : event.request().split("\\R")) request.addLog(html(line));
+            request.complete();
+            long at = event.at().toEpochMilli();
+            request.setStartedAt(at);
+            request.setEndedAt(at);
+        }
     }
 
     @Override
     public void stepRecorded(ReportEvent.StepRecorded event) {
         Test investigation = investigation(event.investigationId());
-        Test step = new Test(html(event.kind() + " - " + event.title()));
+        Test step = new Test(html(event.title()));
         investigation.addChild(step);
         // Directly into the set: Test.addTag would copy the tag to the investigation as well.
         step.getTags().add(new Tag(event.kind().name()));
-        if (event.kind() == ReportEvent.StepKind.LAUNCH && named.add(event.investigationId())) {
-            // "start_java_application OrdersApplication" -> "Investigation inv-7f3a - OrdersApplication"
+        if (event.kind() == ReportEvent.StepKind.LAUNCH && !targets.containsKey(event.investigationId())) {
+            // "Started application in debug mode: OrdersApplication" -> "Investigation 36160c77 - OrdersApplication"
+            int colon = event.title().lastIndexOf(": ");
             int space = event.title().indexOf(' ');
-            if (space > 0) investigation.setName(html("Investigation " + shortId(event.investigationId()) + " - "
-                    + event.title().substring(space + 1).strip()));
+            String target = colon > 0 ? event.title().substring(colon + 2) : space > 0 ? event.title().substring(space + 1) : "";
+            if (!target.isBlank()) {
+                targets.put(event.investigationId(), target.strip());
+                investigation.setName(html("Investigation " + shortId(event.investigationId()) + " - " + target.strip()));
+            }
         }
         boolean failed = event.status() == ReportEvent.StepStatus.FAILED;
         List<String> errors = new java.util.ArrayList<>();
@@ -156,15 +186,16 @@ public final class ChainTestReportWriter implements DebugReportListener {
         Test investigation = investigation(event.investigationId());
         open.remove(event.investigationId());
         if (event.conclusion() != null && !event.conclusion().isBlank()) {
-            Test conclusion = new Test("CONCLUSION - diagnosis by the agent");
+            Test conclusion = new Test("Conclusion by the agent");
             investigation.addChild(conclusion);
             conclusion.getTags().add(new Tag("CONCLUSION"));
-            conclusion.addLog(html(event.conclusion()));
+            conclusion.addLog(CONCLUSION_MARK + html(event.conclusion()));
             conclusion.complete();
+            moveUp(investigation, conclusion);
         }
         if (!event.cleanup().isEmpty()) {
-            Test cleanup = new Test(html(ReportEvent.StepKind.CLEANUP + " - " + (event.outcome() == ReportEvent.Outcome.FINISHED
-                    ? "finish_debug_investigation" : "automatic cleanup")));
+            Test cleanup = new Test(event.outcome() == ReportEvent.Outcome.FINISHED
+                    ? "Finished investigation and cleaned up" : "Cleaned up automatically");
             investigation.addChild(cleanup);
             cleanup.getTags().add(new Tag(ReportEvent.StepKind.CLEANUP.name()));
             for (String line : event.cleanup()) cleanup.addLog(html(line));
@@ -172,7 +203,8 @@ public final class ChainTestReportWriter implements DebugReportListener {
         }
         boolean cleanupProblem = event.cleanup().stream()
                 .anyMatch(line -> line.startsWith("Warning:") || line.equals("JVM ended: false"));
-        end(investigation, event.investigationId(), event.outcome(), cleanupProblem, event.at().toEpochMilli(), null);
+        end(investigation, event.investigationId(), event.outcome(), cleanupProblem, event.at().toEpochMilli(), null,
+                event.reportFile());
     }
 
     @Override
@@ -183,24 +215,28 @@ public final class ChainTestReportWriter implements DebugReportListener {
     @Override
     public void close() {
         // Investigations still open when the session ends are reported as ended without finish.
-        for (var entry : open.entrySet())
+        for (var entry : new java.util.ArrayList<>(open.entrySet()))
             end(entry.getValue(), entry.getKey(), ReportEvent.Outcome.ENDED_WITHOUT_FINISH, false,
-                    System.currentTimeMillis(), "The agent session ended before this investigation was finished.");
+                    System.currentTimeMillis(), "The agent session ended before this investigation was finished.", null);
         open.clear();
-        if (droppedEvents > 0) {
-            Test notice = new Test("Report incomplete");
-            notice.setDescription(html(droppedEvents + " events were not recorded because the report could not keep up."));
-            notice.setResult(Result.SKIPPED.getResult());
-            notice.complete();
-            build.updateStats(notice);
-            finished.add(notice);
-        }
-        build.complete();
-        writeReport();
     }
 
     private Test investigation(String id) {
         return open.computeIfAbsent(id, key -> new Test(html("Investigation " + shortId(key))));
+    }
+
+    /**
+     * Puts the conclusion right after the request (or first, without a request), so a reader sees what was asked and
+     * what was found before the steps. ChainTest keeps children in insertion order in a queue, so the queue is rebuilt.
+     */
+    private static void moveUp(Test investigation, Test conclusion) {
+        java.util.Queue<Test> children = investigation.getChildren();
+        List<Test> ordered = new java.util.ArrayList<>(children);
+        ordered.remove(conclusion);
+        int at = !ordered.isEmpty() && "Request from the user".equals(ordered.get(0).getName()) ? 1 : 0;
+        ordered.add(at, conclusion);
+        children.clear();
+        children.addAll(ordered);
     }
 
     /** UUIDs are long; the first 8 characters identify an investigation in the name (the full ID is in the description). */
@@ -209,7 +245,8 @@ public final class ChainTestReportWriter implements DebugReportListener {
     }
 
     private void end(Test investigation, String id, ReportEvent.Outcome outcome, boolean cleanupProblem,
-                     long endedAt, String note) {
+                     long endedAt, String note, Path chosenFile) {
+        open.remove(id);
         investigation.addTag(outcome == ReportEvent.Outcome.FINISHED ? "finished" : "ended-without-finish");
         List<String> notes = new java.util.ArrayList<>();
         // The investigation's result is decided by how it ended, not by tool calls the agent recovered from.
@@ -225,18 +262,55 @@ public final class ChainTestReportWriter implements DebugReportListener {
         }
         int failures = failedCalls.getOrDefault(id, 0);
         if (failures > 0) notes.add(failures + (failures == 1 ? " tool call" : " tool calls") + " failed; the agent continued.");
+        if (droppedEvents > 0) notes.add("Report incomplete: " + droppedEvents + " events of this session were not recorded.");
+        java.time.Instant began = starts.get(id);
+        if (began != null) {
+            long seconds = Math.max(0, (endedAt - began.toEpochMilli()) / 1000);
+            notes.add(0, "Took " + (seconds >= 60 ? seconds / 60 + " min " + seconds % 60 + " s" : seconds + " s") + ".");
+        }
         if (!notes.isEmpty()) {
             String before = investigation.getDescription();
             investigation.setDescription((before == null || before.isBlank() ? "" : before + " | ") + html(String.join(" ", notes)));
         }
         investigation.setEndedAt(endedAt);
-        build.updateStats(investigation);
-        finished.add(investigation);
-        writeReport();
+        java.time.Instant start = starts.getOrDefault(id, java.time.Instant.ofEpochMilli(endedAt));
+        Path file = chosenFile != null ? chosenFile
+                : ReportFiles.reserve(folder, targets.get(id), start, ZoneId.systemDefault(), taken);
+        taken.add(file);
+        writeReport(investigation, file, start);
     }
 
-    private void writeReport() {
-        if (!finished.isEmpty()) generator.flush(finished);
+    /** Writes one investigation as its own report file with a fresh ChainTest build and generator. */
+    private void writeReport(Test investigation, Path file, java.time.Instant start) {
+        try {
+            Files.createDirectories(file.getParent());
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        Build build = new Build(projectName, RUNNER);
+        // Header next to ChainTest's logo: project, report kind and when the investigation started.
+        String header = html(projectName + "  |  Debugging Session Report  |  " + TIME.format(start));
+        // "js" and "css" must be present, even empty: ChainTestSimpleGenerator.flush() puts them into Map.of(...),
+        // which rejects null values (NullPointerException in flush when they are missing).
+        Map<String, String> config = Map.of(
+                PREFIX + "enabled", "true",
+                PREFIX + "output-file", file.toString(),
+                PREFIX + "offline", "true",
+                PREFIX + "dark-theme", "false",
+                PREFIX + "document-title", "Agentic Debugger - Debugging Session Report",
+                PREFIX + "datetime-format", CARD_TIME_FORMAT,
+                PREFIX + "js", "",
+                PREFIX + "css", CSS,
+                "chaintest.project.name", header);
+        ChainTestSimpleGenerator generator = new ChainTestSimpleGenerator();
+        generator.start(Optional.of(config), RUNNER, build);
+        if (!generator.started()) throw new IllegalStateException("ChainTest report generator did not start");
+        build.updateStats(investigation);
+        build.complete();
+        Queue<Test> tests = new ConcurrentLinkedQueue<>();
+        tests.add(investigation);
+        generator.flush(tests);
+        written.add(file);
     }
 
     private static String mediaType(Path file) {

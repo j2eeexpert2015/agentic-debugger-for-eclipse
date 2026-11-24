@@ -96,13 +96,14 @@ class SessionReportTest {
 
         var steps = captured.steps();
         assertEquals(4, steps.size());
-        assertEquals("set_breakpoint OrderService:24", steps.get(0).title());
+        assertEquals("Set breakpoint: OrderService, line 24", steps.get(0).title());
         assertEquals(StepKind.BREAKPOINT, steps.get(0).kind());
-        assertEquals("start_java_application OrdersApplication", steps.get(1).title());
+        assertEquals("Started application in debug mode: OrdersApplication", steps.get(1).title());
         assertEquals(StepKind.LAUNCH, steps.get(1).kind());
-        assertEquals("wait_for_stop: BREAKPOINT at OrderService.quote:24", steps.get(2).title());
+        assertEquals("Stopped at breakpoint: OrderService.quote, line 24", steps.get(2).title());
         assertEquals(StepKind.STOP, steps.get(2).kind());
-        assertEquals("control_debug_session RESUME thread 3", steps.get(3).title());
+        assertEquals("Resumed execution", steps.get(3).title());
+        assertEquals("Tool: set_breakpoint", steps.get(0).details().get(0), "tool name must be the first detail line");
         assertTrue(steps.stream().allMatch(s -> s.investigationId().equals("inv-1") && s.status() == StepStatus.OK));
 
         var finished = (ReportEvent.InvestigationFinished) captured.events.get(captured.events.size() - 1);
@@ -142,7 +143,7 @@ class SessionReportTest {
                 "{\"status\":\"success\",\"stopped\":false,\"reason\":\"TIMEOUT\"}");
         var last = captured.steps().get(captured.steps().size() - 1);
         assertEquals("inv-2", last.investigationId());
-        assertEquals("wait_for_stop: no stop (TIMEOUT)", last.title());
+        assertEquals("Waited for a stop: none (TIMEOUT)", last.title());
     }
 
     @Test
@@ -227,7 +228,77 @@ class SessionReportTest {
         call("wait_for_debug_pause", Map.of("launchName", launch, "timeoutSeconds", 30), false,
                 "{\"status\":\"success\",\"threads\":[{\"index\":0,\"name\":\"main\",\"suspended\":false},"
                         + "{\"index\":4,\"name\":\"http-exec-1\",\"suspended\":true}]}");
-        assertEquals("wait_for_debug_pause: suspended http-exec-1 (thread 4)", captured.steps().get(4).title());
+        assertEquals("Thread suspended: http-exec-1 (thread 4)", captured.steps().get(4).title());
+    }
+
+    @Test
+    @DisplayName("SR-U10 HTTP steps read as request and response, failed steps end with their error, JVM-internal frames are left out")
+    void srU10() {
+        call("begin_debug_investigation", Map.of(), false, BEGIN);
+        call("start_fixture_http_request", Map.of("launchName", "Orders", "scenario", "discount"), false,
+                "{\"requestId\":\"r1\",\"status\":\"PENDING\",\"method\":\"POST\",\"url\":\"http://127.0.0.1:61956/orders/quote\","
+                        + "\"scenario\":\"discount\",\"pid\":2536,\"bodySent\":\"{}\"}");
+        call("get_fixture_http_request", Map.of("requestId", "r1"), false,
+                "{\"requestId\":\"r1\",\"status\":\"COMPLETE\",\"httpStatus\":200,\"body\":\"{\\\"total\\\":120.00}\",\"fixturePid\":2536}");
+        call("start_fixture_http_request", Map.of("launchName", "Orders", "scenario", "discount"), true,
+                "Orders fixture not ready; retry when Tomcat startup is visible");
+        call("wait_for_stop", Map.of("launchName", "Orders"), false, STOP.replace(
+                "{\"index\":1,\"className\":\"org.example.OrderController\"",
+                "{\"index\":1,\"className\":\"0x000000008d24c000\",\"methodName\":\"invokeVirtual\",\"lineNumber\":-1},"
+                        + "{\"index\":2,\"className\":\"org.example.OrderController\""));
+        var steps = captured.steps();
+        assertEquals("Sent HTTP request: POST /orders/quote (discount scenario)", steps.get(0).title());
+        assertEquals("Received HTTP response: 200", steps.get(1).title());
+        assertTrue(steps.get(1).details().contains("Body: {\"total\":120.00}"), steps.get(1).details()::toString);
+        assertEquals("Sent HTTP request: POST (discount scenario)", steps.get(2).title());
+        List<String> failed = steps.get(2).details();
+        assertEquals("Error: Orders fixture not ready; retry when Tomcat startup is visible", failed.get(failed.size() - 1));
+        assertFalse(failed.contains(""), "no empty line in a failed step: " + failed);
+        String frames = steps.get(3).details().stream().filter(l -> l.startsWith("Frames:")).findFirst().orElse("");
+        assertEquals("Frames: OrderService.quote:24  <  OrderController.quote:31  <  (58 more)", frames);
+    }
+
+    @Test
+    @DisplayName("SR-U11 the request opens the report, the report file is named after the application, printed and returned by get_investigation_report")
+    void srU11(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder) {
+        ByteArrayOutputStream log = new ByteArrayOutputStream();
+        Captured events = new Captured();
+        SessionReport session = new SessionReport(events, folder, null, new PrintStream(log, true, StandardCharsets.UTF_8));
+        assertTrue(session.reportInfo(null).contains("No finished investigation"), session.reportInfo(null));
+
+        session.toolCalled("claude-code", "begin_debug_investigation", Map.of("request", "Why is the quote total 120 and not 108?"),
+                false, BEGIN, 5);
+        var started = (ReportEvent.InvestigationStarted) events.events.get(0);
+        assertEquals("Why is the quote total 120 and not 108?", started.request());
+        assertFalse(started.requestExact(), "a request passed by the agent is not the exact prompt");
+        session.toolCalled("claude-code", "start_java_application", Map.of("projectName", "orders", "mainType", "org.example.OrdersApplication"),
+                false, "{\"status\":\"success\",\"launchName\":\"Orders\"}", 900);
+        assertTrue(session.reportInfo("inv-1").contains("call finish_debug_investigation first"), session.reportInfo("inv-1"));
+        session.toolCalled("claude-code", "finish_debug_investigation", Map.of("investigationId", "inv-1",
+                        "summary", "percent / 100 is integer division, so rate is 0."), false,
+                "{\"status\":\"success\",\"action\":\"CLEANUP\",\"processesEnded\":true}", 3);
+
+        var finished = (ReportEvent.InvestigationFinished) events.events.get(events.events.size() - 1);
+        assertEquals("percent / 100 is integer division, so rate is 0.", finished.conclusion());
+        String name = finished.reportFile().getFileName().toString();
+        assertTrue(name.matches("OrdersApplication_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}\\.html"), name);
+        assertEquals(folder.toAbsolutePath().normalize(), finished.reportFile().getParent());
+        assertTrue(log.toString(StandardCharsets.UTF_8).contains("Debugging session report: " + finished.reportFile()),
+                "full path not printed: " + log);
+        String info = session.reportInfo(null);
+        assertTrue(info.contains("\"reportFile\":") && info.contains(name) && info.contains("\"enabled\":true"), info);
+        assertTrue(new SessionReport(events).reportInfo(null).contains("\"enabled\":false"), "reporting off must say so");
+    }
+
+    @Test
+    @DisplayName("SR-U12 when a test harness knows the exact prompt, it is used instead of the agent's wording")
+    void srU12() {
+        Captured events = new Captured();
+        SessionReport session = new SessionReport(events, null, "Exact words typed by the user", System.err);
+        session.toolCalled("claude-code", "begin_debug_investigation", Map.of("request", "paraphrase by the agent"), false, BEGIN, 5);
+        var started = (ReportEvent.InvestigationStarted) events.events.get(0);
+        assertEquals("Exact words typed by the user", started.request());
+        assertTrue(started.requestExact());
     }
 
     @Test

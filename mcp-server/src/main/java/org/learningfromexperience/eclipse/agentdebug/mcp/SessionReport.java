@@ -36,9 +36,16 @@ import org.learningfromexperience.agentdebug.report.ReportSettings;
  * {@code launchName} the call names; the only open investigation. Calls outside any open investigation (ping, lists
  * before {@code begin_debug_investigation}) are not recorded: the report is about investigations.
  *
- * <p><b>Settings</b> (R1; a Preferences setting follows in R2): environment variable {@code AGENTDEBUG_REPORT}
- * ({@code off} by default, or {@code chaintest}) and {@code AGENTDEBUG_REPORT_DIR} (default
- * {@code ~/.eclipse-agentdebug/reports}); each MCP server process writes into its own time-stamped subfolder.
+ * <p><b>Settings</b> (a Preferences setting follows): environment variable {@code AGENTDEBUG_REPORT} ({@code off} by
+ * default, or {@code chaintest}) and {@code AGENTDEBUG_REPORT_DIR} (default {@code ~/.eclipse-agentdebug/reports}).
+ * {@code AGENTDEBUG_REPORT_PROMPT}, set only by a test harness, is the exact prompt sent to the agent.
+ *
+ * <p><b>One report per investigation</b>, named by {@link ReportFiles}
+ * ({@code OrdersApplication_2026-11-24_10-39-31.html}). This class chooses the file when the investigation ends,
+ * passes it to the writer, prints the full path on stderr (the MCP server's log) and remembers it for the
+ * {@code get_investigation_report} tool. What the user asked comes from the exact prompt when known, otherwise from
+ * the agent's {@code request} argument of {@code begin_debug_investigation}; the agent's conclusion comes from the
+ * {@code summary} argument of {@code finish_debug_investigation}.
  *
  * <p><b>Never fails.</b> Every public method catches everything: a report problem must never change a tool result.
  * Not used concurrently in practice (MCP tool calls of one session arrive one at a time), but synchronized anyway.
@@ -49,8 +56,7 @@ final class SessionReport {
 
     static final String ENV_WRITER = "AGENTDEBUG_REPORT";
     static final String ENV_DIR = "AGENTDEBUG_REPORT_DIR";
-    private static final DateTimeFormatter FOLDER = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT)
-            .withZone(ZoneId.systemDefault());
+    static final String ENV_PROMPT = "AGENTDEBUG_REPORT_PROMPT";
 
     private static final Set<String> LAUNCH = Set.of("start_java_application", "start_junit_test",
             "start_debug_session", "restart_debug_session");
@@ -73,12 +79,29 @@ final class SessionReport {
     private static final String NO_RETURN_VALUE = "no method return value";
 
     private final ReportRecorder recorder;
+    /** Folder for this session's reports; null when reporting is off. */
+    private final Path folder;
+    /** The exact prompt sent to the agent, when a test harness knows it; otherwise null. */
+    private final String exactPrompt;
+    private final PrintStream log;
     private final Set<String> open = new LinkedHashSet<>();
+    private final Map<String, Instant> starts = new HashMap<>();
+    private final Map<String, String> targets = new HashMap<>();
+    /** Report file of every ended investigation of this session, in order. */
+    private final Map<String, Path> reports = new LinkedHashMap<>();
+    private final Set<Path> taken = new java.util.HashSet<>();
     private final Map<String, String> launchOwner = new HashMap<>();
     private final Map<String, List<String>> ownBreakpoints = new HashMap<>();
 
     SessionReport(ReportRecorder recorder) {
+        this(recorder, null, null, System.err);
+    }
+
+    SessionReport(ReportRecorder recorder, Path folder, String exactPrompt, PrintStream log) {
         this.recorder = recorder;
+        this.folder = folder;
+        this.exactPrompt = exactPrompt == null || exactPrompt.isBlank() ? null : exactPrompt;
+        this.log = log;
     }
 
     /** Reads the settings from the environment; reporting is off unless {@code AGENTDEBUG_REPORT} names a writer. */
@@ -90,11 +113,11 @@ final class SessionReport {
             Path base = env.containsKey(ENV_DIR) && !env.get(ENV_DIR).isBlank()
                     ? Path.of(env.get(ENV_DIR))
                     : Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "reports");
-            Path folder = base.resolve(FOLDER.format(Instant.now()) + "-" + ProcessHandle.current().pid());
+            Path folder = base.toAbsolutePath().normalize();
             ReportRecorder recorder = ReportRecorders.create(
                     new ReportSettings(writer, folder, "Agentic Debugger for Eclipse"), err);
-            if (recorder.active()) err.println("[Eclipse Agentic Debugger] Session report: " + folder.resolve("index.html"));
-            return new SessionReport(recorder);
+            if (recorder.active()) err.println("[Eclipse Agentic Debugger] Debugging session reports go to " + folder);
+            return new SessionReport(recorder, recorder.active() ? folder : null, env.get(ENV_PROMPT), err);
         } catch (Throwable failure) {
             err.println("[Eclipse Agentic Debugger] Session report disabled: " + failure);
             return new SessionReport(ReportRecorder.off());
@@ -116,9 +139,12 @@ final class SessionReport {
                 String id = MiniJson.str(reply.get("investigationId"));
                 if (!failed && id != null) {
                     open.add(id);
+                    Instant now = Instant.now();
+                    starts.put(id, now);
                     String mode = MiniJson.str(reply.getOrDefault("mode", args.get("mode")));
-                    recorder.record(new ReportEvent.InvestigationStarted(id, Instant.now(),
-                            mode == null ? "NORMAL" : mode, client));
+                    String request = exactPrompt != null ? exactPrompt : MiniJson.str(args.get("request"));
+                    recorder.record(new ReportEvent.InvestigationStarted(id, now, mode == null ? "NORMAL" : mode, client,
+                            request, exactPrompt != null));
                 }
                 return;
             }
@@ -126,7 +152,7 @@ final class SessionReport {
             if (id == null) return;
             if (tool.equals("finish_debug_investigation") && !failed) {
                 recorder.record(new ReportEvent.InvestigationFinished(id, Instant.now(), ReportEvent.Outcome.FINISHED,
-                        MiniJson.str(args.get("summary")), cleanupLines(id, reply)));
+                        MiniJson.str(args.get("summary")), cleanupLines(id, reply), chooseReport(id)));
                 forget(id);
                 return;
             }
@@ -147,7 +173,7 @@ final class SessionReport {
             lines.add("Finished by the MCP server: " + why);
             lines.addAll(cleanupLines(id, Map.of()));
             recorder.record(new ReportEvent.InvestigationFinished(id, Instant.now(),
-                    ReportEvent.Outcome.ENDED_WITHOUT_FINISH, null, lines));
+                    ReportEvent.Outcome.ENDED_WITHOUT_FINISH, null, lines, chooseReport(id)));
             forget(id);
         } catch (Throwable ignored) {
             // Never affects shutdown.
@@ -161,6 +187,61 @@ final class SessionReport {
         } catch (Throwable ignored) {
             // Never affects shutdown.
         }
+    }
+
+    /**
+     * Where the report of an investigation is, for the get_investigation_report tool: the given investigation, or the
+     * most recently ended one. JSON. Never throws.
+     */
+    synchronized String reportInfo(String investigationId) {
+        try {
+            if (folder == null)
+                return "{\"status\":\"success\",\"enabled\":false,\"message\":"
+                        + quote("Debugging session reports are off. Set AGENTDEBUG_REPORT=chaintest for the MCP server to turn them on.") + "}";
+            Path file = null;
+            String id = investigationId;
+            if (id != null && !id.isBlank()) file = reports.get(id);
+            else if (!reports.isEmpty()) {
+                for (var e : reports.entrySet()) { id = e.getKey(); file = e.getValue(); }
+            }
+            if (file == null) {
+                boolean stillOpen = id != null && open.contains(id);
+                return "{\"status\":\"success\",\"enabled\":true,\"reportFolder\":" + quote(folder.toString())
+                        + ",\"message\":" + quote(stillOpen || (id == null && !open.isEmpty())
+                        ? "The report is written when the investigation is finished: call finish_debug_investigation first."
+                        : "No finished investigation in this session yet.") + "}";
+            }
+            return "{\"status\":\"success\",\"enabled\":true,\"investigationId\":" + quote(id)
+                    + ",\"reportFile\":" + quote(file.toString()) + ",\"reportFolder\":" + quote(folder.toString())
+                    + ",\"message\":" + quote("Tell the user the full path of the report: " + file) + "}";
+        } catch (Throwable failure) {
+            return "{\"status\":\"error\",\"message\":" + quote("Report location unavailable: " + failure.getMessage()) + "}";
+        }
+    }
+
+    /** The report file of an ending investigation; printed on stderr so it appears in the MCP server's log. */
+    private Path chooseReport(String id) {
+        if (folder == null) return null;
+        Path file = org.learningfromexperience.agentdebug.report.ReportFiles.reserve(folder, targets.get(id),
+                starts.getOrDefault(id, Instant.now()), ZoneId.systemDefault(), taken);
+        reports.put(id, file);
+        log.println("[Eclipse Agentic Debugger] Debugging session report: " + file);
+        return file;
+    }
+
+    private static String quote(String text) {
+        StringBuilder b = new StringBuilder("\"");
+        for (char c : text.toCharArray()) {
+            switch (c) {
+                case '"' -> b.append("\\\"");
+                case '\\' -> b.append("\\\\");
+                case '\n' -> b.append("\\n");
+                case '\r' -> b.append("\\r");
+                case '\t' -> b.append("\\t");
+                default -> { if (c < 0x20) b.append(String.format("\\u%04x", (int) c)); else b.append(c); }
+            }
+        }
+        return b.append('"').toString();
     }
 
     // ------------------------------------------------------------------ attribution
@@ -179,6 +260,12 @@ final class SessionReport {
     private void remember(String id, String tool, Map<String, Object> args, Map<String, Object> reply) {
         String launch = MiniJson.str(reply.get("launchName"));
         if (LAUNCH.contains(tool) && launch != null) launchOwner.put(launch, id);
+        if (LAUNCH.contains(tool) && !targets.containsKey(id)) {
+            // The application the report file is named after: main class, or test class and method.
+            String title = title(tool, args, reply);
+            int colon = title.lastIndexOf(": ");
+            if (colon > 0) targets.put(id, title.substring(colon + 2));
+        }
         if (tool.equals("set_breakpoint") || tool.equals("set_conditional_breakpoint") || tool.equals("set_tracepoint"))
             ownBreakpoints.computeIfAbsent(id, k -> new ArrayList<>()).add(where(args));
         if (tool.equals("set_exception_breakpoint"))
@@ -187,6 +274,8 @@ final class SessionReport {
 
     private void forget(String id) {
         open.remove(id);
+        starts.remove(id);
+        targets.remove(id);
         ownBreakpoints.remove(id);
         launchOwner.values().removeIf(id::equals);
     }
@@ -204,43 +293,100 @@ final class SessionReport {
         return StepKind.OTHER;
     }
 
+    /**
+     * A plain-language title for the step: what happened, not which tool was called (the tool name is the first
+     * detail line). Examples: "Set breakpoint: OrderService, line 24", "Stopped at breakpoint: OrderService.quote,
+     * line 24", "Sent HTTP request: POST /orders/quote", "Received HTTP response: 200".
+     */
     static String title(String tool, Map<String, Object> a, Map<String, Object> reply) {
-        String detail = switch (tool) {
-            case "start_java_application" -> simple(MiniJson.str(a.get("mainType")));
-            case "start_junit_test" -> simple(MiniJson.str(a.get("typeName")))
+        String type = simple(MiniJson.str(a.get("typeName")));
+        String line = MiniJson.str(a.get("lineNumber"));
+        String launch = launchLabel(MiniJson.str(a.get("launchName")));
+        return switch (tool) {
+            case "start_java_application" -> "Started application in debug mode: " + simple(MiniJson.str(a.get("mainType")));
+            case "start_junit_test" -> "Started JUnit test in debug mode: " + type
                     + (blank(MiniJson.str(a.get("methodName"))) ? "" : "." + MiniJson.str(a.get("methodName")));
-            case "start_debug_session", "restart_debug_session" -> launchLabel(MiniJson.str(a.get("launchName")));
-            case "set_breakpoint", "remove_breakpoint", "set_tracepoint" -> where(a);
-            case "set_conditional_breakpoint" -> where(a) + " if " + MiniJson.str(a.get("condition"));
-            case "set_exception_breakpoint", "remove_exception_breakpoint" -> simple(MiniJson.str(a.get("exceptionName")));
+            case "start_debug_session" -> "Started debug session: " + launch;
+            case "restart_debug_session" -> "Restarted debug session: " + launch;
+            case "set_breakpoint" -> "Set breakpoint: " + type + ", line " + line;
+            case "set_conditional_breakpoint" -> "Set conditional breakpoint: " + type + ", line " + line
+                    + " (when " + MiniJson.str(a.get("condition")) + ")";
+            case "set_tracepoint" -> "Set tracepoint: " + type + ", line " + line;
+            case "remove_breakpoint" -> "Removed breakpoint: " + type + ", line " + line;
+            case "set_exception_breakpoint" -> "Break on exception: " + simple(MiniJson.str(a.get("exceptionName")));
+            case "remove_exception_breakpoint" -> "Stopped breaking on exception: " + simple(MiniJson.str(a.get("exceptionName")));
+            case "list_breakpoints", "list_exception_breakpoints" -> "Listed breakpoints";
             case "wait_for_stop" -> stopTitle(reply);
             case "wait_for_debug_pause" -> pauseTitle(reply);
-            case "control_debug_session" -> MiniJson.str(a.get("action")) + " thread " + MiniJson.str(a.get("threadIndex"));
-            case "get_frame_variables" -> "thread " + MiniJson.str(a.get("threadIndex")) + ", frame " + MiniJson.str(a.get("frameIndex"));
-            case "expand_frame_variable" -> MiniJson.str(a.get("path"));
-            case "evaluate_expression" -> Redaction.shorten(MiniJson.str(a.get("expression")));
-            case "start_fixture_http_request" -> "scenario=" + MiniJson.str(a.get("scenario"));
-            case "get_fixture_http_request" -> MiniJson.str(a.get("requestId"));
-            default -> null;
+            case "control_debug_session" -> controlTitle(MiniJson.str(a.get("action")));
+            case "get_frame_variables" -> "Read variables (frame " + MiniJson.str(a.get("frameIndex")) + ")";
+            case "expand_frame_variable" -> "Expanded variable: " + MiniJson.str(a.get("path"));
+            case "get_stack_frames" -> "Read call stack";
+            case "get_debug_threads" -> "Listed threads";
+            case "get_debug_status" -> "Checked debug status";
+            case "evaluate_expression" -> "Evaluated expression: " + Redaction.shorten(MiniJson.str(a.get("expression")));
+            case "show_debug_location" -> "Showed the current line in the editor";
+            case "get_process_output" -> "Read program output";
+            case "configure_step_filters" -> "Configured step filters";
+            case "start_fixture_http_request" -> "Sent HTTP request: "
+                    + Text.firstNonNull(MiniJson.str(reply.get("method")), "POST")
+                    + (reply.get("url") != null ? " " + path(MiniJson.str(reply.get("url"))) : "")
+                    + " (" + MiniJson.str(a.get("scenario")) + " scenario)";
+            case "get_fixture_http_request" -> reply.get("httpStatus") != null
+                    ? "Received HTTP response: " + MiniJson.str(reply.get("httpStatus"))
+                    : "COMPLETE".equals(MiniJson.str(reply.get("status"))) || reply.isEmpty() ? "Checked HTTP response"
+                    : "HTTP response: " + Text.firstNonNull(MiniJson.str(reply.get("status")), "unknown").toLowerCase(Locale.ROOT);
+            case "finish_debug_investigation" -> "Finished investigation and cleaned up";
+            default -> "Called " + tool;
         };
-        return blank(detail) || "null".equals(detail) ? tool
-                : STOP.contains(tool) ? tool + ": " + detail : tool + " " + detail;
+    }
+
+    private static String controlTitle(String action) {
+        if (action == null) return "Controlled execution";
+        return switch (action) {
+            case "RESUME" -> "Resumed execution";
+            case "STEP_OVER" -> "Stepped over the current line";
+            case "STEP_INTO" -> "Stepped into the method call";
+            case "STEP_RETURN" -> "Stepped out of the method";
+            case "SUSPEND" -> "Paused execution";
+            case "TERMINATE" -> "Terminated the program";
+            default -> "Execution control: " + action;
+        };
+    }
+
+    /** "http://127.0.0.1:61956/orders/quote" -> "/orders/quote". */
+    private static String path(String url) {
+        if (url == null) return "";
+        int scheme = url.indexOf("://");
+        int slash = url.indexOf('/', scheme < 0 ? 0 : scheme + 3);
+        return slash < 0 ? url : url.substring(slash);
     }
 
     private static String stopTitle(Map<String, Object> reply) {
-        if (!Boolean.TRUE.equals(reply.get("stopped")))
-            return "no stop (" + Text.firstNonNull(MiniJson.str(reply.get("reason")), "no reply") + ")";
+        if (!Boolean.TRUE.equals(reply.get("stopped"))) {
+            String reason = Text.firstNonNull(MiniJson.str(reply.get("reason")), "no reply");
+            return reason.equals("TERMINATED") ? "Program ended without stopping" : "Waited for a stop: none (" + reason + ")";
+        }
         Map<String, Object> at = MiniJson.obj(reply.get("location"));
-        return MiniJson.str(reply.get("reason")) + (at.isEmpty() ? "" : " at " + frame(at));
+        String where = at.isEmpty() ? "" : ": " + simple(MiniJson.str(at.get("className"))) + "."
+                + MiniJson.str(at.get("methodName")) + ", line " + MiniJson.str(at.get("lineNumber"));
+        String reason = Text.firstNonNull(MiniJson.str(reply.get("reason")), "");
+        return switch (reason) {
+            case "BREAKPOINT" -> "Stopped at breakpoint" + where;
+            case "EXCEPTION" -> "Stopped on exception " + Text.firstNonNull(simple(MiniJson.str(reply.get("exceptionType"))), "") + where;
+            case "STEP_END" -> "Stopped after step" + where;
+            case "PAUSED" -> "Paused" + where;
+            default -> "Stopped" + where;
+        };
     }
 
     private static String pauseTitle(Map<String, Object> reply) {
         for (Object t : MiniJson.arr(reply.get("threads"))) {
             Map<String, Object> thread = MiniJson.obj(t);
             if (Boolean.TRUE.equals(thread.get("suspended")))
-                return "suspended " + MiniJson.str(thread.get("name")) + " (thread " + MiniJson.str(thread.get("index")) + ")";
+                return "Thread suspended: " + MiniJson.str(thread.get("name")) + " (thread " + MiniJson.str(thread.get("index")) + ")";
         }
-        return "no stop (" + Text.firstNonNull(MiniJson.str(reply.get("status")), "no reply") + ")";
+        return "Waited for a pause: no thread suspended";
     }
 
     /** "Agentic Debugger - spring-boot-debugging - OrdersApplication" -> "OrdersApplication"; other names unchanged. */
@@ -253,6 +399,7 @@ final class SessionReport {
     static List<String> details(String tool, Map<String, Object> a, Map<String, Object> reply, boolean failed,
                                 String text) {
         List<String> lines = new ArrayList<>();
+        lines.add("Tool: " + tool);
         for (var entry : a.entrySet()) {
             if (HIDDEN_ARGUMENTS.contains(entry.getKey())) continue;
             String value = entry.getKey().equals("launchName")
@@ -260,7 +407,6 @@ final class SessionReport {
             lines.add(entry.getKey() + ": " + Redaction.value(entry.getKey(), value));
         }
         if (failed) {
-            lines.add("");
             lines.add("Error: " + Redaction.shorten(errorText(reply, text)));
             return lines;
         }
@@ -271,13 +417,14 @@ final class SessionReport {
                     reply.containsKey("variables") ? reply.get("variables") : reply.get("children")), lines);
             case "get_stack_frames" -> {
                 lines.add("");
-                List<Object> frames = MiniJson.arr(reply.get("frames"));
+                List<Object> frames = new ArrayList<>();
+                for (Object f : MiniJson.arr(reply.get("frames"))) if (!hiddenFrame(MiniJson.obj(f))) frames.add(f);
                 for (int i = 0; i < Math.min(MAX_FRAMES, frames.size()); i++) lines.add("  " + frame(MiniJson.obj(frames.get(i))));
                 if (frames.size() > MAX_FRAMES) lines.add("  ... (" + (frames.size() - MAX_FRAMES) + " more frames)");
             }
             case "wait_for_debug_pause" -> {
                 lines.add("");
-                lines.add(pauseTitle(reply).startsWith("no stop") ? "No thread suspended" : "Suspended: " + pauseTitle(reply).substring(10));
+                lines.add(pauseTitle(reply));
             }
             case "get_debug_threads" -> {
                 lines.add("");
@@ -321,7 +468,8 @@ final class SessionReport {
         lines.add("Thread: " + MiniJson.str(reply.get("threadName")) + " (index " + MiniJson.str(reply.get("threadIndex")) + ")");
         if (reply.get("exceptionType") != null) lines.add("Exception: " + MiniJson.str(reply.get("exceptionType")));
         List<String> frames = new ArrayList<>();
-        for (Object f : MiniJson.arr(reply.get("frames"))) frames.add(frame(MiniJson.obj(f)));
+        for (Object f : MiniJson.arr(reply.get("frames")))
+            if (!hiddenFrame(MiniJson.obj(f))) frames.add(frame(MiniJson.obj(f)));
         if (!frames.isEmpty()) {
             Object total = reply.get("totalFrames");
             int more = total instanceof Double d ? d.intValue() - frames.size() : 0;
@@ -435,6 +583,16 @@ final class SessionReport {
 
     private static String where(Map<String, Object> a) {
         return simple(MiniJson.str(a.get("typeName"))) + ":" + MiniJson.str(a.get("lineNumber"));
+    }
+
+    /**
+     * JVM-internal frames without source (hidden lambda and method-handle frames such as
+     * "0x000000008d24c000.invokeVirtual:-1" or "Invokers$Holder.invokeExact_MT:-1"): left out of the report and counted.
+     */
+    static boolean hiddenFrame(Map<String, Object> f) {
+        String className = Text.firstNonNull(MiniJson.str(f.get("className")), "");
+        String line = MiniJson.str(f.get("lineNumber"));
+        return className.startsWith("0x") || "-1".equals(line);
     }
 
     private static String frame(Map<String, Object> f) {

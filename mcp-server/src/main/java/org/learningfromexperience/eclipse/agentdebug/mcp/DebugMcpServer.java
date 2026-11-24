@@ -251,16 +251,40 @@ public class DebugMcpServer {
                         + "Pass the returned investigationId to set_breakpoint and the launch tool "
                         + "(with exactly one open investigation it is attached automatically; with several it is required). "
                         + "Always finish the investigation when done. If this session ends without finishing, "
-                        + "the server finishes it; if the agent stops calling for 10 minutes, Eclipse does.",
-                Map.of("mode", Map.of("type", "string", "enum", List.of("NORMAL", "CONTROLLED"))),
+                        + "the server finishes it; if the agent stops calling for 10 minutes, Eclipse does. "
+                        + "Pass request: the user's request in their own words (verbatim when short); it opens the "
+                        + "debugging session report.",
+                Map.of("mode", Map.of("type", "string", "enum", List.of("NORMAL", "CONTROLLED")),
+                        // Only for the session report (OPEN-30); never sent to Eclipse.
+                        "request", Map.of("type", "string", "description",
+                                "The user's request that started this investigation, in the user's own words")),
                 List.of(), a -> "BEGIN_INVESTIGATION " + enc(mode(a))));
         allTools.add(bridgeTool("finish_debug_investigation",
                 "Finish the exact investigationId. NORMAL terminates only the session it started, "
                         + "removes only its own newly created breakpoints, and leaves user sessions and breakpoints intact. "
                         + "CONTROLLED preserves the debug session suspended and breakpoints for inspection. "
-                        + "Call once after reporting actual evidence, even if a debugger step fails.",
-                Map.of("investigationId", str()), List.of("investigationId"),
+                        + "Call once after reporting actual evidence, even if a debugger step fails. "
+                        + "Pass summary: your conclusion in two or three sentences (root cause and the evidence for it); "
+                        + "it closes the debugging session report. Then call get_investigation_report.",
+                Map.of("investigationId", str(),
+                        // Only for the session report (OPEN-30); never sent to Eclipse.
+                        "summary", Map.of("type", "string", "description",
+                                "Your conclusion: the root cause and the evidence that shows it")),
+                List.of("investigationId"),
                 a -> "FINISH_INVESTIGATION " + enc(arg(a,"investigationId"))));
+        // OPEN-30: where the debugging session report of an investigation is (answered by the MCP server itself).
+        allTools.add(SyncToolSpecification.builder()
+                .tool(Tool.builder("get_investigation_report", schema(Map.of("investigationId", Map.of("type", "string",
+                                "description", "Optional; default is the most recently finished investigation")), List.of()))
+                        .description("Returns the full path of the HTML debugging session report of a finished "
+                                + "investigation, or says that reports are off. Call it after finish_debug_investigation "
+                                + "and give the user the full path.")
+                        .build())
+                .callHandler((exchange, request) -> {
+                    Object id = request == null || request.arguments() == null ? null : request.arguments().get("investigationId");
+                    return success(REPORT.reportInfo(id instanceof String idText ? idText : null));
+                })
+                .build());
         allTools.add(bridgeTool("remove_breakpoint", "Remove only agent-owned line breakpoints.",
                 Map.of("typeName",str(),"lineNumber",integer()), List.of("typeName","lineNumber"),
                 a -> "REMOVE_BREAKPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")));

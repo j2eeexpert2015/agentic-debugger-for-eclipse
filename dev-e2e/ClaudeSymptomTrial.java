@@ -79,11 +79,30 @@ public final class ClaudeSymptomTrial {
     }
 
     /**
+     * Prints the full path of every debugging session report of this run (OPEN-30). The MCP server writes a report
+     * when its investigation ends, possibly just after Claude exits, so this waits up to 10 seconds for the first one.
+     */
+    private static void printReports(Path folder) throws Exception {
+        List<Path> found = List.of();
+        for (int i = 0; i < 20 && found.isEmpty(); i++) {
+            if (Files.isDirectory(folder)) {
+                try (var files = Files.list(folder)) {
+                    found = files.filter(f -> f.getFileName().toString().endsWith(".html")).sorted().toList();
+                }
+            }
+            if (found.isEmpty()) Thread.sleep(500);
+        }
+        if (found.isEmpty()) System.out.println("Debugging session report: none written in " + folder.toAbsolutePath());
+        for (Path report : found) System.out.println("Debugging session report: " + report.toAbsolutePath());
+    }
+
+    /**
      * @param reportFolder when not null, the MCP server writes a debugging session report (OPEN-30) into this
      *                     folder, next to the transcript ({@code --report})
+     * @param prompt       the exact prompt sent to Claude; shown first in the report as "Exact prompt"
      */
     private static String testMcpConfig(Path jar, int port, Path workspace, Path root, boolean approvedPost,
-                                        Path reportFolder) {
+                                        Path reportFolder, String prompt) {
         String javaExe = Path.of(System.getProperty("java.home"), "bin",
                 System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "java.exe" : "java")
                 .toAbsolutePath().toString();
@@ -97,7 +116,7 @@ public final class ClaudeSymptomTrial {
                 + ", \"AGENTDEBUG_E2E_ROOT\": " + json(root.toString())
                 + ", \"AGENTDEBUG_E2E_POST_APPROVED\": " + json(approvedPost ? "1" : "0")
                 + (reportFolder == null ? "" : ", \"AGENTDEBUG_REPORT\": \"chaintest\", \"AGENTDEBUG_REPORT_DIR\": "
-                        + json(reportFolder.toString()))
+                        + json(reportFolder.toString()) + ", \"AGENTDEBUG_REPORT_PROMPT\": " + json(prompt))
                 + "}\n"
                 + "    }\n  }\n}\n";
     }
@@ -292,7 +311,7 @@ public final class ClaudeSymptomTrial {
         Files.writeString(prompt,PROMPTS.get(scenario)+"\n",StandardCharsets.UTF_8,StandardOpenOption.CREATE_NEW);
         // Test-scoped MCP config binds this process to the configured E2E port.
         // The user-level Claude MCP registration and normal IDE bridge remain untouched.
-        Files.writeString(mcpConfig, testMcpConfig(jar, port, workspace, root, post, reportFolder), StandardCharsets.UTF_8,
+        Files.writeString(mcpConfig, testMcpConfig(jar, port, workspace, root, post, reportFolder, PROMPTS.get(scenario)), StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE_NEW);
         // Approve only this installed debugger's tools, not Bash/Write/Edit/other MCP servers.
         // No dangerously-skip-permissions and no broad user configuration changes.
@@ -378,6 +397,7 @@ public final class ClaudeSymptomTrial {
             Path verdictFile = reports.resolve(stem + ".verdict.json");
             Files.writeString(verdictFile, ClaudeTranscriptEvaluator.Json.stringify(verdict) + "\n", StandardCharsets.UTF_8);
             System.out.println("VERDICT " + ClaudeTranscriptEvaluator.summary(verdict) + "; verdict=" + verdictFile);
+            if (reportFolder != null) printReports(reportFolder);
             if (!outcome.equals("REVIEW_REQUIRED")) System.out.println("Claude CLI outcome " + outcome + ": " + verdict.get("reason")
                     + " (" + ClaudeTranscriptEvaluator.Json.str(((java.util.List<?>) verdict.get("checks")).get(0)) + ")");
         }
