@@ -1,0 +1,125 @@
+# Agentic Debugger Activity view and related changes — agreed requirements
+
+**Status:** requirements agreed 24 Nov 2026, not implemented. Tracked as OPEN-35, OPEN-36 and OPEN-37 in the [README](../../README.md#status-and-tracking), done in that order.
+**Background:** the external design in [AGENTIC_DEBUGGER_LIVE_VIEW_AND_REPORT_DESIGN.md](AGENTIC_DEBUGGER_LIVE_VIEW_AND_REPORT_DESIGN.md) and its [review notes](README.md). Where this document and the external design differ, this document applies.
+
+## Why
+
+During an agentic investigation the user sees nothing in Eclipse about what the agent is doing, and does not know when it is finished without reading the Claude terminal. Eclipse may also switch to the Debug perspective and hide that terminal. The view must give a clear, live picture: what has happened, what is happening now, and when it is finished, with the result.
+
+## Order of work
+
+1. **OPEN-35 Keep the current perspective** (small, plugin).
+2. **OPEN-36 Activity view V1** (large, MCP server + plugin).
+3. **OPEN-37 Report: what actually happened** (medium, report writer + plugin for the source line).
+
+---
+
+## 1. OPEN-35 Keep the current perspective
+
+- R35-1 For agent sessions the plugin no longer switches to the Debug perspective by default. Today `AgentDebugUiCoordinator` calls `showPerspective(ID_DEBUG_PERSPECTIVE)` when the preference `autoDebugPerspective` is on, default `true`.
+- R35-2 On a stop of the agent's launch: the editor goes to the stopped line, and the Debug, Variables and Breakpoints views are shown in the current perspective, with the stopped frame selected (Variables shows its values).
+- R35-3 The Claude terminal stays open and keeps the keyboard focus; views are brought to the front of their area, not activated.
+- R35-4 A user who explicitly saved "switch to Debug perspective" keeps that behaviour (distinguish "never set" from "set to true"). The preference page explains the setting and that Eclipse's own Run/Debug → Perspectives settings can still ask to switch.
+- R35-5 No switching on every stop; at most once per launch when the option is on.
+
+**Check:** manual, in a Java perspective with the Claude terminal docked: a stop shows the line and the three views, the terminal stays visible and typeable; option on and off both work.
+
+---
+
+## 2. OPEN-36 Agentic Debugger Activity view
+
+### 2.1 What the user sees
+
+**Behaviour**
+
+- A1 The view opens by itself when an investigation starts and is pinned. It comes to the front of its area without taking the keyboard focus from the Claude terminal. It can also be opened with Window → Show View → Agentic Debugger Activity.
+- A2 It works with reports on or off, and when the agent is not connected (then it says so).
+
+**Status banner** (top, always visible)
+
+- A3 One line saying what is happening, with what is debugged, the step number and a running timer, for example "Debugging OrdersApplication · Paused at OrderService.quote:24 · step 7 · 0:32".
+- A4 Phases, each from a real event, never guessed: Ready · Preparing (breakpoints) · Starting (application or test) · Running, waiting for a breakpoint (with the wait time) · Paused at Class.method:line · Inspecting · Cleaning up · **Finished** · **Ended without finish**.
+- A5 While the investigation is active the banner's marker pulses blue; when finished it turns solid green; ended without finish is orange; a real problem is red.
+
+**Request** — A6 the user's request (exact prompt when known, otherwise as passed on by the agent), collapsible.
+
+**Live timeline** (the main part)
+
+- A7 One row per step, with the same plain-language titles as the report, in order, newest at the bottom, auto-scrolling unless the user has scrolled up.
+- A8 Step states and colours: **running now** = blue, pulsing (only one row at a time); **done** = green; **refused, the agent retried** = amber; **failed** = red. Users with "reduce motion" get steady colours.
+- A9 A row expands to its details; tool name, arguments and raw result stay under "Technical details".
+- A10 A click on a class and line opens the Java editor there (shared with OPEN-33).
+
+**Current stop**
+
+- A11 While paused: class, method, line (clickable), thread, and the variables as a small table. Values that changed since the previous stop in the same method are highlighted (for example `rate = 0`). After a resume the panel is labelled "previous stop"; it never shows an old location as current.
+
+**Finish**
+
+- A12 When the investigation finishes: the banner turns green ("Finished"), the agent's full analysis is shown in the view (headings, tables and code rendered), with buttons **Open report** (when a report was written) and **Copy analysis**.
+- A13 An Eclipse notification pop-up "Investigation finished" appears, also when the user is looking elsewhere.
+- A14 "Ended without finish" (agent gone, idle lease, restart) is shown as such, with the automatic cleanup result; it is never shown as finished.
+
+**Warnings** (red or amber, plain words)
+
+- A15 "The program ended without reaching a breakpoint" (a launch ended with no stop while breakpoints were set).
+- A16 "Waiting for a breakpoint: 25 s …" while a wait is running.
+- A17 "No activity from the agent for 2 minutes" (not "Claude is thinking": the view only knows tool calls).
+- A18 "Connection to Eclipse lost" / "agent disconnected".
+
+**V2** (after V1 is in use)
+
+- A19 Breakpoint panel: set by the agent, hit or never hit, removed at cleanup.
+- A20 Earlier investigations of the session in a drop-down, each with its report.
+- A21 "Stop and clean up" button: the user ends the agent's investigation from Eclipse; the agent's next call is told why it fails.
+- A22 The agent's breakpoints labelled "agent" in the editor.
+
+### 2.2 Architecture: decoupled, from the same events as the report
+
+```
+MCP server:  tool calls ──► SessionReport ──► ReportEvents ──► recorder (background thread, bounded)
+                                                                 ├─► ChainTest writer  → HTML report      (exists)
+                                                                 └─► Activity forwarder → Eclipse bridge (new)
+Eclipse:     Activity store (per investigation) ◄── forwarded events
+                                                ◄── JDT listener: program running / paused / ended
+             Activity view ◄── store
+```
+
+- B1 **Same events as the report**: the Activity forwarder is a second listener next to the ChainTest writer; titles, request, analysis, technical-details split and Markdown rendering are shared, not copied.
+- B2 **One new event** `StepStarted` (sent before a tool runs), so the view can show "running now" and waits. The report writer ignores it.
+- B3 **ADR-009 rules apply unchanged**: the debugger only publishes; the forwarder runs on the recorder's background thread with a bounded queue; a slow, failing or absent Eclipse view never delays or changes a tool result; failures go to stderr; it can be switched off independently of the report.
+- B4 **Bridge**: a new authenticated command only puts the event into the store and returns at once (no UI work, no waiting), so debugging commands are never held up; size limits on events.
+- B5 **JDT listener** in the plugin for the agent's launch: running, paused, ended, between tool calls. It does not read from `DebugStopTracker`'s queue.
+- B6 **Store**: bounded per investigation, kept when the view is closed; the view subscribes and updates on the UI thread.
+- B7 **Versions**: an older MCP server without the forwarder, or an older plugin without the command, must not break debugging; the view then says "no live data from this MCP server version".
+
+### 2.3 Technology
+
+- C1 The view's content is an embedded page (SWT `Browser`), styled like the report, with a native toolbar. Reason: same look and the same Markdown rendering as the report, quick visual changes. Check first: Edge (WebView2) on Windows inside an Eclipse view (same check as OPEN-33); fallback to native widgets if it fails.
+- C2 Respect Eclipse light and dark themes.
+
+### 2.4 Checks
+
+- Unit tests: forwarder (queue full, Eclipse absent, slow bridge: tool results unchanged), store (bounds, per-investigation separation), event to view state (phases, finish, ended without finish).
+- Manual with real trials: boot-quote and the calculator example; a run where the program ends without a stop (Spring Boot project not built, 24 Nov); agent disconnect; view closed during a run; reports off.
+- Regression suite unchanged (23/23).
+
+---
+
+## 3. OPEN-37 Report: what actually happened
+
+Replaces section 12 of the external design, of which only the parts below add value to the current report (decided 24 Nov):
+
+- R37-1 **Breakpoints set versus hit**: a short summary (for example "OrderService:24 hit once; OrderController:21 never hit").
+- R37-2 **"No stop was captured in this investigation"** when breakpoints were set but the program never stopped.
+- R37-3 **Source line** under breakpoint and stop steps (`> 24 | int rate = percent / 100;`); needs the plugin to return the line text.
+- R37-4 **Changed values highlighted** after a step, as in the view.
+- R37-5 The analysis card labelled "Agent-provided conclusion, not independently verified" (a quiet subtitle).
+
+Not taken from the external design: "last observed stop" card, key counts, grouping snapshots by stop (already the case), timeline filters, integrity footer.
+
+## Terms
+
+- **Current stop**: only while the agent's program is paused. After a resume it is the **previous stop**. The report shows all stops in order, never a "last breakpoint" card.
+- **Finished** means `finish_debug_investigation` succeeded; it does not mean Claude has finished its answer.
