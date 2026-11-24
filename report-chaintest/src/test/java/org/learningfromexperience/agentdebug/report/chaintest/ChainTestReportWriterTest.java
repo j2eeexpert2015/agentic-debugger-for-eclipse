@@ -245,7 +245,8 @@ class ChainTestReportWriterTest {
         assertTrue(html.contains("Investigation 0d4fe8bf<"), "long ID not shortened in the name: " + html.contains("Investigation 0d4fe8bf"));
         assertTrue(html.contains("test-container failed"), "a cleanup problem must fail the investigation");
         // The investigation's own column runs from its container to its description (the tag table at the top is excluded).
-        int start = html.indexOf("test-container");
+        // Search for the element, not the bare class name: the stylesheet in <style> also mentions "test-container".
+        int start = html.indexOf("<div class=\"test-container");
         int end = html.indexOf("<code class=\"mt-2\">", start);
         assertFalse(html.substring(start, end).contains(">HTTP<"), "step kind copied onto the investigation");
     }
