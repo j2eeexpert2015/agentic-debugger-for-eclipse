@@ -143,7 +143,7 @@ public class DevE2E {
      */
     private void preflight(String mode, Map<String, List<String>> selected) {
         List<String> problems = new ArrayList<>();
-        if ((mode.equals("build") || mode.equals("all")) && onPath(windows() ? "mvn.cmd" : "mvn") == null)
+        if ((mode.equals("build") || mode.equals("all")) && !commandWorks(windows() ? "mvn.cmd" : "mvn", "-v"))
             problems.add("Maven (mvn) is not on PATH. Install Maven 3.9+ and open a new terminal; 'mvn -v' must work.");
         if (mode.equals("deploy")) {
             Path features = repo.resolve("eclipse-update-site/target/repository/features");
@@ -162,24 +162,34 @@ public class DevE2E {
                         + " > " + Instant.ofEpochMilli(builtAt) + "). 'deploy' installs the OLD build. Run 'mvn clean package' first if that is not intended.");
             }
         }
-        if (selected != null && selected.containsKey("claude") && onPath(windows() ? "claude.cmd" : "claude") == null
-                && onPath(windows() ? "claude.exe" : "claude") == null)
-            problems.add("The 'claude' command (Claude Code) is not on PATH, so Claude trials cannot run. 'claude --version' must work in this terminal.");
+        if (selected != null && selected.containsKey("claude") && !commandWorks("claude", "--version"))
+            problems.add("The 'claude' command (Claude Code) could not be started from this tool, so Claude trials cannot run."
+                + " 'claude --version' must work in this terminal.");
         if (!problems.isEmpty()) {
             StringBuilder out = new StringBuilder("Cannot start '" + mode + "':");
             for (int i = 0; i < problems.size(); i++) out.append("\n ").append(i + 1).append(". ").append(problems.get(i));
             throw new SetupProblem(out.toString());
         }
     }
-    private static Path onPath(String command) {
-        for (String dir : System.getenv().getOrDefault("PATH", "").split(File.pathSeparator)) {
-            if (dir.isBlank()) continue;
-            try {
-                Path candidate = Path.of(dir.strip().replace("\"", "")).resolve(command);
-                if (Files.isRegularFile(candidate)) return candidate;
-            } catch (InvalidPathException ignored) { }
+    /**
+     * True when the command starts and answers, started exactly as the tool starts it later (so the check cannot
+     * disagree with the real run, whatever the PATH spelling, the file extension or the install location).
+     */
+    private static boolean commandWorks(String... command) {
+        try {
+            Process process = new ProcessBuilder(command).redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            if (!process.waitFor(60, TimeUnit.SECONDS)) {
+                process.destroy();
+                return true;                      // it started; slow to answer is not a setup problem
+            }
+            return process.exitValue() == 0;
+        } catch (IOException notFound) {
+            return false;
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return true;
         }
-        return null;
     }
     /** Newest modification time of a file under the folder (0 when it does not exist). */
     private static long newest(Path folder) {

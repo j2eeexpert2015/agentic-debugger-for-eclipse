@@ -205,9 +205,9 @@ Every command first checks this machine's setup and lists **all** problems at on
 | `dev-e2e/e2e.properties` exists (otherwise: the copy command and the lines to put in it, with this folder as `repository`) | always |
 | `repository` is the folder you run from; `eclipse` exists and has `eclipse.exe` and `eclipsec.exe`; `workspace` is a separate throwaway folder; `bridgePort` is a number 1024-65535, not 8765 | always |
 | Java 21 or newer | always |
-| Maven (`mvn`) on PATH | `build`, `all` |
+| Maven starts (`mvn -v`) | `build`, `all` |
 | A finished build to deploy (`eclipse-update-site/target/repository`); a WARNING when sources changed after it | `deploy` |
-| The `claude` command on PATH | Claude trials |
+| The `claude` command starts (`claude --version`), started the same way as the trial starts it | Claude trials |
 
 Any other failure is one line, `FAILED: <what failed>` (exit code 1), for example a missing file or a test Eclipse
 that cannot be reached. Add `--trace` to the command to see the Java stack trace as well.
