@@ -26,7 +26,7 @@ class ReadTimeoutTest {
     @Test @DisplayName("TO-U2 launches, restarts and finish wait 125 s (Eclipse deadline 120 s)")
     void toU2() {
         for (String command : new String[]{"START_JAVA_APPLICATION a b", "START_JUNIT_TEST a b c", "START_DEBUG a",
-                "RESTART_DEBUG a b", "FINISH_INVESTIGATION a", "PREPARE_SMOKE_TEST"})
+                "RESTART_DEBUG a b", "FINISH_INVESTIGATION a"})
             assertEquals(125_000, DebugMcpServer.readTimeoutMillis(command), command);
     }
 

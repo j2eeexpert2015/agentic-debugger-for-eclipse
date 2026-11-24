@@ -48,7 +48,6 @@ public final class BridgeCommands {
      * {@code EclipseAgentOperations.execute()} that nobody has classified yet.
      */
     static final Set<String> STATE_CHANGING = Set.of(
-            "PREPARE_SMOKE_TEST",
             "BEGIN_INVESTIGATION",
             "FINISH_INVESTIGATION",
             "SET_BREAKPOINT",
@@ -74,8 +73,7 @@ public final class BridgeCommands {
             "START_JAVA_APPLICATION",
             "START_DEBUG",
             "RESTART_DEBUG",
-            "FINISH_INVESTIGATION",
-            "PREPARE_SMOKE_TEST");
+            "FINISH_INVESTIGATION");
 
     /**
      * Read-only commands that deliberately wait (up to 60 s). They run in the READ lane but get a

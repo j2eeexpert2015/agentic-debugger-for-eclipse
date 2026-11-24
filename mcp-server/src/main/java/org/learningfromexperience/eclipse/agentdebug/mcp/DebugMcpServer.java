@@ -680,7 +680,7 @@ public class DebugMcpServer {
      */
     private static final java.util.Set<String> LONG_RUNNING_COMMANDS = java.util.Set.of(
             "START_JUNIT_TEST", "START_JAVA_APPLICATION", "START_DEBUG",
-            "RESTART_DEBUG", "FINISH_INVESTIGATION", "PREPARE_SMOKE_TEST");
+            "RESTART_DEBUG", "FINISH_INVESTIGATION");
 
     /** Socket read timeout: always longer than the matching Eclipse-side deadline. */
     static int readTimeoutMillis(String command) {

@@ -47,7 +47,6 @@ Two levels, both separate from the 23-scenario regression (the `bridge` group is
 ::    eclipse-plugin (48): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4, PP-U1..U7
 ::    mcp-server (26):     TR-U1..U5, TO-U1..U3, SR-U1..U14, AF-U1..U4
 ::    testing (18):        EV-U1..U18 (Claude transcript grader)
-::    installer (7):       IP-U1..U4, CD-U1..U3 (setup utility)
 ::    report (40):         RM-U1..U13 (isolation rules of ADR-009, report file names, several consumers),
 ::                         RF-U1..U5 (escaping, Markdown, colours, the shared JSON reader),
 ::                         AS-U1..U6, AS-U8, AS-U9, AP-U1..U9 (Agent Activity store and page), HW-U1..U5 (HTML report)

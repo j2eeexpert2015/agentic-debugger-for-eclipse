@@ -18,8 +18,6 @@
              writer and the page; no dependencies. Used by mcp-server and embedded in eclipse-plugin (lib/report.jar) -->
         <module>report</module>
         <module>mcp-server</module>
-        <!-- Standalone setup utility; must follow mcp-server because it embeds the mcp-server jar -->
-        <module>installer</module>
         <!-- Test tooling (Claude transcript grader) with its unit tests; not shipped -->
         <module>testing</module>
         <module>eclipse-plugin</module>

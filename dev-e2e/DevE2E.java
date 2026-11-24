@@ -333,6 +333,9 @@ public class DevE2E {
     }
     private String validatedBridge() throws Exception {
         String info = bridgeResponse("GET_E2E_INFO");
+        check(info == null || !info.contains("is a test command"),
+                "The Eclipse on port " + port + " was not started by DevE2E, so its test commands are off (OPEN-38 step 5)."
+                + "\n   Close that Eclipse and run this command again: DevE2E starts it with AGENTDEBUG_E2E=1.");
         check(info != null && info.contains("\"status\":\"success\""),
                 "Bridge did not respond with success: " + info);
         Path actualWorkspace = canonical(Path.of(jsonString(info, "workspace")));

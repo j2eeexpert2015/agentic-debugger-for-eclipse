@@ -102,8 +102,7 @@ public final class EclipseAgentOperations {
         named.forEach(DebugInvestigationPolicy.Investigation::enter);
         try {
             return switch (p[0]) {
-                case "GET_E2E_INFO" -> buildIdentity();
-                case "PREPARE_SMOKE_TEST" -> new SmokeTestProject().prepare();
+                case "GET_E2E_INFO" -> TEST_SUPPORT ? buildIdentity() : testOnly(p[0]);
                 case "LIST_BREAKPOINTS" -> listBreakpoints();
                 case "BEGIN_INVESTIGATION" -> beginInvestigation(p);
                 case "FINISH_INVESTIGATION" -> finishInvestigation(p);
@@ -132,7 +131,7 @@ public final class EclipseAgentOperations {
                 case "GET_VARIABLES" -> getVariables(p);
                 case "EVALUATE_EXPRESSION" -> evaluateExpression(p);
                 case "CONTROL_DEBUG" -> control(p);
-                case "VERIFY_OWNED_FIXTURE_LAUNCH" -> verifyOwnedFixtureLaunch(p);
+                case "VERIFY_OWNED_FIXTURE_LAUNCH" -> TEST_SUPPORT ? verifyOwnedFixtureLaunch(p) : testOnly(p[0]);
                 case "GET_PROCESS_OUTPUT" -> getProcessOutput(p);
                 default -> error("Unknown command");
             };
@@ -143,8 +142,22 @@ public final class EclipseAgentOperations {
         }
     }
 
+    /**
+     * Test support (OPEN-38 step 5): the commands only the test tools use ({@code GET_E2E_INFO},
+     * {@code VERIFY_OWNED_FIXTURE_LAUNCH}) answer only in an Eclipse started by {@code dev-e2e/DevE2E.java}, which
+     * sets {@code AGENTDEBUG_E2E=1}; in a normal Eclipse they are refused. (The fixture HTTP tools of the MCP server
+     * are switched on the same way, by {@code AGENTDEBUG_E2E_HTTP}, and the fixture projects by
+     * {@code AGENTDEBUG_FIXTURE_SOURCE}.)
+     */
+    private static final boolean TEST_SUPPORT = "1".equals(System.getenv("AGENTDEBUG_E2E"));
+
+    private static String testOnly(String command) {
+        return error(command + " is a test command, available only in an Eclipse started by dev-e2e/DevE2E.java"
+                + " (AGENTDEBUG_E2E=1)");
+    }
+
     /** Identifies the exact loaded classes, not merely the installed feature label.
-     * Read-only and deliberately available to the authenticated local test runner.
+     * Read-only; for the authenticated local test runner only ({@link #TEST_SUPPORT}).
      */
     private static String buildIdentity() throws IOException {
         String bundleVersion = EclipseAgentOperations.class.getPackage().getImplementationVersion();
