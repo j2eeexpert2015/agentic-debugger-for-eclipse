@@ -82,7 +82,7 @@ public final class ClaudeSymptomTrial {
      * Prints the full path of every debugging session report of this run (OPEN-30). The MCP server writes a report
      * when its investigation ends, possibly just after Claude exits, so this waits up to 10 seconds for the first one.
      */
-    private static void printReports(Path folder) throws Exception {
+    private static void printReports(Path folder, Path transcript, boolean skillAllowed) throws Exception {
         List<Path> found = List.of();
         for (int i = 0; i < 20 && found.isEmpty(); i++) {
             if (Files.isDirectory(folder)) {
@@ -93,7 +93,32 @@ public final class ClaudeSymptomTrial {
             if (found.isEmpty()) Thread.sleep(500);
         }
         if (found.isEmpty()) System.out.println("Debugging session report: none written in " + folder.toAbsolutePath());
-        for (Path report : found) System.out.println("Debugging session report: " + report.toAbsolutePath());
+        for (Path report : found) {
+            System.out.println("Debugging session report: " + report.toAbsolutePath());
+            System.out.println(checkReport(report, transcript, skillAllowed));
+        }
+    }
+
+    /**
+     * Checks a debugging session report written during a trial (OPEN-30): it is one self-contained file with the
+     * request, the agent's conclusion and the cleanup, and (with the skill) the agent's final answer gives its path.
+     * Printed as one REPORT CHECK line next to the VERDICT; it does not change the verdict, which grades the debugging.
+     */
+    static String checkReport(Path report, Path transcript, boolean skillAllowed) throws Exception {
+        String html = Files.readString(report, StandardCharsets.ISO_8859_1);
+        List<String> missing = new java.util.ArrayList<>();
+        if (!html.contains("Request from the user")) missing.add("request card");
+        if (!html.contains("Conclusion by the agent")) missing.add("conclusion card (no summary at finish)");
+        if (!html.contains("Finished investigation and cleaned up") && !html.contains("Cleaned up automatically")) missing.add("cleanup card");
+        if (html.contains("href=\"resources/chaintest-pkg.css\"")) missing.add("self-contained file (stylesheet still linked)");
+        if (skillAllowed) {
+            String answer = "";
+            for (String line : Files.readAllLines(transcript, StandardCharsets.UTF_8)) {
+                if (line.contains("\"type\":\"result\"")) answer = line;
+            }
+            if (!answer.contains(report.getFileName().toString())) missing.add("report path in the agent's final answer");
+        }
+        return missing.isEmpty() ? "REPORT CHECK PASS" : "REPORT CHECK FAIL  missing: " + String.join(", ", missing);
     }
 
     /**
@@ -397,7 +422,7 @@ public final class ClaudeSymptomTrial {
             Path verdictFile = reports.resolve(stem + ".verdict.json");
             Files.writeString(verdictFile, ClaudeTranscriptEvaluator.Json.stringify(verdict) + "\n", StandardCharsets.UTF_8);
             System.out.println("VERDICT " + ClaudeTranscriptEvaluator.summary(verdict) + "; verdict=" + verdictFile);
-            if (reportFolder != null) printReports(reportFolder);
+            if (reportFolder != null) printReports(reportFolder, transcript, !noSkill);
             if (!outcome.equals("REVIEW_REQUIRED")) System.out.println("Claude CLI outcome " + outcome + ": " + verdict.get("reason")
                     + " (" + ClaudeTranscriptEvaluator.Json.str(((java.util.List<?>) verdict.get("checks")).get(0)) + ")");
         }

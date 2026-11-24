@@ -178,6 +178,12 @@ class ChainTestReportWriterTest {
         assertTrue(html.contains("Investigation inv-7f3a - OrdersApplication"), "investigation not named after its launch");
         assertTrue(html.contains("data-bs-theme=\"\""), "light theme not set");
         assertTrue(html.contains("<title>Agentic Debugger - Debugging Session Report</title>"), "page title missing");
+        // One self-contained file: stylesheet, script and screenshot are inside the HTML, not linked from resources/.
+        assertFalse(html.contains("href=\"resources/chaintest-pkg.css\""), "stylesheet still linked");
+        assertFalse(html.contains("src=\"resources/chaintest-pkg.js\""), "script still linked");
+        assertFalse(html.contains("<img src=\"resources/"), "screenshot still linked");
+        assertTrue(html.contains("<img src=\"data:image/png;base64,"), "screenshot not inlined");
+        assertTrue(html.contains("<style id=\"style\">"), "stylesheet not inlined");
         assertTrue(html.contains("Debugging Session Report  |"), "header missing");
         for (String tag : List.of("BREAKPOINT", "STOP", "HTTP", "CONCLUSION", "CLEANUP", "Claude Code", "finished"))
             assertTrue(html.contains(">" + tag + "<"), "tag badge missing: " + tag);
@@ -252,9 +258,13 @@ class ChainTestReportWriterTest {
     }
 
     @Test
-    @DisplayName("RC-U4 HTML escaping of report text")
+    @DisplayName("RC-U4 HTML escaping of report text, backticks shown as code")
     void rcU4() {
         assertEquals("a &lt;b&gt; &amp; &quot;c&quot; &#39;d&#39; &#8364;", ChainTestReportWriter.html("a <b> & \"c\" 'd' €"));
         assertEquals("", ChainTestReportWriter.html(null));
+        // Backticks in the agent's conclusion become code; text without a closing backtick stays as it is.
+        assertEquals("line 23: <code>int rate = percent / 100</code> is integer division",
+                ChainTestReportWriter.codeSpans(ChainTestReportWriter.html("line 23: `int rate = percent / 100` is integer division")));
+        assertEquals("a ` b", ChainTestReportWriter.codeSpans("a ` b"));
     }
 }

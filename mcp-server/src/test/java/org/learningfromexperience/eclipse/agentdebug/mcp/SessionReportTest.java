@@ -250,7 +250,7 @@ class SessionReportTest {
         assertEquals("Sent HTTP request: POST /orders/quote (discount scenario)", steps.get(0).title());
         assertEquals("Received HTTP response: 200", steps.get(1).title());
         assertTrue(steps.get(1).details().contains("Body: {\"total\":120.00}"), steps.get(1).details()::toString);
-        assertEquals("Sent HTTP request: POST (discount scenario)", steps.get(2).title());
+        assertEquals("HTTP request not sent (discount scenario)", steps.get(2).title());
         List<String> failed = steps.get(2).details();
         assertEquals("Error: Orders fixture not ready; retry when Tomcat startup is visible", failed.get(failed.size() - 1));
         assertFalse(failed.contains(""), "no empty line in a failed step: " + failed);

@@ -296,7 +296,8 @@ final class SessionReport {
     /**
      * A plain-language title for the step: what happened, not which tool was called (the tool name is the first
      * detail line). Examples: "Set breakpoint: OrderService, line 24", "Stopped at breakpoint: OrderService.quote,
-     * line 24", "Sent HTTP request: POST /orders/quote", "Received HTTP response: 200".
+     * line 24", "Sent HTTP request: POST /orders/quote", "HTTP request not sent (discount scenario)",
+     * "Received HTTP response: 200".
      */
     static String title(String tool, Map<String, Object> a, Map<String, Object> reply) {
         String type = simple(MiniJson.str(a.get("typeName")));
@@ -328,7 +329,10 @@ final class SessionReport {
             case "show_debug_location" -> "Showed the current line in the editor";
             case "get_process_output" -> "Read program output";
             case "configure_step_filters" -> "Configured step filters";
-            case "start_fixture_http_request" -> "Sent HTTP request: "
+            // No request id in the reply: the request was refused before anything was sent (fixture not ready).
+            case "start_fixture_http_request" -> reply.get("requestId") == null
+                    ? "HTTP request not sent (" + MiniJson.str(a.get("scenario")) + " scenario)"
+                    : "Sent HTTP request: "
                     + Text.firstNonNull(MiniJson.str(reply.get("method")), "POST")
                     + (reply.get("url") != null ? " " + path(MiniJson.str(reply.get("url"))) : "")
                     + " (" + MiniJson.str(a.get("scenario")) + " scenario)";

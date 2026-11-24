@@ -1,5 +1,6 @@
 package org.learningfromexperience.agentdebug.report.chaintest;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.ZoneId;
@@ -30,8 +31,9 @@ import com.aventstack.chaintest.generator.ChainTestSimpleGenerator;
  * <ul>
  *   <li>one investigation = one ChainTest build = one report file, named by {@link ReportFiles}
  *       ({@code OrdersApplication_2026-11-24_10-39-31.html}); the file is the one the recorder chose and passed in
- *       {@link ReportEvent.InvestigationFinished#reportFile()}. All reports of a folder share one
- *       {@code resources} folder next to them (ChainTest's CSS, scripts and embedded images);</li>
+ *       {@link ReportEvent.InvestigationFinished#reportFile()}. ChainTest writes its CSS, script and embedded
+ *       images into a {@code resources} folder next to the report; {@link #selfContained(Path)} then copies them into
+ *       the HTML, so the report file can be copied or mailed on its own;</li>
  *   <li>what the user asked = the first child, "Request from the user", when known;</li>
  *   <li>one investigation = one top-level test; its result is PASSED when it was finished and cleaned up, FAILED when
  *       cleanup reported a problem (JVM still running), SKIPPED when it ended without
@@ -79,20 +81,22 @@ public final class ChainTestReportWriter implements DebugReportListener {
      * Our additions to ChainTest's page, in one place:
      * <ul>
      *   <li>hidden: the dashboard and tag table ({@code #summary}), the search and filter bar, the build badges in the
-     *       header (duration and times of writing the file), and the time badges and tag pills of the investigation;
+     *       header (duration and times of writing the file), the "ChainTest" label at the top left, and the time badges and tag pills of the investigation;
      *       hidden rather than removed, because ChainTest's script looks these elements up when the page loads;</li>
      *   <li>the request card (blue) and the conclusion card (green) highlighted, without their duration badge;</li>
      *   <li>long lines wrap instead of scrolling sideways; the investigation's summary line is plain text.</li>
      * </ul>
      */
-    static final String CSS = "#summary,div.py-3.mb-5:has(#q),.navbar .container>div:last-child,"
+    static final String CSS = "#summary,div.py-3.mb-5:has(#q),.navbar .container>div:last-child,.navbar-brand,"
             + ".test-container .col-4 .small,.test-container .col-4 .my-2{display:none}"
+            + ".navbar-brand+span{margin-left:0!important;font-weight:600}"
             + ".card:has(.ad-request){border-left:6px solid #0d6efd;background:rgba(13,110,253,.07)}"
             + ".card:has(.ad-conclusion){border-left:6px solid #198754;background:rgba(25,135,84,.09)}"
             + ".card:has(.ad-request) .badge,.card:has(.ad-conclusion) .badge,"
             + ".card:has(.ad-request) .mx-1,.card:has(.ad-conclusion) .mx-1{display:none}"
             + ".card:has(.ad-request) pre,.card:has(.ad-conclusion) pre{font-size:.95rem}"
             + "pre{white-space:pre-wrap;word-break:break-word}"
+            + ".card:has(.ad-conclusion) pre code{color:#a3005b;background:rgba(0,0,0,.06);padding:0 .25rem;border-radius:.25rem}"
             + ".test-container .col-4 code{color:inherit;white-space:normal;font-family:inherit}";
 
     private final Path folder;
@@ -189,7 +193,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
             Test conclusion = new Test("Conclusion by the agent");
             investigation.addChild(conclusion);
             conclusion.getTags().add(new Tag("CONCLUSION"));
-            conclusion.addLog(CONCLUSION_MARK + html(event.conclusion()));
+            conclusion.addLog(CONCLUSION_MARK + codeSpans(html(event.conclusion())));
             conclusion.complete();
             moveUp(investigation, conclusion);
         }
@@ -310,7 +314,52 @@ public final class ChainTestReportWriter implements DebugReportListener {
         Queue<Test> tests = new ConcurrentLinkedQueue<>();
         tests.add(investigation);
         generator.flush(tests);
+        selfContained(file);
         written.add(file);
+    }
+
+    /**
+     * Makes the report one self-contained file: ChainTest links its stylesheet, its script and embedded images from
+     * the {@code resources} folder next to the report, so a report copied or mailed on its own lost all styling (and
+     * our hidden sections showed again). Their content is put into the HTML instead: stylesheet and script inline,
+     * images as data URIs. If anything goes wrong the report stays as ChainTest wrote it, with its links.
+     */
+    static void selfContained(Path file) {
+        Path resources = file.getParent().resolve("resources");
+        try {
+            String page = Files.readString(file, StandardCharsets.UTF_8);
+            Path css = resources.resolve("chaintest-pkg.css");
+            Path js = resources.resolve("chaintest-pkg.js");
+            if (Files.isRegularFile(css)) {
+                page = page.replace("<link id=\"style\" href=\"resources/chaintest-pkg.css\" rel=\"stylesheet\">",
+                        "<style id=\"style\">" + Files.readString(css, StandardCharsets.UTF_8).replace("</style", "<\\/style") + "</style>");
+            }
+            if (Files.isRegularFile(js)) {
+                page = page.replace("<script src=\"resources/chaintest-pkg.js\"></script>",
+                        "<script>" + Files.readString(js, StandardCharsets.UTF_8).replace("</script", "<\\/script") + "</script>");
+            }
+            java.util.regex.Matcher m = IMAGE.matcher(page);
+            StringBuilder out = new StringBuilder();
+            while (m.find()) {
+                Path image = resources.resolve(m.group(1));
+                String type = mediaType(image);
+                String src = type != null && Files.isRegularFile(image)
+                        ? "data:" + type + ";base64," + java.util.Base64.getEncoder().encodeToString(Files.readAllBytes(image))
+                        : "resources/" + m.group(1);
+                m.appendReplacement(out, java.util.regex.Matcher.quoteReplacement("<img src=\"" + src + "\""));
+            }
+            m.appendTail(out);
+            Files.writeString(file, out.toString(), StandardCharsets.UTF_8);
+        } catch (java.io.IOException | RuntimeException e) {
+            System.err.println("[Eclipse Agentic Debugger] Report kept with links to its resources folder: " + e);
+        }
+    }
+
+    private static final java.util.regex.Pattern IMAGE = java.util.regex.Pattern.compile("<img src=\"resources/([^\"/]+)\"");
+
+    /** Text the agent marked as code with backticks ({@code `int rate = percent / 100`}) is shown as code. */
+    static String codeSpans(String escaped) {
+        return escaped.replaceAll("`([^`\n]+)`", "<code>$1</code>");
     }
 
     private static String mediaType(Path file) {
