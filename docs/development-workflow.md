@@ -1,10 +1,27 @@
 # Evidence-Driven Development Workflow
 
-[README](../README.md#development-workflow) · [Agent instructions](../AGENTS.md) · [Architecture decisions](decisions.md) · [Java E2E runner](../dev-e2e/README.md) · [Evaluation plan](evaluation-plan.md)
+[README](../README.md#development-workflow) · [Agent instructions](../AGENTS.md) · [Architecture decisions](decisions.md) · [Java E2E runner](../dev-e2e/README.md) · [Feature catalog](feature-roadmap.md)
 
 This is the **current engineering procedure** for changing *Agentic Debugger for Eclipse IDE*. Follow it whether work is performed by a human, ChatGPT, Claude Code, Codex, or another coding agent. It governs a **change**, not a specific editor, agent, or temporary chat session. The repository and verified evidence—not prior chat summaries—are authoritative.
 
-At the start of a new session, consult the [current-state handoff](current-state.md) for the latest verified milestone, blocker and next task. Update it after materially new evidence, not each minor edit.
+At the start of a new session, read the README: its first section is the current plan, and **Status and tracking** is the single list of open and finished work with its latest evidence.
+
+## Architecture and source map
+
+Claude Code → MCP stdio server → authenticated localhost Eclipse bridge → Eclipse JDT → debugged Java/JUnit/Spring Boot JVM.
+
+| Directory | Responsibility |
+|---|---|
+| `eclipse-plugin/` | JDT execution control, bridge, investigation ownership, Agent Activity view, perspective handling, Claude Code registration (Preferences) |
+| `mcp-server/` | MCP tools, investigation tracking, session report and live events (`SessionReport`, `ActivityForwarder`), test-only fixture HTTP tools |
+| `report-model/`, `report-format/`, `report-chaintest/` | Report events and isolation rules (ADR-009), shared escaping/Markdown/colours, the HTML report writer |
+| `installer/` | Command-line setup utility (MCP server jar and Claude Code registration without Eclipse Preferences) |
+| `e2e-runner/` | Direct bridge verifiers (run by `DevE2E`) and the 32-check ownership harness (`ownership-tests/`) |
+| `dev-e2e/` | `DevE2E` (build, deploy, test), Claude trials (`ClaudeSymptomTrial`), grader launcher |
+| `testing/` | Claude transcript grader and its unit tests |
+| `examples/` | Intentionally buggy fixtures the tests are written against; **never changed** |
+| `skills/eclipse-debugger/` | Optional agent guidance, separate from code-enforced safety |
+| `docs/` | Decisions (ADRs), capabilities and SB scenarios, feature catalog, this workflow, designs |
 
 ## 1. Non-negotiable principles
 
@@ -26,7 +43,7 @@ At the start of a new session, consult the [current-state handoff](current-state
 
 **Prefer a ZIP preserving repository-relative paths** when work is prepared outside the user's checkout. Include only changed/new files, not generated binaries, machine-specific `e2e.properties`, secrets, large logs, or entire unchanged directories. Explain what each file does and what, if anything, is replaced.
 
-For changes inside existing long files, prefer a narrow Java utility under `maintenance/` that:
+For changes inside existing long files, a narrow one-off Java utility may be used (not kept in the repository afterwards) that:
 
 - Defaults to **dry run**; applies only with `--apply`.
 - Checks the expected file, its exact anchor or structural preconditions, and whether the change is already installed. Refuses ambiguous or unexpected source states rather than overwriting them.
@@ -92,27 +109,27 @@ The trial uses a test-scoped MCP configuration, dedicated bridge, restricted too
 
 Review the actual `.claude.jsonl` tool events plus manifest and prompt (when present), verifying: selected launch/JUnit method; begun `NORMAL` investigation; relevant breakpoints and stop on **correct target/thread**; inspected application frames and values; exact response and request ID if applicable; source-vs-runtime distinction; resume; successful `finish_debug_investigation` response; and ideally post-cleanup session/breakpoint inventory. A tool response of `completed=true` does **not** independently prove empty resource inventories. Capture permission denials, timeouts and costs if supplied. **Do not equate `exitCode=0` or `REVIEW_REQUIRED` with pass.** Classify `PASS`, `PARTIAL`, `FAIL`, `UNSAFE`, `BLOCKED`, or `NOT RUN` with the evidence limitation.
 
-The 23 November 2026 one-off review found a successful JUnit discount diagnosis based mainly on Claude's final-result report, and event-supported Spring Boot HTTP quote and HTTP 400 validation investigations. This is **not** a statistical reliability result, a skill A/B result, or an all-features acceptance certification. See the current acceptance evidence document if present in the checkout; otherwise use the saved run artifacts and `docs/evaluation-plan.md`.
+The 23 November 2026 one-off review found a successful JUnit discount diagnosis based mainly on Claude's final-result report, and event-supported Spring Boot HTTP quote and HTTP 400 validation investigations. This is **not** a statistical reliability result, a skill A/B result, or an all-features acceptance certification. The dated acceptance record is in the git history (`docs/claude-acceptance-2026-11-23.md`); current trials are graded automatically (VERDICT lines, `*.verdict.json`).
 
 ## 7. Documentation and status updates after verification
 
 - **`README.md`:** current capabilities, simple usage, development-workflow link, accurately scoped status, next priorities. Keep it concise.
 - **`docs/capabilities.md`:** implemented vs installed-tested vs supported-by-JDT vs unverified; no speculative capability claims.
-- **`docs/development-roadmap.md` and `docs/feature-roadmap.md`:** close completed milestones, preserve pending acceptance and stable feature IDs.
-- **`docs/evaluation-plan.md`, `docs/spring-boot-debugging-scenarios.md`:** acceptance criteria and scenario coverage; do not rewrite historical test matrix entries as if old tests ran on new binaries.
+- **`docs/feature-roadmap.md` (feature catalog):** feature IDs, status and evidence, EV scenarios, research; stable IDs. Order and priority live only in the README tracking table.
+- **SB scenarios in `docs/capabilities.md`:** acceptance criteria and scenario coverage; do not rewrite historical entries as if old tests ran on new binaries.
 - **`docs/decisions.md`:** architecture, safety, and tooling decisions with the reason and tradeoff when warranted.
 - **`dev-e2e/README.md`:** exact runnable commands, configuration, test groups, interpretation and permissions.
 - **`AGENTS.md` and this page:** revise only when the **working procedure** changes; avoid duplicating all command details in three places.
 
-Keep historical phase reports dated and explicit about their tested versions. Evidence under `evaluation/reports/` is ignored/local unless intentionally curated; cite the **commit, bundle, JDK, workspace, bridge port, command and report** for release claims. Do not commit credentials, machine-specific paths or huge raw troubleshooting dumps.
+Finished-phase reports are not kept in `docs/` (removed 25 Nov 2026, OPEN-38); they stay in the git history. Evidence under `evaluation/reports/` is ignored/local unless intentionally curated; cite the **commit, bundle, JDK, workspace, bridge port, command and report** for release claims. Do not commit credentials, machine-specific paths or huge raw troubleshooting dumps.
 
 ## 8. Cleanup and final handoff
 
-Before proposing a deletion, inspect references/imports and Git history; categorize each file as **active code**, **test infrastructure**, **one-time migration**, **historical evidence**, or **generated diagnostic**. `git status --short`, `git diff --check`, and `git diff --stat` are mandatory review points. Preserve unrelated user edits and specialized Windows scripts until Java parity is proven. A rollback path must exist for every destructive or large refactor.
+Before proposing a deletion, inspect references/imports and Git history; categorize each file as **active code**, **test infrastructure**, **one-time migration**, **historical evidence**, or **generated diagnostic**. `git status --short`, `git diff --check`, and `git diff --stat` are mandatory review points. Preserve unrelated user edits. A rollback path must exist for every destructive or large refactor.
 
 At handoff, state:
 
-- Scope and exact changed files, including newly created documents/maintenance tools.
+- Scope and exact changed files, including newly created documents.
 - Commands actually run, precise pass/fail counts, and what was **not run**.
 - Eclipse/plugin/MCP runtime version and whether deployment is required.
 - Evidence artifact locations, first remaining blocker, and next *single* engineering priority.

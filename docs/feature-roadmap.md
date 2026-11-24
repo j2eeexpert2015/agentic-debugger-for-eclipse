@@ -1,42 +1,18 @@
-# Feature Roadmap and Decision Tracker
+# Feature catalog
 
-<!-- CLAUDE-FIRST-PRIORITY:BEGIN -->
-**Current delivery priority (23 November 2026):** Three initial symptom-driven Claude investigations were reviewed; Boot wrong-quote and HTTP validation have event-level MCP evidence, while JUnit has final-result evidence. **Next P0**: automated verdicts, independent cleanup verification and repeatable reliability tests; then fixture synchronization, event-correlated pause and full isolation. No controlled skill A/B exists yet. [Evidence ledger](claude-acceptance-2026-11-23.md) · [Development roadmap](development-roadmap.md).
-<!-- CLAUDE-FIRST-PRIORITY:END -->
+Every feature ID (CORE, JAVA, BOOT, SKILL, EVAL), what it gives the developer, its status and its evidence, plus the
+agent behaviour scenarios (EV) and the external research (RS) behind them. Feature IDs are stable and never reused.
 
-<!-- JAVA-E2E-19-STATUS:BEGIN -->
-**Current evidence (23 November 2026):** The initial Claude symptom-driven trial set has been reviewed: single JUnit diagnosis (final-result record) and two Spring Boot HTTP investigations (event-level runtime PASS). A historical uninterrupted 23/23 direct JDT regression passed; after the fixture HTTP change, first 16 direct scenarios passed together and all seven Boot-gap scenarios later passed separately, but the newest build has **not** completed a fresh uninterrupted 23/23 run. The opt-in Claude harness still reports `REVIEW_REQUIRED`, not automatic acceptance. Repeated no-skill reliability, optional skill A/B, independent cleanup inventories, STS-specific launch modes, and cross-platform coverage remain open. [Current acceptance evidence and boundaries](claude-acceptance-2026-11-23.md). The dated sections below are historical snapshots; their old `NOT RUN` cells refer to the time they were written, not current overall status. See [README](../README.md).
-<!-- JAVA-E2E-19-STATUS:END -->
-
-
-[README](../README.md) · [Phase-level roadmap](development-roadmap.md) · [Spring Boot scenarios](spring-boot-debugging-scenarios.md) · [Evaluation plan](evaluation-plan.md) · [Codex backlog](codex-implementation-backlog.md) · [Phase 1 evidence](phase1-implementation-status.md)
-
-**Reviewed:** 22 November 2026, GitHub `main` `77c43a08f72d7a4578718a92d8d0c8b9bce2377a`. **Scope:** feature-level benefit, status, feasibility and acceptance. Phase numbering is revised; existing feature identifiers remain stable.
-
-<!-- PHASE2-VERIFICATION-CONSOLIDATION:BEGIN -->
-## Local Phase 2 Verification Update (22 November 2026)
-
-**Post-audit local test update:** BOOT-07 / SB-08 (invalid-quantity exception/handler) passed direct installed Eclipse checks; BOOT-10 / SB-09 passed a **subset** covering borrowed launch preservation, expired investigation rejection and refusal of unapproved fixture POST. Phase 1's seven capabilities passed direct regression on the same installation. The broader BOOT-10 cross-service matrix and BOOT-11 / SB-10 Spring Tools compatibility remain pending. No Boot-specific natural-language symptom-only trial or skill A/B result is claimed. [Evidence ledger](phase2-verification-consolidation.md).
-<!-- PHASE2-VERIFICATION-CONSOLIDATION:END -->
-
-## Contents
-
-- [Status and evidence rules](#status-and-evidence-rules)
-- [Phase 0 — Core Eclipse MCP](#phase-0--core-eclipse-mcp)
-- [Phase 1 — Verified Java features](#phase-1--verified-java-features)
-- [Phase 2 — Essential Spring Boot and JUnit](#phase-2--essential-spring-boot-and-junit)
-- [Phase 3 — Unified debugging skill](#phase-3--unified-debugging-skill)
-- [Phase 4 — Evaluation and quality](#phase-4--evaluation-and-quality)
-- [Phase 5 — Advanced candidates](#phase-5--advanced-candidates)
-- [Non-goals, prioritization and change rules](#non-goals-prioritization-and-change-rules)
-
-> **Tracking:** open work and its priority are tracked only in the README [Status and tracking](../README.md#status-and-tracking) table (OPEN-xx IDs). This file holds feature definitions and evidence.
+> **Tracking:** open work and its priority are tracked only in the README [Status and tracking](../README.md#status-and-tracking)
+> table (OPEN-xx IDs). This file holds feature definitions and evidence. Spring Boot scenarios (SB) are in
+> [capabilities](capabilities.md#spring-boot-and-junit-scenarios-sb-01-to-sb-10). Dated phase reports that used to be
+> linked here were removed on 25 Nov 2026 (OPEN-38); they are in the git history.
 
 ## Status and evidence rules
 
 `Candidate → Investigation → Feasibility verified → Planned → Implemented in source → Tested on installed candidate → Released`; alternatively **Deferred**, **Not planned**, **Rejected**, **Unknown**. A feasible Eclipse UI feature is not necessarily an agent-exposed MCP feature; proof needs actual code/API evidence. A documented Claude prompt is **not** a test pass.
 
-**Tested Phase 1 candidate:** Eclipse bundle `1.5.0.20261121184224374`. Reports: 7/7 direct checks, 7/7 explicit Claude, 32/32 ownership/failure, and installed calculator regression. Symptom-only *single* trials (fixture source and NORMAL lifecycle guidance supplied): mechanism selected 6/7, complete answers 5/7, partial 2/7 (trace output limited, pause without restart). The installed plug-in contents match a rebuild of `ff28455`. The [new distribution ZIP](phase1-implementation-status.md#verified-distribution-zip) passed installed verification. Publication remains pending. [Record](phase1-implementation-status.md) · [Prompt results](phase1-claude-scenarios.md).
+**Tested Phase 1 candidate:** Eclipse bundle `1.5.0.20261121184224374`. Reports: 7/7 direct checks, 7/7 explicit Claude, 32/32 ownership/failure, and installed calculator regression. Symptom-only *single* trials (fixture source and NORMAL lifecycle guidance supplied): mechanism selected 6/7, complete answers 5/7, partial 2/7 (trace output limited, pause without restart). The installed plug-in contents match a rebuild of `ff28455`. The new distribution ZIP passed installed verification. Publication remains pending. Record · Prompt results.
 
 ## Phase 0 — Core Eclipse MCP
 
@@ -86,11 +62,11 @@ Step Into and Step Out now have a dedicated installed Java E2E assertion (caller
 | JAVA-06 / P1-PAUSE | Pause, investigate and restart owned JVM | New owned launch observed; negative ownership passed | Natural-language Claude restart selection |
 | JAVA-07 / P1-FILTER | Per-target step filtering | Application-level frame observed | No global preference changes |
 
-**Do not call JUnit debugging missing.** Core single-test support and one Spring-context method have installed debugger evidence. Missing-method, context-error and disabled-method checks passed on the orders fixture. More complex discovery remains open. [Phase 1 scenarios](phase1-claude-scenarios.md).
+**Do not call JUnit debugging missing.** Core single-test support and one Spring-context method have installed debugger evidence. Missing-method, context-error and disabled-method checks passed on the orders fixture. More complex discovery remains open. Phase 1 scenarios.
 
 ## Phase 2 — Essential Spring Boot and JUnit
 
-The [installed fixture audit](spring-boot-tool-audit.md) records direct checks for discovery, launch, readiness and JUnit, plus direct and explicit Claude evidence for the HTTP quote. Full scenario acceptance remains open. `BOOT-05` remains deferred to Phase 5 and its original ID is retained. Detailed real-world prompts, fixtures, direct assertions, negatives and evidence: [spring-boot-debugging-scenarios.md](spring-boot-debugging-scenarios.md).
+The installed fixture audit (in the git history) records direct checks for discovery, launch, readiness and JUnit, plus direct and explicit Claude evidence for the HTTP quote. Full scenario acceptance remains open. `BOOT-05` remains deferred to Phase 5 and its original ID is retained. Detailed real-world prompts, fixtures, direct assertions, negatives and evidence: [the SB scenarios](capabilities.md#spring-boot-and-junit-scenarios-sb-01-to-sb-10).
 
 | ID / scenarios | Developer need / proposed capability | Reuse-first hypothesis (verify, not assume) | Required acceptance / priority |
 |---|---|---|---|
@@ -113,7 +89,7 @@ The [installed fixture audit](spring-boot-tool-audit.md) records direct checks f
 | SKILL-02 | Hypothesis, targeted stops, first-bad-value tracing, efficient tools, bounded observations | Skill source exists; controlled comparison incomplete | EV-02, EV-04, EV-05, EV-12, EV-15 |
 | SKILL-03 | Error handling, correct target/session, explicit consent and investigation finish | Skill source exists; full behavior acceptance incomplete | EV-06, EV-07, EV-08, EV-14, EV-16 |
 
-**Requirement:** Independently replaceable versioned guidance, optionally split into topic-specific reference documents if long. The plugin/MCP server cannot depend on it. No skill benefit claims without comparative tests. Research: [research-sources.md](research-sources.md).
+**Requirement:** Independently replaceable versioned guidance, optionally split into topic-specific reference documents if long. The plugin/MCP server cannot depend on it. No skill benefit claims without comparative tests. Research: [External research](#external-research-rs-01-to-rs-07) below.
 
 ## Phase 4 — Evaluation and quality
 
@@ -127,7 +103,7 @@ The [installed fixture audit](spring-boot-tool-audit.md) records direct checks f
 | EVAL-06 | Repeated trials and controlled skill comparison: `DevE2E … --groups claude --repeat N [--no-skill]` runs each scenario N times in one batch; `--no-skill` adds `--disallowedTools Skill` to the Claude CLI; every verdict records `batch` and `skillMode`; metrics record `skillsInvoked` and `skillFileReads` (skill files opened with Read/Grep/Glob, so a "no-skill" run that still reads the skill is visible); `ClaudeTranscriptEvaluator --summary` prints and writes per-scenario pass rate, skill/`wait_for_stop` use, cleanup, average calls/turns/time and total cost | **Done (23 Nov 2026):** with skill 9/9 PASS, without skill 17/18 (one run where the Claude CLI ended early is graded FAIL). Self-test EV-U1..EV-U18. Harness removes leftover fixture JVMs and agent-owned breakpoints before each run; runs whose CLI failed are graded and counted | Equal model and fixture for both arms; enough runs per arm before claiming a difference |
 | EVAL-05 | Automatic Claude verdicts: `dev-e2e/ClaudeTranscriptEvaluator.java` reads the stream-json transcript and grades from successful MCP **results** only (stop frame, variable values, required calls, HTTP result), the final answer only for the diagnosis, ownership (changes inside an investigation, only own launches/breakpoints touched, approved HTTP only, no side-effect evaluation, no Bash/Edit/Write) and cleanup (finish with `CLEANUP` plus the independent before/after inventory `ClaudeSymptomTrial` now captures). Verdicts PASS/PARTIAL/FAIL/BLOCKED/UNSAFE, plus metrics (tool calls, waits, turns, cost). Scenario oracles in `evaluation/claude-grading/expectations.json` | **Tested (23 Nov 2026):** self-test 13/13; fresh `claude:boot-quote` trial graded PASS from actual results (stop via `wait_for_stop` at `OrderService:24`, `percent=10`, `rate=0`, HTTP 200 `120.00`, `CLEANUP`) with all four inventory checks PASS. The three earlier transcripts were not on the test machine, so they were not regraded | Real-transcript format differences; oracles for further scenarios; repeated trials |
 
-**Current natural-language baseline:** seven one-off Java scenarios; 6/7 intended mechanisms and 5/7 complete outputs, with supplied fixture source and NORMAL guidance. It is a starting observation, not a general success rate or skill effect. [Evaluation plan](evaluation-plan.md).
+**Current natural-language baseline:** seven one-off Java scenarios; 6/7 intended mechanisms and 5/7 complete outputs, with supplied fixture source and NORMAL guidance. It is a starting observation, not a general success rate or skill effect. Evaluation plan.
 
 ## Phase 5 — Advanced candidates
 
@@ -146,5 +122,99 @@ The [installed fixture audit](spring-boot-tool-audit.md) records direct checks f
 - **NG-01:** Do not reimplement JDT/JVM debugger. **NG-02:** No bundled LLM. **NG-03:** No full profiler/heap analyzer in current scope. **NG-04:** No broad non-Java debug engine.
 - Source observations, IDE documentation, an API spike, installed direct test and explicit/implicit agent result are different evidence levels.
 - Every new feature requires **feature ID, user problem, expected runtime observation, fixture, explicit prompt, symptom-only prompt, direct test, negative/safety tests, limitations, source revision and tested artifact**.
-- Keep old feature IDs unchanged after moving phases, never reuse a rejected ID, and link [implementation backlog](codex-implementation-backlog.md) to the acceptance case.
-- Maintain [Phase 0–5 development roadmap](development-roadmap.md) separately: phase sequencing/exit gates live there, feature evidence lives here.
+- Keep old feature IDs unchanged after moving phases, and never reuse a rejected ID.
+- Order and priority live only in the README tracking table (OPEN-xx); feature evidence lives here.
+
+## Agent behaviour scenarios (EV-01 to EV-16)
+
+The scenarios the SKILL and EVAL items are measured against (moved here from `evaluation-plan.md`, 25 Nov 2026).
+
+| ID | Context and user intention | Expected measurable agent behavior |
+|---|---|---|
+| EV-01 | “Debug this application and find the problem” | When runtime evidence is necessary/requested, actually inspect running JVM; do not invent observations |
+| EV-02 | Java discount math wrong | Observe first incorrect `discountRate` / operands, explain integer division from real state |
+| EV-03 | Ordinary failing JUnit 5 method | Discover/launch only requested test, observe breakpoint and actual values — **now supported by Phase 1** |
+| EV-04 | Wrong record within a large loop | Select conditional breakpoint where appropriate, avoid hundreds of stops |
+| EV-05 | Multi-class defect | Follow causal values across frames and identify first wrong producer |
+| EV-06 | Two sessions coexist | Target correct launch object/ID, unrelated session untouched |
+| EV-07 | Bridge failure, stale frame or never-hit breakpoint | Bounded recovery or truthful stop; no invented completion |
+| EV-08 | NORMAL/CONTROLLED requested | End exactly the owned resources and preserve selected user session state |
+| EV-09 | Static explanation, no execution requested | Do not start debugger or unnecessary services |
+| EV-10 | Skill activation/removal | Prove skill was loaded, compare outcomes, and show core debugger still works after removal |
+| EV-11 | Find right Boot server among multiple projects | Select appropriate project/config, ask when ambiguous; no wrong launch (SB-01/02) |
+| EV-12 | Boot REST order quote returns incorrect value | Confirm readiness, send approved local HTTP request, inspect controller/service and identify wrong runtime value (SB-03/04/05) |
+| EV-13 | Spring Boot service/unit or `@SpringBootTest` failing | Pick individual JUnit method, distinguish plain test from Spring context; no irrelevant full suite (SB-06/07) |
+| EV-14 | Boot startup fails or endpoint inaccessible | Distinguish startup failure, bind error, timeout and wrong port; bounded checks (SB-03) |
+| EV-15 | Boot validation/handled exception or wrong HTTP response | Capture actual request, application exception/validation path and HTTP status without assuming controller ran (SB-08) |
+| EV-16 | Two Boot services/unsafe HTTP operation | Correct session/request target, explicit consent, user resources untouched and successful scoped cleanup (SB-09/10) |
+
+**Required primary artifacts:** repeatable fixture; exact prompt; fixture version; oracle; explicit vs symptom-only classification; tool and JVM traces; request/HTTP evidence for Boot; before/after launch+marker state; verdict; evaluator notes and model/version. A skill must not simply memorize known fixture source/line numbers; hold source visibility fixed across all cohorts and include at least one held-out defect scenario.
+
+## External research (RS-01 to RS-07)
+
+Sources that shaped the features and the skill (moved here from `research-sources.md`, 25 Nov 2026).
+
+### RS-01 — Microsoft DebugMCP `debug-live` skill
+
+- **Source:** [skill](https://github.com/microsoft/DebugMCP/blob/main/skills/debug-live/SKILL.md) · [repository](https://github.com/microsoft/DebugMCP)
+- **What it is:** a separate agent skill providing procedural guidance for interactive VS Code debugging, distinct from the MCP debugger tools themselves.
+- **Value:** guide agents to collect runtime evidence, choose breakpoints, trace values, handle short-lived programs and minimize unproductive stepping.
+- **Our status:** **No equivalent installed skill yet**. Basic MCP breakpoints and inspection exist, but systematic guidance and measurable automatic selection do not.
+- **Can we implement?** Independent original skill is plausible. Actual activation, effectiveness and license obligations for any reused text still require verification.
+- **Track:** SKILL-01/02/03; EV-01/02/07/09/10. **Important:** do not copy blanket “remove all breakpoints” guidance; only investigation-owned resources may be cleaned up.
+
+### RS-02 — IntelliJ IDEA `ij-debugger`
+
+- **Source:** [JetBrains agentic debugging documentation](https://www.jetbrains.com/help/idea/agentic-debugging.html) · [JetBrains agent skills overview](https://blog.jetbrains.com/idea/2026/08/agent-skills-in-intellij-idea/)
+- **What it is:** IDE-integrated MCP debugger access plus a bundled skill teaching agents how to operate it; JetBrains documentation describes agent-initiated debugger workflows and debugger tools.
+- **Value:** the agent can move beyond source-only reasoning to actual state inspection using its IDE.
+- **Our status:** core Java launch/breakpoint/step/inspect capability exists; **equivalent skill does not**. No verified feature parity for conditional/exception breakpoints, logpoints, JUnit or other advanced functions.
+- **Can we implement?** General workflow is plausible; any individual capability requires an Eclipse API and MCP exposure assessment. Exact bundled skill contents and copying rights are not yet verified.
+- **Track:** SKILL-01/02; JAVA-01/02/05.
+
+### RS-03 — Microsoft DebugMCP debugger implementation
+
+- **Source:** [DebugMCP repository](https://github.com/microsoft/DebugMCP) · [server design](https://github.com/microsoft/DebugMCP/blob/main/docs/architecture/debugMCPServer.md)
+- **What it is:** an MCP bridge exposing debugger operations to coding agents in VS Code. It is **not the same thing** as the `debug-live` skill.
+- **Value:** concrete API/UX ideas for launch, breakpoint management, inspection, stepping, and client integration.
+- **Our status:** basic equivalent operations exist; advanced per-feature parity remains unverified. Different platform and tool contracts.
+- **Can we implement?** Requires assessment per tool, not direct copying of its VS Code implementation.
+- **Track:** JAVA-01/02/05/06 and CORE regression suite.
+
+### RS-04 — Microsoft Java Debug Agent / VS Code Java Debugger
+
+- **Source:** [Java Debug Agent guide](https://github.com/microsoft/vscode-java-debug/blob/main/bundled/agents/README.md) · [Java debugger repository](https://github.com/microsoft/vscode-java-debug)
+- **What it is:** Java-specific AI-assisted debugging guidance and functionality integrated with VS Code/Copilot; separate from the general DebugMCP skill.
+- **Value:** Java launch/test workflows, Java-specific debug operation patterns, and practical fixtures.
+- **Our status:** standalone Java `main()` debugging implemented. Agent-driven individual JUnit debugging, no-config advanced Java launch and attach are **not established** in our snapshot.
+- **Can we implement?** Requires per-feature feasibility spikes, especially JUnit launch handling.
+- **Track:** JAVA-03; EV-03 and REG-15.
+
+### RS-05 — Debug2Fix, Microsoft Research
+
+- **Source:** [paper](https://arxiv.org/abs/2602.18571) · [research page](https://www.microsoft.com/en-us/research/publication/debug2fix-debug2fix-supercharging-coding-agents-with-interactive-debugging-capabilities/)
+- **What it is:** research integrating interactive debugging into a coding agent through a specialized debugging subagent.
+- **Value:** evaluation design and separation of interactive-debugging benefit from other agent architecture changes.
+- **Our status:** **Not implemented** as an architecture; no evidence that adding a subagent is necessary for this Eclipse product.
+- **Can we implement?** Technically conceivable, but **not selected**; compare simple skill guidance first.
+- **Track:** SKILL-04; EV-02/05.
+
+### RS-06 — Controlled evaluations of debugger utility
+
+- **Source:** [Pdb or Not to Be (arXiv 2611.08666)](https://arxiv.org/abs/2611.08666)
+- **What it is:** a study comparing debugging interfaces for coding agents, including the possibility that more debugging tools do not improve outcomes in a given setup.
+- **Value:** avoid equating “more debugger calls” with “better defect resolution”; compare accuracy, evidence, time and resource cost.
+- **Our status:** comparison framework still needs implementation.
+- **Track:** SKILL-04; EV-09 (avoid unnecessary debugging).
+
+### RS-07 — Real-world tool and skill loading failures
+
+- **Source:** [DebugMCP skill discovery issue #105](https://github.com/microsoft/DebugMCP/issues/105) · [DebugMCP issues](https://github.com/microsoft/DebugMCP/issues)
+- **What it is:** maintainer/user reports, not proof of frequency or general behavior.
+- **Value:** tests should distinguish installed skill from skill actually loaded, and assess wrong-session selection and stalled waits.
+- **Our status:** no automatic skill discovery tests; current E2E has bridge preflight and separate launch state validation.
+- **Track:** EV-01/06/07 and skill activation telemetry.
+
+### Future sources
+
+Add a new RS-ID only for sources with identifiable provenance and concrete relevance. Record: title, URL, date checked, source type (docs/code/issue/paper/forum), claim actually supported, idea, feature ID, feasibility, evidence gap, evaluation case and disposition. Never equate forum anecdotes with verified implementation.

@@ -2,7 +2,7 @@
 
 Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude Code** through the Model Context Protocol (MCP). The plugin uses Eclipse Java Debug Tools (JDT) for actual execution control; Claude selects and invokes MCP tools. Safety checks for session ownership, breakpoints and cleanup are implemented in Java, not left solely to prompt instructions.
 
-**Evidence snapshot — 24 November 2026 (Windows, JDK 25.0.5, Eclipse 2026-09):** direct regression **23/23**, stop/output group **6/6**, abandoned-investigation group **5/5**, bridge fault injection **4/4**, unit tests **74/74** (JUnit 5, run by the Maven build), all with verified cleanup. Repeated Claude trials (3 per scenario, graded automatically from actual debugger results): **9/9 PASS with the skill, 17/18 without** (the one FAIL is a run where the Claude CLI ended early). Small samples on test fixtures: an indication, not a reliability statistic. Details: [current state](docs/current-state.md), [acceptance evidence](docs/claude-acceptance-2026-11-23.md).
+**Evidence snapshot — 24 November 2026 (Windows, JDK 25.0.5, Eclipse 2026-09):** direct regression **23/23**, stop/output group **6/6**, abandoned-investigation group **5/5**, bridge fault injection **4/4**, unit tests **74/74** (JUnit 5, run by the Maven build), all with verified cleanup. Repeated Claude trials (3 per scenario, graded automatically from actual debugger results): **9/9 PASS with the skill, 17/18 without** (the one FAIL is a run where the Claude CLI ended early). Small samples on test fixtures: an indication, not a reliability statistic. Details per item: [Status and tracking](#status-and-tracking).
 
 ## Current status and next step
 
@@ -42,7 +42,7 @@ Requirements: **JDK 21+** and authenticated Claude Code for Claude-driven use. B
 
 Check: `%USERPROFILE%\.eclipse-agentdebug\agentic-debugger-mcp.jar` must have the time of the last normal Eclipse start after the update (an MCP server without reports is about 6 MB, with reports about 11 MB).
 
-See [installation and validation](docs/eclipse-installation-and-validation.md) for troubleshooting. To install and register the MCP server from a terminal instead, or to add it manually to Claude Code or another MCP client, use the [setup utility](installer/README.md).
+If something does not work, see [Troubleshooting](#troubleshooting) below. To install and register the MCP server from a terminal instead, or to add it manually to Claude Code or another MCP client, use the [setup utility](installer/README.md).
 
 ### Ask Claude to investigate
 
@@ -51,6 +51,22 @@ Example symptom-only request: *“My orders API returns 120.00, but I expect 108
 `NORMAL` investigations remove their **own** debugging resources when properly finished; `CONTROLLED` investigations may retain state. Neither authorizes changing user-owned breakpoints or unrelated launches. The [optional skill](skills/eclipse-debugger/SKILL.md) is not required for core MCP debugging.
 
 **Debugging session report.** Every investigation is written as one HTML file: what was asked, the agent's conclusion, then every step (breakpoints, launches, stops with variables, HTTP requests, cleanup). It goes to the `debug-reports` folder of the Eclipse project the investigation launched, e.g. `<project>\debug-reports\OrdersApplication_2026-11-24_14-26-29.html`; with the skill, Claude tells you the full path at the end. Add `debug-reports/` to the project's `.gitignore` if you do not want to commit reports. Switch reports off with the environment variable `AGENTDEBUG_REPORT=off` for the MCP server, or send them to one folder with `AGENTDEBUG_REPORT_DIR` (a setting in Eclipse Preferences is planned).
+
+### Troubleshooting
+
+| Problem | Check |
+|---|---|
+| `mvn` or `java` not recognized | Install the JDK (21+) and Maven; `java -version` and `mvn -version` must work in a new terminal |
+| Plugin missing after installing | Help → About Eclipse IDE → Installation Details → Installed Software; restart Eclipse |
+| Claude cannot reach Eclipse | Keep Eclipse running with the project imported; check `/mcp` for `eclipse-debugger` and call `eclipse_ping` (expected `PONG`); close other Eclipse instances that use the same bridge port |
+| Old behaviour after an update | The MCP server jar is copied on a **normal** Eclipse start; close Claude sessions, start Eclipse normally, start a new Claude session (see Updating above) |
+| JUnit test cannot be launched | JDT JUnit support present, the Maven project imported and built, the test method name exact |
+| Breakpoint never stops | The line has code, the right application is launched, a condition is valid in that scope |
+| Claude names the bug without debugger calls | A correct static diagnosis is not agentic debugging; ask explicitly to debug, and check the session report |
+| Development test setup (`DevE2E`) | `java dev-e2e/DevE2E.java config` lists every setup problem with what to do |
+
+To uninstall: Help → About Eclipse IDE → Installation Details → Installed Software → Uninstall. Remove the Claude Code
+registration through Window → Preferences → Agentic Debugger; it never touches unrelated entries.
 
 ## Implementation and test status
 
@@ -74,7 +90,7 @@ Example symptom-only request: *“My orders API returns 120.00, but I expect 108
 
 The failing-startup and port-conflict tests confirmed fixture JVM exit using OS PIDs. This is **local working-tree evidence**; it does not independently certify a published release or other systems. Report files are generated under ignored `evaluation/reports/`. See [Java runner](dev-e2e/README.md).
 
-**Agent behavior (23 November 2026):** Claude runs are graded automatically (PASS/PARTIAL/FAIL/BLOCKED/UNSAFE) from the debugger's actual results plus a before/after Eclipse inventory. Clean batches, 3 runs per scenario (Boot wrong quote, Boot HTTP 400, JUnit): **with skill 9/9 PASS, without skill 17/18 PASS**; every run used `wait_for_stop`; cleanup independently verified. On these explicit prompts the skill added no accuracy and cost about 30% more calls and money; whether it helps on vague, symptom-only prompts is open (OPEN-05). See [evidence ledger](docs/claude-acceptance-2026-11-23.md).
+**Agent behavior (23 November 2026):** Claude runs are graded automatically (PASS/PARTIAL/FAIL/BLOCKED/UNSAFE) from the debugger's actual results plus a before/after Eclipse inventory. Clean batches, 3 runs per scenario (Boot wrong quote, Boot HTTP 400, JUnit): **with skill 9/9 PASS, without skill 17/18 PASS**; every run used `wait_for_stop`; cleanup independently verified. On these explicit prompts the skill added no accuracy and cost about 30% more calls and money; whether it helps on vague, symptom-only prompts is open (OPEN-05). (Dated evidence ledger in the git history: `docs/claude-acceptance-2026-11-23.md`.)
 
 **Limits:** Run to Line, variable mutation, field watchpoints, JDWP attach, thread-dump export and Hot Code Replace are not exposed as verified MCP features. STS-specific modes, Linux/macOS, more complex Spring-context JUnit cases and a full user-marker/configuration matrix need separate tests. Every open item is listed in [Status and tracking](#status-and-tracking).
 
@@ -210,11 +226,11 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 | OPEN-32 | P1 | **Updating the plugin updates everything:** the skill is packed into the plugin and copied to `%USERPROFILE%\.claude\skills\eclipse-debugger\` on a normal Eclipse start, like the MCP server jar (only for users who let the plugin configure Claude); a visible Eclipse message when the jar could not be replaced because a Claude session uses it; the MCP server reports its version and the plugin warns when Claude still runs an older one. Found 24 Nov: the jar stayed at the 02:08 version (no reports) because only the test Eclipse had been started | Not started | After installing a new plugin and one normal Eclipse start, jar and skill are current without manual copying; an outdated jar is reported in Eclipse | — |
 | OPEN-33 | P1 | **Report viewer in Eclipse with links to the code:** a "Debugging Session Report" editor (embedded browser) that opens reports from `debug-reports` on double-click; every class and line in a report (`OrderService.quote:24`, breakpoints, frames) is a link that opens the Java editor at that line (JDT lookup by full class name and project, callback from the page to the plugin); in an ordinary browser a link shows "Open this report in Eclipse to jump to the code". Needs the full class name per mention in the report model. Medium effort, about three deliveries; check WebView2 (Edge) behaviour on Windows | Not started | Click on a frame or breakpoint in a report opened in Eclipse opens the right line; same report readable in a browser | OPEN-30 follow-up |
 | OPEN-34 | P2 | **Check that the project is built before a launch:** before starting a test or application, report build errors and missing compiled classes to the agent ("the project is not built") instead of letting the JVM end with `ClassNotFoundException`. Found 24 Nov: `spring-boot-debugging` imported as Maven project without compiled test classes | Not started | Direct test: launching a test of an unbuilt project returns a clear error | — |
-| OPEN-38 | Eng | **Codebase reduction** ([analysis](docs/codebase-reduction-analysis.md)): about 189 files to about 115 without losing functionality, in six verified steps: (1) delete unused files, (2) documentation down to about 6 files, (3) one JSON reader, one bridge client, no legacy bridge mode, (4) report modules merged, (5) test support off unless a test asks, (6) one e2e runner | Partly done: step 1 done 25 Nov (build 63 plugin tests, regression 23/23, Claude trial VERDICT PASS and `REPORT CHECK PASS` at 01:32; 35 unused files deleted: `maintenance/`, `APPLY*.md`, two log dumps, `scripts/` and `RUN-WINDOWS-TESTS.cmd`, the old Claude runner and its prompt, copies of example tests, two one-off `dev-e2e` programs, the skill-automation scenarios, disabled CI; `DevE2E` modes `integrate` and `cleanup` removed; `e2e-runner/pom.xml` no longer starts the old Claude runner). `e2e-runner/ownership-tests` kept: it is the 32-check ownership harness (OPEN-03) | Build, regression 23/23 and a Claude trial with `--report` unchanged after each step | decisions open: ChainTest, installer, finished-phase documents |
+| OPEN-38 | Eng | **Codebase reduction** ([analysis](docs/codebase-reduction-analysis.md)): about 189 files to about 115 without losing functionality, in six verified steps: (1) delete unused files, (2) documentation down to about 6 files, (3) one JSON reader, one bridge client, no legacy bridge mode, (4) report modules merged, (5) test support off unless a test asks, (6) one e2e runner | Partly done: step 1 done 25 Nov (build 63 plugin tests, regression 23/23, Claude trial VERDICT PASS and `REPORT CHECK PASS` at 01:32; 35 unused files deleted: `maintenance/`, `APPLY*.md`, two log dumps, `scripts/` and `RUN-WINDOWS-TESTS.cmd`, the old Claude runner and its prompt, copies of example tests, two one-off `dev-e2e` programs, the skill-automation scenarios, disabled CI; `DevE2E` modes `integrate` and `cleanup` removed; `e2e-runner/pom.xml` no longer starts the old Claude runner). `e2e-runner/ownership-tests` kept: it is the 32-check ownership harness (OPEN-03). Step 2 delivered 25 Nov, waiting for check: 18 documents deleted (finished-phase reports, old roadmaps, backlog, handoff, evaluation plan, scenario and research files, install guides); their still-valid parts moved into `docs/capabilities.md` (SB scenarios), `docs/feature-roadmap.md` (now the feature catalog, with EV scenarios and research), `docs/development-workflow.md` (source map) and this README (troubleshooting, documentation table); `AGENTS.md` shortened, links updated | Build, regression 23/23 and a Claude trial with `--report` unchanged after each step | decisions open: ChainTest, installer, finished-phase documents |
 | OPEN-01 | P1 | **Automatic fixture synchronization:** copy changed test projects into the disposable test workspace, marker-verified, never touching other projects | Not started | New or changed fixture classes reach the test workspace without manual copying; blocks OPEN-11 and new Claude scenarios | [Runner](dev-e2e/README.md) |
 | OPEN-02 | P1 | **User-resource safety matrix:** tests with real user breakpoints, exception breakpoints and custom launch configurations present; nothing of the user's is changed or removed | Partly done | Direct group passes with user markers/configurations present (so far the workspace had none, so preservation was not really exercised) | CORE-03, CORE-04, BOOT-10 |
 | OPEN-03 | P1 | **Ownership checks:** port the 32 PowerShell ownership/failure checks to a Java direct-test group and rerun them on the current build | Partly done | 32/32 in Java on the current build; PowerShell copy removed | CORE-08; `e2e-runner/ownership-tests/run.ps1` |
-| OPEN-04 | P1 | **Spring Boot scenario acceptance gaps:** agent chooses between two Boot apps without guessing; launch keeps profile, arguments, environment and working directory; `@SpringBootTest` method debugging | Partly done | Direct checks for each; currently discovery, readiness, HTTP quote, HTTP 400 and one Spring-context JUnit method pass | BOOT-01, BOOT-02, BOOT-06 ([scenarios](docs/spring-boot-debugging-scenarios.md)) |
+| OPEN-04 | P1 | **Spring Boot scenario acceptance gaps:** agent chooses between two Boot apps without guessing; launch keeps profile, arguments, environment and working directory; `@SpringBootTest` method debugging | Partly done | Direct checks for each; currently discovery, readiness, HTTP quote, HTTP 400 and one Spring-context JUnit method pass | BOOT-01, BOOT-02, BOOT-06 ([scenarios](docs/capabilities.md#spring-boot-and-junit-scenarios-sb-01-to-sb-10)) |
 | OPEN-05 | P1 | **Skill evaluation on symptom-only prompts:** vague prompts ("the total is wrong") with and without the skill; plus skill install/remove invariants and the Boot JUnit scenarios | Partly done | Repeated batches both ways on symptom-only prompts; base tests pass with no skill and after skill removal | SKILL-01..03, EVAL-03, EVAL-04; explicit-prompt comparison done (see Done) |
 | OPEN-06 | P1 | **Run to Line** | Not started | Scoped operation, correct thread, cleanup; direct test | JAVA-11 |
 | OPEN-07 | P1 | **Change Variable Value** with explicit consent | Not started | Owned session only, consent enforced, safe failure; direct and negative tests | JAVA-10B |
@@ -249,8 +265,8 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 | **Unit tests as JUnit 5 in the Maven build (OPEN-17 step A):** 49 unit tests run by `mvn clean package` (plugin 41 through Tycho and Surefire, mcp-server 8); a failing test fails the build; integration tests and Claude trials stay out of the build; `dev-e2e/BridgeUnitTests.java` removed | 24 Nov 2026 | `mvn clean package`: plugin 41/41, mcp-server 8/8; regression 23/23 afterwards |
 | **Cleanup of abandoned investigations (CORE-17):** MCP disconnect, 10-minute idle lease, leftover breakpoints after an Eclipse restart, IDs attached automatically | 24 Nov 2026 | `lease` 5/5, unit 30/30, regression 23/23 ([ADR-008](docs/decisions.md)) |
 | **Automatic Claude verdicts (EVAL-05)** from actual debugger results plus before/after Eclipse inventory | 23 Nov 2026 | Self-test 19/19; first trial graded PASS with independent cleanup |
-| **Repeated trials and skill comparison on explicit prompts (EVAL-06)** | 23 Nov 2026 | With skill 9/9, without 17/18; no accuracy gain from the skill on explicit prompts ([evidence](docs/claude-acceptance-2026-11-23.md)) |
-| **Single-trial Claude acceptance:** JUnit diagnosis, Boot wrong quote, Boot HTTP 400 | 23 Nov 2026 | [Acceptance evidence](docs/claude-acceptance-2026-11-23.md) |
+| **Repeated trials and skill comparison on explicit prompts (EVAL-06)** | 23 Nov 2026 | With skill 9/9, without 17/18; no accuracy gain from the skill on explicit prompts (evidence ledger in the git history) |
+| **Single-trial Claude acceptance:** JUnit diagnosis, Boot wrong quote, Boot HTTP 400 | 23 Nov 2026 | Acceptance evidence ledger (in the git history: `docs/claude-acceptance-2026-11-23.md`) |
 | **Step Into / Step Out dedicated tests (CORE-05-03/04)** | 23 Nov 2026 | `acceptance:core-step-into-out` |
 | **Core debugger and Phase 1 Java features:** bridge, main discovery, launch, breakpoints, stepping, variables, editor navigation, NORMAL/CONTROLLED ownership, conditional and exception breakpoints, single JUnit methods, nested variables, tracepoints, pause/restart, step filters | Nov 2026 | Regression 23/23; [capabilities](docs/capabilities.md) (CORE-01..08, JAVA-01..07) |
 
@@ -258,17 +274,22 @@ Release hygiene runs across all items: keep the **23/23 direct regression** and 
 
 ## Development workflow
 
-Coding agents should begin with [AGENTS.md](AGENTS.md) and the [current-state handoff](docs/current-state.md) before changing code.
+Coding agents start with [AGENTS.md](AGENTS.md); everyone follows the [development workflow](docs/development-workflow.md) (with the architecture and source map).
 
-Changes follow an **evidence-first, reviewable process**: reproduce and isolate the issue; prepare a minimal, reversible change (with dry-run/backups for source migrations); compile and test the affected scenario; run broader regression; independently review Claude MCP evidence when applicable; then update verified status, documentation and repository hygiene. **Do not treat `REVIEW_REQUIRED` as a PASS or run paid Claude trials without approval.**
-
-See the [complete development workflow](docs/development-workflow.md) and [coding-agent instructions](AGENTS.md). All agents and contributors should read these before modifying the project.
+Changes follow an **evidence-first, reviewable process**: reproduce and isolate the issue; prepare a minimal, reversible change; compile and test the affected scenario; run broader regression; independently review Claude MCP evidence when applicable; then update the tracking table and documentation. **Do not treat `REVIEW_REQUIRED` as a PASS or run paid Claude trials without approval.**
 
 ## Documentation
 
-[Current-state handoff](docs/current-state.md) — latest verified evidence and next safe task.
+| Document | What it holds |
+|---|---|
+| This README | Install and use, current plan, **Status and tracking** (the single list of open and finished work) |
+| [Development workflow](docs/development-workflow.md) | Architecture and source map; how changes are made, tested and handed over |
+| [Architecture decisions](docs/decisions.md) | ADRs: safety, ownership, isolation of reporting |
+| [Capabilities](docs/capabilities.md) | What is implemented and verified; Spring Boot scenarios SB-01 to SB-10 |
+| [Feature catalog](docs/feature-roadmap.md) | Feature IDs and evidence; agent behaviour scenarios EV-01 to EV-16; external research |
+| [Test guide](dev-e2e/README.md) | `DevE2E` commands, suites, Claude trials, setup checks |
+| [Designs](docs/design/README.md) | Agent Activity view and report designs and requirements |
+| [Codebase reduction](docs/codebase-reduction-analysis.md) | The OPEN-38 analysis and plan |
+| [Coding-agent instructions](AGENTS.md) · [Setup utility](installer/README.md) · [Skill](skills/eclipse-debugger/SKILL.md) | |
 
-
-[Development workflow](docs/development-workflow.md) · [Claude acceptance evidence](docs/claude-acceptance-2026-11-23.md) · [Repository hygiene](docs/repository-hygiene.md) · [Development roadmap](docs/development-roadmap.md) · [Feature tracker](docs/feature-roadmap.md) · [Agent evaluation plan](docs/evaluation-plan.md) · [Capabilities](docs/capabilities.md) · [Spring Boot scenarios](docs/spring-boot-debugging-scenarios.md) · [Java E2E runner](dev-e2e/README.md) · [Architecture decisions](docs/decisions.md) · [Design documents](docs/design/README.md) (live Activity view, report design; not implemented) · [Coding-agent instructions](AGENTS.md)
-
-Older phase reports in [`docs/`](docs/) preserve dated test evidence. The current README and actual test records define current status, not older planning snapshots.
+Dated phase reports, the old roadmaps, backlog and handoff were removed on 25 Nov 2026 (OPEN-38 step 2); they remain in the git history.

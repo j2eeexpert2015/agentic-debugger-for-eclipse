@@ -57,24 +57,27 @@ Not deleted after a closer look: `e2e-runner/ownership-tests/` is the 32-check o
 
 Git keeps all of it; nothing is lost.
 
-### B. Documentation: 21 files in `docs/` down to about 6
+### B. Documentation: 21 files in `docs/` down to 5 (done in step 2)
 
-The README is the single tracking list by rule, yet `development-roadmap.md`, `feature-roadmap.md`,
-`codex-implementation-backlog.md` and `current-state.md` track work too, and the `phase1-*`, `phase2-*`, `phase3-*`
-files describe phases that are finished.
+The README is the single tracking list by rule, yet `development-roadmap.md`, `codex-implementation-backlog.md` and
+`current-state.md` tracked work too, and the `phase1-*`, `phase2-*`, `phase3-*` files described finished phases.
 
-| Keep (merged) | From |
+| Kept | Now also holds |
 |---|---|
-| `README.md` | unchanged: overview, status and tracking |
-| `docs/decisions.md` | unchanged: the ADRs |
-| `docs/capabilities.md` | plus `spring-boot-debugging-scenarios.md`, `spring-boot-tool-audit.md`, `research-sources.md` |
-| `docs/testing.md` | `dev-e2e/README.md`, `evaluation-plan.md`, `windows-test-quickstart.md`, `eclipse-installation-and-validation.md`, `phase1-java-test-runner.md`, `development-workflow.md` |
-| `docs/design/` | the Agent Activity and live view designs |
-| `skills/eclipse-debugger/` | unchanged |
+| `README.md` | install troubleshooting (from `eclipse-installation-and-validation.md`); a documentation table |
+| `docs/decisions.md` | unchanged (ADRs) |
+| `docs/capabilities.md` | the Spring Boot scenarios SB-01 to SB-10 and their acceptance matrix (from `spring-boot-debugging-scenarios.md`) |
+| `docs/feature-roadmap.md`, now titled "Feature catalog" (file name kept, many links point to it) | the agent behaviour scenarios EV-01 to EV-16 (from `evaluation-plan.md`) and the external research RS-01 to RS-07 (from `research-sources.md`) |
+| `docs/development-workflow.md` | the architecture and source map (from `current-state.md`), updated |
+| `docs/design/` (3 files), `docs/codebase-reduction-analysis.md` | unchanged |
+| `dev-e2e/README.md` | stays the test guide (instead of a new `docs/testing.md`: it sits next to the tool) |
+| `AGENTS.md` | kept but shortened: coding agents (Codex, Claude Code) read this file by convention |
 
-Delete (finished phases, history in git): the `phase1-*`, `phase2-*` and `phase3-*` files, `claude-acceptance-2026-11-23.md`,
-`repository-hygiene.md`, `codex-implementation-backlog.md`, `current-state.md`, `development-roadmap.md`,
-`feature-roadmap.md`, `AGENTS.md` and `README-INSTALL-AND-TEST.md` (their still-valid parts move into README or testing).
+Deleted (18 files; history in git): the `phase1-*` (3), `phase2-*` (1) and `phase3-*` (2) files,
+`claude-acceptance-2026-11-23.md`, `repository-hygiene.md`, `codex-implementation-backlog.md`, `current-state.md`,
+`development-roadmap.md`, `evaluation-plan.md`, `spring-boot-debugging-scenarios.md`, `spring-boot-tool-audit.md`,
+`research-sources.md`, `windows-test-quickstart.md`, `eclipse-installation-and-validation.md` and the root
+`README-INSTALL-AND-TEST.md`. `examples/README.md` still links two of them; it stays unchanged by rule.
 
 ### C. Merge duplicates
 
@@ -131,8 +134,8 @@ Each step is one delivery with the usual checks: `mvn clean package`, regression
 
 | Step | What | Risk |
 |---|---|---|
-| 1 | Delete the unused files of A, and the `integrate`/`cleanup` modes of `DevE2E` (delivered 25 Nov) | none: nothing uses them |
-| 2 | Documentation down to about 6 files (B) | none for the code |
+| 1 | Delete the unused files of A, and the `integrate`/`cleanup` modes of `DevE2E` (done 25 Nov: build, regression 23/23 and trial PASS) | none: nothing uses them |
+| 2 | Documentation down to 5 files in `docs/` plus the designs (B; delivered 25 Nov) | none for the code |
 | 3 | One JSON reader and one bridge client (C1, C2); remove the legacy bridge (D3) | low |
 | 4 | Report: merge modules, remove the plug-in mechanism, then our own HTML writer if decided (C4, C5) | medium; checked by the report trial |
 | 5 | Test support switched off unless a test asks (D2); installer decision (C3) | low |

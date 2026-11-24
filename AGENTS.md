@@ -4,22 +4,22 @@ Applies to this repository and to **any** coding assistant operating on it. Read
 
 ## New-agent orientation: reading order
 
-Before changing code, check the current branch/revision and read the relevant documents. Current evidence outranks historical milestone reports.
+Before changing code, check the current branch/revision and read the relevant documents. Current evidence outranks
+anything in the git history.
 
 | Read | Purpose |
 |---|---|
-| [README](README.md) | Product, architecture and quickstart |
-| [Current state](docs/current-state.md) | Latest evidence, blocker and next safe action |
-| [Capabilities](docs/capabilities.md) | What is implemented versus verified |
-| [Feature roadmap](docs/feature-roadmap.md) | Open capability gaps |
-| [Development workflow](docs/development-workflow.md) | Investigation, changes, testing and handoff |
-| [Architecture decisions](docs/decisions.md) | Safety and ownership contracts |
-| [Java E2E](dev-e2e/README.md) | Test commands, environment and approvals |
-| [Claude evidence](docs/claude-acceptance-2026-11-23.md) | Reviewed single-trial observations and limits |
-| [Evaluation plan](docs/evaluation-plan.md) | Agent scoring and experiments |
-| [Development roadmap](docs/development-roadmap.md) | Prioritized next actions |
+| [README](README.md) | Product, current plan, and **Status and tracking**: the single list of open and finished work with its latest evidence |
+| [Development workflow](docs/development-workflow.md) | Architecture and source map; investigation, changes, testing and handoff |
+| [Architecture decisions](docs/decisions.md) | Safety and ownership contracts (ADRs) |
+| [Capabilities](docs/capabilities.md) | What is implemented versus verified; Spring Boot scenarios SB-01 to SB-10 |
+| [Feature catalog](docs/feature-roadmap.md) | Feature IDs and evidence; agent behaviour scenarios EV-01 to EV-16; research |
+| [Java E2E](dev-e2e/README.md) | Test commands, environment, approvals, setup checks |
+| [Designs](docs/design/README.md) | Agent Activity view and report designs |
 
-Read task-relevant files, not every historical report. Raw evaluation/reports/ is ignored by Git; never invent missing evidence or run paid Claude trials without approval.
+Read task-relevant files only. Raw `evaluation/reports/` is ignored by Git; never invent missing evidence or run paid
+Claude trials without approval. Dated phase reports were removed from `docs/` on 25 Nov 2026 (OPEN-38); use the git
+history if one is needed.
 
 ## Before changing anything
 
@@ -32,7 +32,7 @@ Read task-relevant files, not every historical report. Raw evaluation/reports/ i
 - Preserve personal Eclipse projects, user-owned breakpoints/JVMs/configurations, and unrelated Claude MCP registrations. NEVER silently modify `~/.claude.json`, delete a workspace, kill a user JVM, or enable permission bypass.
 - Dedicated tests use untracked `dev-e2e/e2e.properties`, a disposable Eclipse workspace, a nondefault bridge port, and authentication. Do not ask the user to manually `set AGENTDEBUG_PORT` in CMD.
 - Fixture POSTs require explicit `--approve-fixture-post`; Claude trials require explicit `--approve-claude`. The HTTP MCP reproduction tools are E2E-only and must verify fixture/launch ownership. Keep fixture bugs intentional for the debugger oracle.
-- Prefer small complete source files or a narrowly anchored, dry-run-first, idempotent Java patcher with backups under ignored `evaluation/reports/`. Never replace whole docs when a small insertion suffices. No automatic deletions.
+- Prefer small complete source files. Never replace whole docs when a small insertion suffices. No automatic deletions.
 
 ## Validation order
 
@@ -52,4 +52,4 @@ java dev-e2e/DevE2E.java test --approve-fixture-post
 
 ## Handoff and documentation
 
-Update README status and links, capabilities, roadmaps, evaluation/scenario docs, and architecture decisions only as the evidence warrants. Keep historical reports and still-needed specialized scripts. Run `git diff --check` and inspect the diff. Provide exact files/commands, test outcomes, remaining gaps, deployment/rollback needs and next priority. See [full workflow](docs/development-workflow.md).
+Update the README tracking table, capabilities, the feature catalog and architecture decisions only as the evidence warrants. Run `git diff --check` and inspect the diff. Provide exact files/commands, test outcomes, remaining gaps, deployment/rollback needs and next priority. See [full workflow](docs/development-workflow.md).

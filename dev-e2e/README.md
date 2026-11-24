@@ -86,7 +86,7 @@ Record a **baseline before deploying** a bridge change: 3 full `test --approve-f
 - [ ] Ownership checks 32/32 (`e2e-runner/ownership-tests/`)
 - [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass
 - [ ] Manual: Preferences → Configure/Verify; one real Claude investigation; your own breakpoints and session untouched while Claude debugs
-- [ ] Record commit, bundle, JDK and date in `docs/current-state.md`
+- [ ] Record commit, bundle, JDK and date in the README tracking table
 
 Rollback: `AGENTDEBUG_BRIDGE_MODE=legacy` (no reinstall), or revert the CORE-13 change.
 
@@ -185,12 +185,12 @@ Checks report `PASS`, `FAIL` or `NOT_CAPTURED`. Older transcripts without an inv
 
 For HTTP Claude trials, the runner uses the fresh repository MCP shaded JAR, an isolated test MCP configuration, test-only `start_fixture_http_request`/`get_fixture_http_request`/`cancel_fixture_http_request` tools and explicit `--approve-fixture-post`. The installed user-scoped MCP JAR can be a different revision; E2E does not update global registration. HTTP is asynchronous because request threads may suspend at breakpoints. Arbitrary URLs/production systems are not supported by these fixture tools. Keep original JSONL/manifest outside Git (ignored report directory).
 
-The updated installation passed all 23 direct scenarios **across separate runs**, but the most recent uninterrupted combined suite encountered six transient Boot-gap timeouts before later 7/7 isolated group success. Reconfirm a single full regression before release. [Detailed acceptance ledger and caveats](../docs/claude-acceptance-2026-11-23.md).
+The updated installation passed all 23 direct scenarios **across separate runs**, but the most recent uninterrupted combined suite encountered six transient Boot-gap timeouts before later 7/7 isolated group success. Reconfirm a single full regression before release. (The dated acceptance ledger is in the git history: `docs/claude-acceptance-2026-11-23.md`.)
 
 
 ## Retained test infrastructure
 
-Keep the Java verifiers in `e2e-runner/src/main/java/`, the Maven fixture modules, the optional skill under `skills/eclipse-debugger/` and existing Windows specialized scripts. The former PowerShell HTTP fixture client was removed after Java parity; **other PowerShell scripts still provide unported coverage**. `integrate` and `cleanup` commands are migration utilities, not everyday test steps. `UpdateRoadmapDocs.java` is an earlier one-time status updater; the top-level README now records current progress.
+Keep the Java verifiers in `e2e-runner/src/main/java/`, the 32-check ownership harness in `e2e-runner/ownership-tests/` (started by its own `run.ps1`; to be folded into the one runner, OPEN-38 step 6), the Maven fixture modules and the optional skill under `skills/eclipse-debugger/`. The older Windows batch and PowerShell runners, the `integrate`/`cleanup` migration modes and the one-off `dev-e2e` updaters were removed on 25 Nov 2026 (OPEN-38 step 1); the top-level README records current progress.
 
 For a release gate, record the exact source revision, Eclipse bundle identity, JDK, command and all six direct-suite JSON reports, rerun against a clean build and distinguish direct JDT evidence from Claude agent behavior.
 

@@ -8,7 +8,7 @@
 
 ## ADR-002 — Separate research from product claims
 
-**Decision:** Source observations and competitor comparisons live in `research-sources.md`; candidates and decisions in `feature-roadmap.md`; actual product claims and evidence in `capabilities.md`. Never label a feature “implemented” just because Eclipse IDE or IntelliJ supports it manually.
+**Decision:** Source observations and competitor comparisons live in the External research section of [feature-roadmap.md](feature-roadmap.md#external-research-rs-01-to-rs-07); candidates and decisions in `feature-roadmap.md`; actual product claims and evidence in `capabilities.md`. Never label a feature “implemented” just because Eclipse IDE or IntelliJ supports it manually.
 
 ## ADR-003 — Evidence gates before features
 
@@ -20,7 +20,7 @@
 
 ## ADR-005 — Bind ownership to the launched JVM
 
-An Eclipse launch configuration name can identify different JVMs over time. Investigations track the actual launch object, and the debugger validates the requested target before saving a new configuration. The installed ownership suite reproduced three failures on the preceding build and passed all 32 checks after the fixes. [Ownership evidence](phase1-implementation-status.md#installed-ownership-and-failure-checks-22-november-2026)
+An Eclipse launch configuration name can identify different JVMs over time. Investigations track the actual launch object, and the debugger validates the requested target before saving a new configuration. The installed ownership suite reproduced three failures on the preceding build and passed all 32 checks after the fixes. Ownership evidence (in the git history)
 
 ## ADR-006 — Bridge concurrency model (CORE-13)
 
