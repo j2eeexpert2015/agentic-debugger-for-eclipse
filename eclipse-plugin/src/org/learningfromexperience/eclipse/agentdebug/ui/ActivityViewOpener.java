@@ -10,8 +10,8 @@ import org.eclipse.ui.PerspectiveAdapter;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
-import org.learningfromexperience.eclipse.agentdebug.activity.ActivityPage;
-import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
+import org.learningfromexperience.agentdebug.report.activity.ActivityPage;
+import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 
 /**
  * Opens Agent Activity when an agent investigation starts, and shows an Eclipse notification when it ends (OPEN-36),

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+      The debugging session report and the Agent Activity page (OPEN-30, OPEN-36, ADR-009), one module since OPEN-38
+      step 4 (it merges report-model, report-format and report-chaintest):
+        - org.learningfromexperience.agentdebug.report: the investigation events, the recorder that isolates any
+          writer from debugging (AsyncReportRecorder: own thread, bounded queue, time limit), report file names,
+          redaction, the event JSON (ActivityEvents) and the HTML report writer (HtmlReportWriter);
+        - .report.format: HTML escaping, Markdown, colours per step kind and status, the details split, the JSON reader;
+        - .report.activity: ActivityStore and ActivityPage, the page of the Agent Activity view, also used as the
+          report, so view and report look the same.
+      No dependencies at all, so the Eclipse plugin can embed this jar (Bundle-ClassPath lib/report.jar, copied by
+      that module's build). Used by mcp-server (compile dependency, shaded into its jar).
+    -->
+    <groupId>org.learningfromexperience</groupId>
+    <artifactId>agentic-debugger-report</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Agentic Debugger Report</name>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.14.1</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.1</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

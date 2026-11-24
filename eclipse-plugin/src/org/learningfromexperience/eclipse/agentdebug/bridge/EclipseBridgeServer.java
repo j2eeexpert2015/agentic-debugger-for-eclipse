@@ -23,7 +23,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
+import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseDebugService;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseDebugService.DebugSessionInfo;
 import org.learningfromexperience.eclipse.agentdebug.debug.EclipseAgentOperations;

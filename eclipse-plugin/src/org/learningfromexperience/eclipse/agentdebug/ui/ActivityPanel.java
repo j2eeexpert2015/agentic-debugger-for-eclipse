@@ -19,8 +19,8 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.IWorkbenchPage;
-import org.learningfromexperience.eclipse.agentdebug.activity.ActivityPage;
-import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
+import org.learningfromexperience.agentdebug.report.activity.ActivityPage;
+import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 
 /**
  * The content of Agent Activity (OPEN-36): what the agent is doing, live, from {@link ActivityStore}. Used by both

@@ -156,7 +156,7 @@ public class DevE2E {
             else {
                 long builtAt = newest(repo.resolve("eclipse-update-site/target/repository"));
                 long changedAt = Math.max(newest(repo.resolve("eclipse-plugin/src")), Math.max(newest(repo.resolve("mcp-server/src")),
-                        Math.max(newest(repo.resolve("report-format/src")), newest(repo.resolve("report-chaintest/src")))));
+                        newest(repo.resolve("report/src"))));
                 if (changedAt > builtAt)
                     System.out.println("WARNING: source files changed after the last build (" + Instant.ofEpochMilli(changedAt)
                         + " > " + Instant.ofEpochMilli(builtAt) + "). 'deploy' installs the OLD build. Run 'mvn clean package' first if that is not intended.");

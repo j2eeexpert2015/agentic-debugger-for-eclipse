@@ -38,7 +38,7 @@ import org.learningfromexperience.agentdebug.report.ReportSettings;
  * before {@code begin_debug_investigation}) are not recorded: the report is about investigations.
  *
  * <p><b>Settings</b> (a Preferences setting follows): environment variable {@code AGENTDEBUG_REPORT}
- * ({@code chaintest} by default, {@code off} to switch reports off) and {@code AGENTDEBUG_REPORT_DIR}.
+ * ({@code html} by default, {@code off} to switch reports off; {@code chaintest}, the earlier name, still means {@code html}) and {@code AGENTDEBUG_REPORT_DIR}.
  * {@code AGENTDEBUG_REPORT_PROMPT}, set only by a test harness, is the exact prompt sent to the agent.
  *
  * <p><b>Where a report goes.</b> {@code AGENTDEBUG_REPORT_DIR} when set (trials use it); otherwise the
@@ -66,7 +66,7 @@ final class SessionReport {
     /** {@code off} switches the live Agent Activity events off (OPEN-36); on by default. */
     static final String ENV_LIVE = "AGENTDEBUG_LIVE";
     /** Writer used when {@code AGENTDEBUG_REPORT} is not set: reports are on by default. */
-    static final String DEFAULT_WRITER = "chaintest";
+    static final String DEFAULT_WRITER = "html";
     /** Folder created inside the Eclipse project for its reports. */
     static final String PROJECT_REPORTS = "debug-reports";
 

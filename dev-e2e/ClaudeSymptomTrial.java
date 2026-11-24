@@ -102,15 +102,17 @@ public final class ClaudeSymptomTrial {
     /**
      * Checks a debugging session report written during a trial (OPEN-30): it is one self-contained file with the
      * request, the agent's conclusion and the cleanup, and (with the skill) the agent's final answer gives its path.
+     * Since OPEN-38 step 4 the report is the Agent Activity page: the request is its "Request:" block, the conclusion
+     * its "From the agent" section, the cleanup a step; nothing may be loaded from outside the file.
      * Printed as one REPORT CHECK line next to the VERDICT; it does not change the verdict, which grades the debugging.
      */
     static String checkReport(Path report, Path transcript, boolean skillAllowed) throws Exception {
         String html = Files.readString(report, StandardCharsets.ISO_8859_1);
         List<String> missing = new java.util.ArrayList<>();
-        if (!html.contains("Request from the user")) missing.add("request card");
-        if (!html.contains("Conclusion by the agent")) missing.add("conclusion card (no summary at finish)");
-        if (!html.contains("Finished investigation and cleaned up") && !html.contains("Cleaned up automatically")) missing.add("cleanup card");
-        if (html.contains("href=\"resources/chaintest-pkg.css\"")) missing.add("self-contained file (stylesheet still linked)");
+        if (!html.contains("<span class=\"lbl\">Request: </span>")) missing.add("request");
+        if (!html.contains("<h2>From the agent</h2>")) missing.add("conclusion (no summary at finish)");
+        if (!html.contains("Finished investigation and cleaned up") && !html.contains("Cleaned up automatically")) missing.add("cleanup step");
+        if (html.contains("<link") || html.contains(" src=\"")) missing.add("self-contained file (something is loaded from outside)");
         if (skillAllowed) {
             String answer = "";
             for (String line : Files.readAllLines(transcript, StandardCharsets.UTF_8)) {
@@ -142,7 +144,7 @@ public final class ClaudeSymptomTrial {
                 + ", \"AGENTDEBUG_E2E_POST_APPROVED\": " + json(approvedPost ? "1" : "0")
                 // Reports are on by default in the MCP server; trials without --report switch them off, so nothing is
                 // written into the fixture projects and earlier trial results stay comparable.
-                + (reportFolder == null ? ", \"AGENTDEBUG_REPORT\": \"off\"" : ", \"AGENTDEBUG_REPORT\": \"chaintest\", \"AGENTDEBUG_REPORT_DIR\": "
+                + (reportFolder == null ? ", \"AGENTDEBUG_REPORT\": \"off\"" : ", \"AGENTDEBUG_REPORT\": \"html\", \"AGENTDEBUG_REPORT_DIR\": "
                         + json(reportFolder.toString()) + ", \"AGENTDEBUG_REPORT_PROMPT\": " + json(prompt))
                 + "}\n"
                 + "    }\n  }\n}\n";

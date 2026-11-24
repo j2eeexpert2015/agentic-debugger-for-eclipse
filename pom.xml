@@ -14,11 +14,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <modules>
-        <!-- Debugging session report (OPEN-30, ADR-009): event model, then the ChainTest writer; used by mcp-server -->
-        <module>report-model</module>
-        <!-- Shared by the report writer and the Eclipse plugin's Agent Activity view (OPEN-36); before both -->
-        <module>report-format</module>
-        <module>report-chaintest</module>
+        <!-- Debugging session report and Agent Activity page (OPEN-30, OPEN-36, ADR-009): events, isolation, the HTML
+             writer and the page; no dependencies. Used by mcp-server and embedded in eclipse-plugin (lib/report.jar) -->
+        <module>report</module>
         <module>mcp-server</module>
         <!-- Standalone setup utility; must follow mcp-server because it embeds the mcp-server jar -->
         <module>installer</module>

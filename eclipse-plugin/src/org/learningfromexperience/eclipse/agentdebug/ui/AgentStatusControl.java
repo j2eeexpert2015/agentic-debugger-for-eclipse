@@ -13,8 +13,8 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.menus.WorkbenchWindowControlContribution;
-import org.learningfromexperience.eclipse.agentdebug.activity.ActivityPage;
-import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
+import org.learningfromexperience.agentdebug.report.activity.ActivityPage;
+import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 
 /**
  * Agent status in the Eclipse status bar (OPEN-36): "● Agent: waiting for a stop · 12 s" in blue while an

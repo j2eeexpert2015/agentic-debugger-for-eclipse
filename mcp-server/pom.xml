@@ -42,27 +42,14 @@
         </dependency>
 
         <!--
-          Debugging session report (OPEN-30, ADR-009).
-          Rule 1, dependency direction: the MCP server compiles only against the event model. The ChainTest writer is
-          a RUNTIME dependency: it is shaded into the jar and found through ServiceLoader by name, but no MCP server
-          class can import it (the compiler enforces this). Reporting stays off until it is switched on (R1/R2).
+          Debugging session report and live events (OPEN-30, OPEN-36, ADR-009): the event model, the isolating
+          recorder, the HTML report writer, the shared JSON reader. One module without dependencies (OPEN-38 step 4:
+          the ChainTest writer and its library were replaced by the Agent Activity page as the report).
         -->
         <dependency>
             <groupId>org.learningfromexperience</groupId>
-            <artifactId>agentic-debugger-report-model</artifactId>
+            <artifactId>agentic-debugger-report</artifactId>
             <version>1.0.0-SNAPSHOT</version>
-        </dependency>
-        <!-- Shared JSON reader (Json), also used by the Eclipse plugin (OPEN-38 step 3) -->
-        <dependency>
-            <groupId>org.learningfromexperience</groupId>
-            <artifactId>agentic-debugger-report-format</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>org.learningfromexperience</groupId>
-            <artifactId>agentic-debugger-report-chaintest</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-            <scope>runtime</scope>
         </dependency>
 
         <!-- Unit tests (src/test/java), run by "mvn clean package"; test scope, never shaded into the jar -->
