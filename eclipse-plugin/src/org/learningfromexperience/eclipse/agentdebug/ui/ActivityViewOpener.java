@@ -14,9 +14,9 @@ import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
  * (OPEN-36), once per investigation each.
  *
  * <p>The view is shown with {@link IWorkbenchPage#VIEW_VISIBLE}: brought to the front of its own area, never
- * activated, so the keyboard stays where the user types (the Claude terminal). Its area is set by plugin.xml: to the
- * right of the Console, in the Java and the Debug perspective (a new or reset perspective; otherwise Eclipse keeps
- * the place where the user last had the view). If the user closes the view during an investigation, it is not opened
+ * activated, so the keyboard stays where the user types (the Claude terminal). Its area: to the right of the Console
+ * (plugin.xml for a new or reset perspective; {@link ActivityViewPlacement} moves it there when it shares a stack with
+ * other views, for example Variables, so no other view can hide it). If the user closes the view during an investigation, it is not opened
  * again until the next investigation.
  *
  * <p>The notification (bottom right, fades out by itself) says how the investigation ended, how long it took and the
@@ -60,6 +60,17 @@ public final class ActivityViewOpener {
 
     private static void notifyFinished(ActivityStore.Investigation inv) {
         try {
+            // The perspective may have changed during the run (for example to Debug): keep the view clear there too.
+            IWorkbenchWindow window = PlatformUI.isWorkbenchRunning() ? PlatformUI.getWorkbench().getActiveWorkbenchWindow() : null;
+            IWorkbenchPage page = window == null ? null : window.getActivePage();
+            if (page != null && page.findView(AgentActivityView.ID) != null) {
+                ActivityViewPlacement.ensureOwnArea(window);
+                page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_VISIBLE);
+            }
+        } catch (Exception | LinkageError ignored) {
+            // Placement is a convenience.
+        }
+        try {
             boolean finished = "FINISHED".equals(inv.outcome());
             String title = finished ? "Agent investigation finished" : "Agent investigation ended without a finish";
             org.eclipse.jface.notifications.NotificationPopup.forDisplay(Display.getDefault())
@@ -79,7 +90,12 @@ public final class ActivityViewOpener {
                 window = windows[0];
             }
             IWorkbenchPage page = window.getActivePage();
-            if (page != null) page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_VISIBLE);
+            if (page == null) return;
+            // Create it, give it an area of its own if it shares one with Variables or the Console, then bring it to
+            // the front of that area. Never activated: the keyboard stays where the user types.
+            page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_CREATE);
+            ActivityViewPlacement.ensureOwnArea(window);
+            page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_VISIBLE);
         } catch (Exception unavailable) {
             // Showing the view is a convenience; it must never affect debugging.
             System.err.println("[Eclipse Agentic Debugger] Could not open Agent Activity: " + unavailable.getMessage());

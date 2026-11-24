@@ -7,7 +7,7 @@
 ## Setup and safety
 
 - Java 21+ and Maven; Eclipse IDE with Java/JDT/JUnit (m2e for supplied Maven fixtures). The direct tests **do not require Claude or Python**.
-- Copy `e2e.properties.example` to **untracked** `dev-e2e/e2e.properties`. Specify `repository`, `eclipse`, `workspace`, `bridgePort` once. The workspace **must be disposable and dedicated**; the bridge port must not be default `8765`.
+- Copy `e2e.properties.example` to **untracked** `dev-e2e/e2e.properties` (on every machine: it is not in git). `java dev-e2e/DevE2E.java config` only checks it. Specify `repository`, `eclipse`, `workspace`, `bridgePort` once. The workspace **must be disposable and dedicated**; the bridge port must not be default `8765`.
 - The runner checks the running Eclipse identity before reuse. `test` does not install/rebuild the Eclipse plugin. `all`/`deploy` require the dedicated Eclipse instance to be **closed first**. Never point deployment at an IDE containing important work.
 - The failure fixtures are snapshots in the workspace. If the repository changes, close the dedicated Eclipse instance and run `java dev-e2e/SyncFailureFixtures.java` for the two failure fixtures, or rebuild a new disposable workspace. General automatic fixture synchronization remains to be implemented.
 
@@ -193,3 +193,22 @@ The updated installation passed all 23 direct scenarios **across separate runs**
 Keep the Java verifiers in `e2e-runner/src/main/java/`, the Maven fixture modules, the optional skill under `skills/eclipse-debugger/` and existing Windows specialized scripts. The former PowerShell HTTP fixture client was removed after Java parity; **other PowerShell scripts still provide unported coverage**. `integrate` and `cleanup` commands are migration utilities, not everyday test steps. `UpdateRoadmapDocs.java` is an earlier one-time status updater; the top-level README now records current progress.
 
 For a release gate, record the exact source revision, Eclipse bundle identity, JDK, command and all six direct-suite JSON reports, rerun against a clean build and distinguish direct JDT evidence from Claude agent behavior.
+
+## Checks before running, and failure messages
+
+Every command first checks this machine's setup and lists **all** problems at once, each with what to do, under
+`SETUP PROBLEM - nothing was changed.` (exit code 2). Nothing is built, installed or started until the checks pass.
+
+| Check | When |
+|---|---|
+| Run from the repository root (folder with `pom.xml` and `dev-e2e`) | always |
+| `dev-e2e/e2e.properties` exists (otherwise: the copy command and the lines to put in it, with this folder as `repository`) | always |
+| `repository` is the folder you run from; `eclipse` exists and has `eclipse.exe` and `eclipsec.exe`; `workspace` is a separate throwaway folder; `bridgePort` is a number 1024-65535, not 8765 | always |
+| Java 21 or newer | always |
+| Maven (`mvn`) on PATH | `build`, `all` |
+| A finished build to deploy (`eclipse-update-site/target/repository`); a WARNING when sources changed after it | `deploy` |
+| The `claude` command on PATH | Claude trials |
+
+Any other failure is one line, `FAILED: <what failed>` (exit code 1), for example a missing file or a test Eclipse
+that cannot be reached. Add `--trace` to the command to see the Java stack trace as well.
+

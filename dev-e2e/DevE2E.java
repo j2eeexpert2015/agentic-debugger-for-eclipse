@@ -22,27 +22,179 @@ public class DevE2E {
     private boolean claudeReport;
     private static final String IU = "org.learningfromexperience.eclipse.agentdebug.feature.feature.group";
 
+    /**
+     * A problem with this machine's setup, found before anything runs. Its message says what is wrong and what to do;
+     * main prints it without a stack trace.
+     */
+    static final class SetupProblem extends RuntimeException {
+        SetupProblem(String message) { super(message); }
+    }
+
+    private static final String PROPERTIES = "dev-e2e/e2e.properties";
+
     private DevE2E(Path source, String mode, boolean approval) throws Exception {
-        this.bundle = source.toRealPath();
         this.mode = mode;
         this.approval = approval;
-        Properties p = new Properties();
-        try (var in = Files.newInputStream(bundle.resolve("dev-e2e/e2e.properties"))) { p.load(in); }
+        List<String> problems = new ArrayList<>();
+        if (Runtime.version().feature() < 21)
+            problems.add("Java " + Runtime.version().feature() + " runs this tool; Java 21 or newer is needed (java -version shows which java is on PATH).");
+        Path root = source.toAbsolutePath().normalize();
+        if (!Files.isRegularFile(root.resolve("pom.xml")) || !Files.isRegularFile(root.resolve("dev-e2e/DevE2E.java")))
+            throw new SetupProblem("Run this from the repository root, the folder that contains pom.xml and dev-e2e."
+                + "\n  Current folder: " + root
+                + "\n  Example: cd C:\\path\\to\\agentic-debugger-for-eclipse  then  java dev-e2e/DevE2E.java " + mode);
+        this.bundle = root.toRealPath();
         this.repo = bundle;
-        String configuredRepository = expand(p.getProperty("repository", bundle.toString()));
-        if (!absolute(configuredRepository).equals(bundle)) throw new IllegalArgumentException("Run from configured repository root: " + configuredRepository);
-        this.eclipse = absolute(expand(required(p, "eclipse")));
-        this.workspace = absolute(expand(required(p, "workspace")));
-        this.port = Integer.parseInt(required(p, "bridgePort"));
-        if (port < 1024 || port > 65535 || port == 8765) throw new IllegalArgumentException("Configure a dedicated nondefault bridge port");
-        if (workspace.equals(repo) || workspace.equals(eclipse) || workspace.equals(Path.of(System.getProperty("user.home")).toAbsolutePath()))
-            throw new IllegalArgumentException("Unsafe test workspace: " + workspace);
-        if (!Files.isRegularFile(repo.resolve("pom.xml")) || !Files.isRegularFile(repo.resolve("e2e-runner/pom.xml")))
-            throw new IllegalArgumentException("Not a valid project checkout: " + repo);
+        Path settings = bundle.resolve(PROPERTIES);
+        if (!Files.isRegularFile(settings)) {
+            // A file that is almost the right one: Windows hides ".txt" ("e2e.properties.txt"), a typo, a space.
+            List<String> nearly = new ArrayList<>();
+            try (var files = Files.list(bundle.resolve("dev-e2e"))) {
+                files.map(f -> f.getFileName().toString())
+                    .filter(n -> !n.equals("e2e.properties.example"))
+                    .filter(n -> n.toLowerCase(Locale.ROOT).replace(" ", "").contains("e2e") && n.toLowerCase(Locale.ROOT).contains("propert"))
+                    .forEach(nearly::add);
+            } catch (IOException ignored) { }
+            if (!nearly.isEmpty())
+                throw new SetupProblem("Looked for " + settings + " but it is not there. In that folder there is: "
+                    + String.join(", ", nearly) + "\n  The file must be named exactly e2e.properties. Windows Explorer hides"
+                    + " extensions, so a file shown as \"e2e.properties\" can really be \"e2e.properties.txt\".\n  Fix: "
+                    + (windows() ? "ren \"dev-e2e\\" + nearly.get(0) + "\" e2e.properties" : "mv \"dev-e2e/" + nearly.get(0) + "\" dev-e2e/e2e.properties")
+                    + "\n  Check with: " + (windows() ? "dir dev-e2e" : "ls dev-e2e"));
+            throw new SetupProblem("Looked for " + settings + " but it is not there (the file is not in git; every"
+                + " machine needs its own copy, in the checkout you run from).\n"
+                + "  If you made it before, it may be in another checkout folder, or named differently ("
+                + (windows() ? "dir dev-e2e" : "ls dev-e2e") + " shows what is there).\n"
+                + "  To create it:\n"
+                + "  1. " + (windows() ? "copy dev-e2e\\e2e.properties.example dev-e2e\\e2e.properties"
+                                     : "cp dev-e2e/e2e.properties.example dev-e2e/e2e.properties") + "\n"
+                + "  2. edit it (forward slashes in paths):\n"
+                + "       repository=" + bundle.toString().replace('\\', '/') + "\n"
+                + "       eclipse=<the folder that contains eclipse" + (windows() ? ".exe" : "") + "; a separate Eclipse used only for tests>\n"
+                + "       workspace=${LOCALAPPDATA}/AgenticDebugger/java-e2e-workspace\n"
+                + "       bridgePort=21766\n"
+                + "  3. run 'java dev-e2e/DevE2E.java config' to check the settings.");
+        }
+        Properties p = new Properties();
+        try (var in = Files.newInputStream(settings)) { p.load(in); }
+        List<String> missing = new ArrayList<>();
+        for (String key : List.of("eclipse", "workspace", "bridgePort")) {
+            String v = p.getProperty(key, "").strip();
+            if (v.isBlank() || v.contains("CHANGE_ME")) missing.add(key);
+        }
+        if (!missing.isEmpty())
+            problems.add("Set " + String.join(", ", missing) + " in " + settings + " (see dev-e2e/e2e.properties.example).");
+
+        Path configuredRepository = absolute(expand(p.getProperty("repository", bundle.toString()).strip()));
+        if (!sameFolder(configuredRepository, bundle))
+            problems.add("'repository' in " + PROPERTIES + " is a different folder from where you run this:"
+                + "\n     repository = " + configuredRepository + "\n     you are in = " + bundle
+                + "\n   Set repository=" + bundle.toString().replace('\\', '/') + " (or run from the configured folder).");
+
+        Path eclipseDir = missing.contains("eclipse") ? null : absolute(expand(p.getProperty("eclipse").strip()));
+        if (eclipseDir != null) {
+            if (!Files.isDirectory(eclipseDir))
+                problems.add("'eclipse' folder does not exist: " + eclipseDir + "\n   Set it to the folder that contains eclipse" + (windows() ? ".exe" : "") + ".");
+            else {
+                if (!Files.isRegularFile(executable(eclipseDir, "eclipse")))
+                    problems.add("No " + executable(eclipseDir, "eclipse").getFileName() + " in the 'eclipse' folder " + eclipseDir
+                        + "\n   Point 'eclipse' at the installation folder itself (the one with eclipse" + (windows() ? ".exe" : "") + " and eclipse.ini).");
+                if (windows() && !Files.isRegularFile(eclipseDir.resolve("eclipsec.exe")))
+                    problems.add("No eclipsec.exe in " + eclipseDir + " (needed to install the plugin). Use a full Eclipse installation (EPP package).");
+            }
+        }
+        Path workspaceDir = missing.contains("workspace") ? null : absolute(expand(p.getProperty("workspace").strip()));
+        if (workspaceDir != null && (workspaceDir.equals(bundle) || (eclipseDir != null && workspaceDir.equals(eclipseDir))
+                || workspaceDir.equals(Path.of(System.getProperty("user.home")).toAbsolutePath())))
+            problems.add("'workspace' must be a separate, throwaway folder (not the repository, the Eclipse folder or your home): " + workspaceDir);
+
+        int bridge = -1;
+        if (!missing.contains("bridgePort")) {
+            try {
+                bridge = Integer.parseInt(p.getProperty("bridgePort").strip());
+                if (bridge < 1024 || bridge > 65535 || bridge == 8765)
+                    problems.add("'bridgePort' must be 1024-65535 and not 8765 (8765 is the normal Eclipse's port); for example bridgePort=21766.");
+            } catch (NumberFormatException notNumber) {
+                problems.add("'bridgePort' is not a number: " + p.getProperty("bridgePort") + " (for example bridgePort=21766).");
+            }
+        }
+        if (!Files.isRegularFile(bundle.resolve("e2e-runner/pom.xml")))
+            problems.add("This checkout has no e2e-runner/pom.xml: " + bundle + " (incomplete clone? run git status).");
+
+        if (!problems.isEmpty()) {
+            StringBuilder out = new StringBuilder("Fix " + (problems.size() == 1 ? "this" : "these " + problems.size() + " things")
+                + " in " + settings + " or on this machine, then run again:");
+            for (int i = 0; i < problems.size(); i++) out.append("\n ").append(i + 1).append(". ").append(problems.get(i));
+            throw new SetupProblem(out.toString());
+        }
+        this.eclipse = eclipseDir;
+        this.workspace = workspaceDir;
+        this.port = bridge;
+    }
+    private static boolean sameFolder(Path a, Path b) {
+        try {
+            if (Files.exists(a)) return a.toRealPath().equals(b.toRealPath());
+        } catch (IOException ignored) { }
+        return windows() ? a.toString().equalsIgnoreCase(b.toString()) : a.equals(b);
+    }
+    /**
+     * Checks before a mode starts its work, so it does not fail halfway: Maven for building, a finished build for
+     * deploying (and a warning when sources are newer than it), the claude command for Claude trials.
+     */
+    private void preflight(String mode, Map<String, List<String>> selected) {
+        List<String> problems = new ArrayList<>();
+        if ((mode.equals("build") || mode.equals("all")) && onPath(windows() ? "mvn.cmd" : "mvn") == null)
+            problems.add("Maven (mvn) is not on PATH. Install Maven 3.9+ and open a new terminal; 'mvn -v' must work.");
+        if (mode.equals("deploy")) {
+            Path features = repo.resolve("eclipse-update-site/target/repository/features");
+            boolean built = false;
+            try (var files = Files.list(features)) {
+                built = files.anyMatch(f -> f.getFileName().toString().startsWith("org.learningfromexperience.eclipse.agentdebug.feature_"));
+            } catch (IOException none) { }
+            if (!built)
+                problems.add("There is no build to deploy (" + features + " is missing or empty).\n   Run 'mvn clean package' first, or use 'all' to build and deploy in one go.");
+            else {
+                long builtAt = newest(repo.resolve("eclipse-update-site/target/repository"));
+                long changedAt = Math.max(newest(repo.resolve("eclipse-plugin/src")), Math.max(newest(repo.resolve("mcp-server/src")),
+                        Math.max(newest(repo.resolve("report-format/src")), newest(repo.resolve("report-chaintest/src")))));
+                if (changedAt > builtAt)
+                    System.out.println("WARNING: source files changed after the last build (" + Instant.ofEpochMilli(changedAt)
+                        + " > " + Instant.ofEpochMilli(builtAt) + "). 'deploy' installs the OLD build. Run 'mvn clean package' first if that is not intended.");
+            }
+        }
+        if (selected != null && selected.containsKey("claude") && onPath(windows() ? "claude.cmd" : "claude") == null
+                && onPath(windows() ? "claude.exe" : "claude") == null)
+            problems.add("The 'claude' command (Claude Code) is not on PATH, so Claude trials cannot run. 'claude --version' must work in this terminal.");
+        if (!problems.isEmpty()) {
+            StringBuilder out = new StringBuilder("Cannot start '" + mode + "':");
+            for (int i = 0; i < problems.size(); i++) out.append("\n ").append(i + 1).append(". ").append(problems.get(i));
+            throw new SetupProblem(out.toString());
+        }
+    }
+    private static Path onPath(String command) {
+        for (String dir : System.getenv().getOrDefault("PATH", "").split(File.pathSeparator)) {
+            if (dir.isBlank()) continue;
+            try {
+                Path candidate = Path.of(dir.strip().replace("\"", "")).resolve(command);
+                if (Files.isRegularFile(candidate)) return candidate;
+            } catch (InvalidPathException ignored) { }
+        }
+        return null;
+    }
+    /** Newest modification time of a file under the folder (0 when it does not exist). */
+    private static long newest(Path folder) {
+        if (!Files.isDirectory(folder)) return 0;
+        try (var files = Files.walk(folder)) {
+            return files.filter(Files::isRegularFile).mapToLong(f -> {
+                try { return Files.getLastModifiedTime(f).toMillis(); } catch (IOException e) { return 0; }
+            }).max().orElse(0);
+        } catch (IOException | UncheckedIOException e) {
+            return 0;
+        }
     }
     private static String required(Properties p, String key) {
         String v = p.getProperty(key, "").strip();
-        if (v.isBlank() || v.contains("CHANGE_ME")) throw new IllegalArgumentException("Set " + key + " in dev-e2e.properties");
+        if (v.isBlank() || v.contains("CHANGE_ME")) throw new SetupProblem("Set " + key + " in " + PROPERTIES);
         return v;
     }
     private static String expand(String s) {
@@ -599,7 +751,40 @@ public class DevE2E {
         System.out.printf("Mode: %s%nRepository: %s%nEclipse: %s%nWorkspace: %s%nBridge port: %d%n",
                 mode,repo,eclipse,workspace,port);
     }
-    public static void main(String[] args) throws Exception {
+    /**
+     * Runs the tool and turns failures into clear messages: a setup problem is explained with what to do (exit 2),
+     * any other failure is one line saying what failed (exit 1); --trace adds the Java stack trace.
+     */
+    public static void main(String[] args) {
+        boolean trace = Arrays.asList(args).contains("--trace");
+        String[] rest = Arrays.stream(args).filter(a -> !a.equals("--trace")).toArray(String[]::new);
+        try {
+            run(rest);
+        } catch (SetupProblem problem) {
+            System.err.println();
+            System.err.println("SETUP PROBLEM - nothing was changed.");
+            System.err.println(problem.getMessage());
+            if (trace) problem.printStackTrace();
+            System.exit(2);
+        } catch (Exception | Error failure) {
+            System.err.println();
+            System.err.println("FAILED: " + describeFailure(failure));
+            if (trace) failure.printStackTrace();
+            else System.err.println("(Add --trace to the command for the Java details.)");
+            System.exit(1);
+        }
+    }
+    static String describeFailure(Throwable failure) {
+        if (failure instanceof NoSuchFileException missing)
+            return "file or folder not found: " + missing.getFile() + (missing.getReason() == null ? "" : " (" + missing.getReason() + ")");
+        if (failure instanceof AccessDeniedException denied)
+            return "access denied: " + denied.getFile() + " (is it open in another program, or read-only?)";
+        if (failure instanceof java.net.ConnectException)
+            return "could not connect to the test Eclipse (" + failure.getMessage() + "). Is it running, and is bridgePort right?";
+        String message = failure.getMessage();
+        return message == null || message.isBlank() ? failure.getClass().getSimpleName() : message;
+    }
+    private static void run(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
             System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [selector] [--approve-fixture-post]");
             System.out.println("Selectors (one at most; none = the 23-scenario regression):");
@@ -612,10 +797,13 @@ public class DevE2E {
             System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
             System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
+            System.out.println("'config' only checks this machine's settings (dev-e2e/e2e.properties) and prints them.");
+            System.out.println("Add --trace to any command to see the Java details of a failure.");
             return;
         }
         if (!Set.of("config","integrate","cleanup","build","all","deploy","test","list").contains(args[0]))
-            throw new IllegalArgumentException("Unknown mode: "+args[0]);
+            throw new SetupProblem("Unknown mode: " + args[0] + ". Modes: config, list, integrate, cleanup, build, all, deploy, test"
+                + " ('java dev-e2e/DevE2E.java help' explains them).");
         Path root=Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         boolean approved=Arrays.asList(args).contains("--approve-fixture-post");
         DevE2E x=new DevE2E(root,args[0],approved);
@@ -654,11 +842,13 @@ public class DevE2E {
         if (args[0].equals("integrate")) return;
         if (args[0].equals("cleanup")) { x.cleanupObsoletePowerShellHttpClient(); return; }
         if (args[0].equals("build")) {
+            x.preflight("build", null);
             x.verifySources();
             x.runProcess(List.of(windows()?"mvn.cmd":"mvn","clean","package"),x.repo,Map.of(),900);
             return;
         }
         LinkedHashMap<String,List<String>> selected=select(args);
+        x.preflight(args[0], selected);
         if (args[0].equals("all")) x.buildAndDeploy(true);
         if (args[0].equals("deploy")) x.buildAndDeploy(false);
         x.test(selected);
