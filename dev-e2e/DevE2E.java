@@ -265,104 +265,10 @@ public class DevE2E {
         for (String filename : List.of("PhaseOneBridgeVerifier.java", "PhaseTwoBridgeVerifier.java",
                 "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java")) {
             check(Files.isRegularFile(repo.resolve("e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/" + filename)),
-                    "Missing committed Java verifier " + filename + ". Run the repository integration command first.");
+                    "Missing committed Java verifier " + filename + " (restore it from git: git checkout -- e2e-runner).");
         }
         check(Files.isRegularFile(repo.resolve("examples/spring-boot-debugging/src/main/java/org/learningfromexperience/bootfixture/orders/FixtureIdentityController.java")),
                 "Missing committed fixture identity controller");
-    }
-    /** One-time, idempotent migration: retain all Phase 2 assertions, remove the obsolete
-     * PowerShell HTTP child process. Git keeps the previous implementation recoverable. */
-    private void integratePhase2JavaHttp() throws Exception {
-        Path path=repo.resolve("e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/PhaseTwoBridgeVerifier.java");
-        String source=Files.readString(path, StandardCharsets.UTF_8);
-        if (source.contains("// JAVA_HTTP_ONLY_CLIENT_V1")) {
-            check(!source.contains("powershell.exe"), "Phase 2 has Java marker but still calls PowerShell; refusing partial migration");
-            return;
-        }
-        String head="    private Process startHttpFixtureClient(String launch, Path receipt, boolean approved, boolean invalid,";
-        int a=source.indexOf(head);
-        int b=source.indexOf("    private String launch(String owner)",a);
-        check(a >= 0 && b > a,"Unexpected PhaseTwoBridgeVerifier structure; refusing automatic modification: " + path);
-        String replacement="""
-                // JAVA_HTTP_ONLY_CLIENT_V1: Java transport; no shell/PowerShell child process.
-                private Process startHttpFixtureClient(String launch, Path receipt, boolean approved, boolean invalid,
-                        Path clientLog) throws IOException {
-                    String java = Path.of(System.getProperty("java.home"), "bin",
-                            System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java").toString();
-                    Path classes = root.resolve("e2e-runner/target/phase2-classes");
-                    if (!Files.isRegularFile(classes.resolve("org/learningfromexperience/agentdebug/e2e/JavaFixtureQuoteClient.class")))
-                        throw new IOException("Compile JavaFixtureQuoteClient first");
-                    List<String> args = new ArrayList<>(List.of(java, "-cp", classes.toString(),
-                            JavaFixtureQuoteClient.class.getName(), "--workspace", workspace.toString(),
-                            "--bridge-port", Integer.toString(port), "--launch-name", launch,
-                            "--receipt", receipt.toString()));
-                    if (approved) args.add("--approve-fixture-post");
-                    if (invalid) args.add("--invalid-quantity");
-                    return new ProcessBuilder(args).redirectErrorStream(true)
-                            .redirectOutput(clientLog.toFile()).start();
-                }
-
-                """;
-        source=source.substring(0,a)+replacement+source.substring(b);
-        source=source.replace("options.getOrDefault(\"http-client\", \"powershell\")", "options.getOrDefault(\"http-client\", \"java\")");
-        source=source.replace("List.of(\"powershell\", \"java\").contains(httpClient)", "\"java\".equals(httpClient)");
-        source=source.replace("--http-client java|powershell", "--http-client java");
-        Path temporary=Files.createTempFile(path.getParent(),"phase2-java-http-",".tmp");
-        try {
-            Files.writeString(temporary,source,StandardCharsets.UTF_8);
-            Files.move(temporary,path,StandardCopyOption.REPLACE_EXISTING);
-        } finally { Files.deleteIfExists(temporary); }
-        System.out.println("Integrated Java HTTP client into PhaseTwoBridgeVerifier.java (once).");
-    }
-    private void ensureIgnoreLocalConfig() throws Exception {
-        Path gitignore=repo.resolve(".gitignore");
-        String old=Files.exists(gitignore) ? Files.readString(gitignore) : "";
-        if (!old.lines().anyMatch(line -> line.strip().equals("/dev-e2e/e2e.properties"))) {
-            Files.writeString(gitignore, (old.endsWith("\n") || old.isEmpty() ? old : old+"\n")
-                    + "\n# Local Java E2E installation paths\n/dev-e2e/e2e.properties\n",StandardCharsets.UTF_8);
-            System.out.println("Ignored local dev-e2e/e2e.properties in .gitignore");
-        }
-    }
-    private void cleanupObsoletePowerShellHttpClient() throws Exception {
-        Path verifier=repo.resolve("e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/PhaseTwoBridgeVerifier.java");
-        String code=Files.readString(verifier);
-        check(code.contains("JAVA_HTTP_ONLY_CLIENT_V1") && !code.contains("powershell.exe"),
-                "Refusing cleanup: Java HTTP conversion is not complete");
-        Path legacyBatch=repo.resolve("scripts/windows/verify-phase2-eclipse.bat");
-        check(Files.isRegularFile(legacyBatch) && Files.readString(legacyBatch).contains("--http-client java"),
-                "Refusing cleanup: legacy batch compatibility path still uses old client");
-        boolean verified = false;
-        for (String reportName : List.of("phase2-java-live.json", "phase2-all-java-live.json")) {
-            Path report = repo.resolve("evaluation/reports/" + reportName);
-            if (!Files.isRegularFile(report)) continue;
-            String evidence = Files.readString(report);
-            long passes = evidence.split(java.util.regex.Pattern.quote("\"status\":\"PASS\""), -1).length - 1;
-            long cleanups = evidence.split(java.util.regex.Pattern.quote("\"cleanup\":true"), -1).length - 1;
-            if (evidence.contains("\"validation\":") && evidence.contains("\"ownership\":")
-                    && passes >= 2 && cleanups >= 2) {
-                verified = true;
-                System.out.println("Confirmed full Java validation + ownership PASS evidence: " + report);
-                break;
-            }
-        }
-        check(verified, "Refusing cleanup: first run BOTH Phase 2 Java scenarios and preserve their PASS report");
-        // Historical test reports remain. Replace only obsolete documentation links.
-        Path toolAudit = repo.resolve("docs/spring-boot-tool-audit.md");
-        if (Files.isRegularFile(toolAudit)) {
-            String oldAudit = Files.readString(toolAudit);
-            String oldLink = "[fixture client](../e2e-runner/boot-tests/Invoke-FixtureQuote.ps1)";
-            String newLink = "historical PowerShell fixture client (now replaced by [JavaFixtureQuoteClient.java](../e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/JavaFixtureQuoteClient.java))";
-            if (oldAudit.contains(oldLink)) {
-                Files.writeString(toolAudit, oldAudit.replace(oldLink, newLink), StandardCharsets.UTF_8);
-                System.out.println("Updated historical fixture-client reference in " + toolAudit);
-            }
-        }
-        // Do not delete related historical evidence, skill scripts or the Windows wrappers.
-        Path obsolete=repo.resolve("e2e-runner/boot-tests/Invoke-FixtureQuote.ps1");
-        if (Files.deleteIfExists(obsolete))
-            System.out.println("Removed obsolete PowerShell HTTP fixture client: " + obsolete);
-        else System.out.println("Obsolete PowerShell HTTP fixture client already absent.");
-        System.out.println("Preserved PowerShell developer and skill harness scripts: not yet replaced by Java.");
     }
     private void ensureNoRunningEclipseForDeploy() {
         String expected = eclipseExe().toAbsolutePath().normalize().toString();
@@ -483,11 +389,6 @@ public class DevE2E {
         throw new IllegalStateException("Eclipse did not start bridge within 5 minutes. Inspect "+workspace.resolve(".metadata/.log"));
     }
     private void test(Map<String, List<String>> selection) throws Exception {
-        String verifier = Files.readString(repo.resolve("e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/PhaseTwoBridgeVerifier.java"));
-        if (selection.containsKey("phase2") || selection.containsKey("boot-quote")) {
-            check(verifier.contains("JAVA_HTTP_ONLY_CLIENT_V1"),
-                    "Phase 2 Java client not integrated. Run: java dev-e2e/DevE2E.java integrate");
-        }
         if (selection.containsKey("phase2") || selection.containsKey("boot-quote")) {
             if (!approval) throw new IllegalArgumentException("HTTP tests require --approve-fixture-post");
         }
@@ -796,7 +697,7 @@ public class DevE2E {
     }
     private static void run(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
-            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|integrate|cleanup|build|all|deploy|test] [selector] [--approve-fixture-post]");
+            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|build|all|deploy|test] [selector] [--approve-fixture-post]");
             System.out.println("Selectors (one at most; none = the 23-scenario regression):");
             System.out.println("  --suite regression|extended|full");
             System.out.println("  --feature breakpoints,execution-control,inspection,junit,spring-boot,ownership,stop-events,abandoned-cleanup,bridge");
@@ -811,8 +712,8 @@ public class DevE2E {
             System.out.println("Add --trace to any command to see the Java details of a failure.");
             return;
         }
-        if (!Set.of("config","integrate","cleanup","build","all","deploy","test","list").contains(args[0]))
-            throw new SetupProblem("Unknown mode: " + args[0] + ". Modes: config, list, integrate, cleanup, build, all, deploy, test"
+        if (!Set.of("config","build","all","deploy","test","list").contains(args[0]))
+            throw new SetupProblem("Unknown mode: " + args[0] + ". Modes: config, list, build, all, deploy, test"
                 + " ('java dev-e2e/DevE2E.java help' explains them).");
         Path root=Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
         boolean approved=Arrays.asList(args).contains("--approve-fixture-post");
@@ -845,12 +746,6 @@ public class DevE2E {
             return;
         }
         x.verifySources();
-        if (args[0].equals("integrate") || args[0].equals("cleanup") || args[0].equals("all") || args[0].equals("deploy")) {
-            x.integratePhase2JavaHttp();
-            x.ensureIgnoreLocalConfig();
-        }
-        if (args[0].equals("integrate")) return;
-        if (args[0].equals("cleanup")) { x.cleanupObsoletePowerShellHttpClient(); return; }
         if (args[0].equals("build")) {
             x.preflight("build", null);
             x.verifySources();
