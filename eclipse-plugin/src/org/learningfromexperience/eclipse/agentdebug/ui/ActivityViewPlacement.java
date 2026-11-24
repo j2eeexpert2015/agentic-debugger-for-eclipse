@@ -12,20 +12,20 @@ import org.eclipse.e4.ui.model.application.ui.basic.MStackElement;
 import org.eclipse.e4.ui.model.application.ui.basic.MWindow;
 import org.eclipse.e4.ui.workbench.modeling.EModelService;
 import org.eclipse.core.runtime.Platform;
-import org.eclipse.core.runtime.preferences.InstanceScope;
-import org.eclipse.swt.graphics.Rectangle;
+import org.eclipse.ui.IViewPart;
+import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 
 /**
- * Puts the Agent Activity view where no other view hides it (OPEN-36): not Variables (brought to the front at every
- * first stop), not the Console (brought to the front whenever the program prints).
+ * Puts the docked Agent Activity view where no other view hides it (OPEN-36): not Variables (brought to the front at
+ * every first stop), not the Console (brought to the front whenever the program prints). Used when Preferences &gt;
+ * Agentic Debugger &gt; "Show Agent Activity in its own window" is off; by default Agent Activity is the
+ * {@link ActivityWindow}, which needs no placing.
  *
- * <p><b>Floating window (default).</b> The first time in a perspective, the view is detached into a floating window at
- * the right of the Eclipse window, from near the bottom to a little above the middle ({@link PerspectivePolicy#floatingBounds}); the user can drag it anywhere,
- * even to a second screen, and Eclipse keeps that place and size. A view that is floating is never moved. If the user
- * docks it again, it is not made floating again in that perspective, and the rule below applies. Preferences &gt;
- * Agentic Debugger turns the floating window off.
+ * <p><b>Floating views.</b> Until 25 Nov the view was detached into a floating view window per perspective (tag
+ * {@link #AUTO_FLOATED}); the switch to the Debug perspective hid it. With the own window on, such a view is closed
+ * ({@link #hideAutoFloated}). A view the user made floating by hand is left where it is.
  *
  * <p><b>Docked.</b>
  * plugin.xml declares an area of its own for a new or reset Java or Debug perspective. In a perspective that already
@@ -42,10 +42,8 @@ import org.eclipse.ui.PlatformUI;
 final class ActivityViewPlacement {
 
     static final String STACK_ID = "org.learningfromexperience.eclipse.agentdebug.activityStack";
-    /** Tag on the view once it was made floating automatically (kept in the workbench model across restarts). */
+    /** Tag on a view this plugin made floating (until 25 Nov; kept in the workbench model across restarts). */
     static final String AUTO_FLOATED = "agentdebug.activity.autoFloated";
-    /** Tag once the floating window was put at the right edge (corrects windows floated in the middle before). */
-    static final String PLACED_RIGHT = "agentdebug.activity.placedRight";
     private static final String CONSOLE = "org.eclipse.ui.console.ConsoleView";
     /** Share of the split area given to the Agent Activity stack. */
     private static final float RATIO = 0.45f;
@@ -83,34 +81,7 @@ final class ActivityViewPlacement {
                 log("the view is not in a tab group but in " + (current == null ? "nothing" : current.getClass().getSimpleName()));
                 return;
             }
-            Object holder = stack.getParent();
-            if (holder instanceof MWindow floatingWindow) {
-                // Floating: the user's place, left alone. Only a window floated before the place was corrected
-                // (it opened in the middle: the model's size of a maximized window is its restored size) is moved,
-                // once, to the right edge.
-                if (!view.getTags().contains(PLACED_RIGHT)) {
-                    view.getTags().add(PLACED_RIGHT);
-                    int[] at = firstBounds(window);
-                    floatingWindow.setX(at[0]);
-                    floatingWindow.setY(at[1]);
-                    floatingWindow.setWidth(at[2]);
-                    floatingWindow.setHeight(at[3]);
-                }
-                return;
-            }
-
-            boolean floating = PerspectivePolicy.floatingActivityView(InstanceScope.INSTANCE
-                    .getNode("org.learningfromexperience.eclipse.agentdebug").get(PerspectivePolicy.FLOATING_ACTIVITY_VIEW, null));
-            if (floating && !view.getTags().contains(AUTO_FLOATED)) {
-                // Once per perspective: if the user docks it again afterwards, that choice stays (handled below).
-                view.getTags().add(AUTO_FLOATED);
-                view.getTags().add(PLACED_RIGHT);
-                int[] at = firstBounds(window);
-                models.detach(view, at[0], at[1], at[2], at[3]);
-                Platform.getLog(ActivityViewPlacement.class).info("[Agentic Debugger] Agent Activity opened as a floating"
-                        + " window in perspective " + perspective.getElementId());
-                return;
-            }
+            if (stack.getParent() instanceof MWindow) return;            // floating: the user's place, left alone
             if (visibleChildren(stack) <= 1) return;                     // already alone in its stack: nothing to do
 
             MPartSashContainerElement relTo = stack;
@@ -136,6 +107,33 @@ final class ActivityViewPlacement {
                     + " in perspective " + perspective.getElementId());
         } catch (Exception | LinkageError unexpected) {
             log(unexpected.toString());
+        }
+    }
+
+    /**
+     * Closes the Agent Activity view in the page's perspective when this plugin made it floating earlier (tag
+     * {@link #AUTO_FLOATED}), so only the own window shows Agent Activity. Never throws.
+     */
+    static void hideAutoFloated(IWorkbenchWindow window, IWorkbenchPage page) {
+        try {
+            MWindow model = modelWindow(window);
+            EModelService models = modelService(window, model);
+            if (model == null || models == null) return;
+            MPerspective perspective = models.getActivePerspective(model);
+            if (perspective == null) return;
+            for (MPlaceholder view : models.findElements(perspective, AgentActivityView.ID, MPlaceholder.class, null)) {
+                if (!view.getTags().contains(AUTO_FLOATED)) continue;
+                Object parent = view.getParent();
+                if (!(parent instanceof MPartStack stack) || !(stack.getParent() instanceof MWindow)) continue;
+                view.getTags().remove(AUTO_FLOATED);
+                IViewPart part = page.findView(AgentActivityView.ID);
+                if (part != null) page.hideView(part);
+                Platform.getLog(ActivityViewPlacement.class).info("[Agentic Debugger] Closed the earlier floating Agent"
+                        + " Activity view in perspective " + perspective.getElementId() + "; it now has its own window");
+            }
+        } catch (Exception | LinkageError unexpected) {
+            Platform.getLog(ActivityViewPlacement.class).warn("[Agentic Debugger] Could not close the earlier floating"
+                    + " Agent Activity view: " + unexpected);
         }
     }
 
@@ -176,15 +174,6 @@ final class ActivityViewPlacement {
     private static void log(String reason) {
         Platform.getLog(ActivityViewPlacement.class).warn("[Agentic Debugger] Agent Activity stays where it is: " + reason
                 + ". You can drag its tab to the right half of the Console area once; Eclipse remembers that place.");
-    }
-
-    /**
-     * The first place and size of the floating window, from the Eclipse window as it is on screen (its shell). The
-     * workbench model keeps the restored size of a maximized window, which put the window in the middle.
-     */
-    private static int[] firstBounds(IWorkbenchWindow window) {
-        Rectangle shell = window.getShell().getBounds();
-        return PerspectivePolicy.floatingBounds(shell.x, shell.y, shell.width, shell.height);
     }
 
     private static int visibleChildren(MPartStack stack) {

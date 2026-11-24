@@ -8,7 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * JUnit 5 unit tests for {@link PerspectivePolicy} (PP-U1 to PP-U5, OPEN-35 and OPEN-36). No Eclipse needed: run by
+ * JUnit 5 unit tests for {@link PerspectivePolicy} (PP-U1 to PP-U6, OPEN-35 and OPEN-36). No Eclipse needed: run by
  * {@code mvn clean package}.
  *
  * @author Ayan Dutta
@@ -48,11 +48,11 @@ class PerspectivePolicyTest {
         assertFalse(PerspectivePolicy.jdkType(null));
     }
 
-    @Test @DisplayName("PP-U5 Agent Activity floats unless turned off; it first opens at the right edge, from near the bottom to above the middle")
+    @Test @DisplayName("PP-U5 Agent Activity has its own window unless turned off; it first opens at the right edge, from near the bottom to above the middle")
     void ppU5() {
         assertTrue(PerspectivePolicy.floatingActivityView(null), "never set: floating");
         assertTrue(PerspectivePolicy.floatingActivityView("true"));
-        assertFalse(PerspectivePolicy.floatingActivityView("false"), "turned off: own area next to the Console");
+        assertFalse(PerspectivePolicy.floatingActivityView("false"), "turned off: docked view next to the Console");
         // 1366 x 768 window: 478 wide (35%), 445 high (58%: from near the bottom to a little above the middle), at the right edge.
         assertEquals(java.util.Arrays.toString(new int[] {100 + 1366 - 478 - 8, 50 + 768 - 445 - 40, 478, 445}),
                 java.util.Arrays.toString(PerspectivePolicy.floatingBounds(100, 50, 1366, 768)));
@@ -62,5 +62,28 @@ class PerspectivePolicyTest {
         int[] small = PerspectivePolicy.floatingBounds(0, 0, 300, 200);
         assertTrue(small[0] >= 0 && small[1] >= 0, "never left of or above the window");
         assertTrue(small[2] <= 300 && small[3] <= 200, "never bigger than the window");
+    }
+
+    @Test @DisplayName("PP-U6 the Agent Activity window reopens where the user left it, unless that place is off every screen")
+    void ppU6() {
+        assertEquals("10,20,500,450", PerspectivePolicy.formatBounds(10, 20, 500, 450));
+        assertEquals(java.util.Arrays.toString(new int[] {10, 20, 500, 450}),
+                java.util.Arrays.toString(PerspectivePolicy.parseBounds("10,20,500,450")));
+        assertEquals(java.util.Arrays.toString(new int[] {-1900, 5, 600, 400}),
+                java.util.Arrays.toString(PerspectivePolicy.parseBounds(" -1900, 5 ,600,400")), "a left second screen");
+        assertEquals(null, PerspectivePolicy.parseBounds(null), "never saved");
+        assertEquals(null, PerspectivePolicy.parseBounds("10,20,500"), "malformed");
+        assertEquals(null, PerspectivePolicy.parseBounds("a,b,c,d"), "malformed");
+        assertEquals(null, PerspectivePolicy.parseBounds("10,20,50,450"), "too small to use");
+
+        java.util.List<int[]> one = java.util.List.<int[]>of(new int[] {0, 0, 1366, 728});
+        assertTrue(PerspectivePolicy.titleOnScreen(new int[] {880, 280, 478, 445}, one), "the first place");
+        assertTrue(PerspectivePolicy.titleOnScreen(new int[] {1200, 100, 478, 445}, one), "mostly off to the right, 166 px of the title still grabbable");
+        assertFalse(PerspectivePolicy.titleOnScreen(new int[] {1330, 100, 478, 445}, one), "only 36 px of the title visible");
+        assertFalse(PerspectivePolicy.titleOnScreen(new int[] {-1900, 5, 600, 400}, one), "the second screen is no longer connected");
+        assertFalse(PerspectivePolicy.titleOnScreen(new int[] {100, 720, 478, 445}, one), "title below the usable area");
+        java.util.List<int[]> two = java.util.List.<int[]>of(new int[] {0, 0, 1366, 728}, new int[] {-1920, 0, 1920, 1040});
+        assertTrue(PerspectivePolicy.titleOnScreen(new int[] {-1900, 5, 600, 400}, two), "on the second screen");
+        assertFalse(PerspectivePolicy.titleOnScreen(null, one));
     }
 }

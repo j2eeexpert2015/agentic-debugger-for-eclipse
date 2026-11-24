@@ -88,6 +88,10 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
     private void openView() {
         try {
             IWorkbenchWindow window = getWorkbenchWindow();
+            if (window != null && ActivityViewOpener.ownWindow()) {
+                ActivityWindow.open(window, true);       // the user asked for it: it becomes the active window
+                return;
+            }
             IWorkbenchPage page = window == null ? null : window.getActivePage();
             if (page == null) return;
             page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_CREATE);

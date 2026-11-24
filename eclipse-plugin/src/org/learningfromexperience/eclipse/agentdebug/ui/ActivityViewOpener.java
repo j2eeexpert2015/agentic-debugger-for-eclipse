@@ -14,14 +14,21 @@ import org.learningfromexperience.eclipse.agentdebug.activity.ActivityPage;
 import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
 
 /**
- * Opens the Agent Activity view when an agent investigation starts, and shows an Eclipse notification when it ends
- * (OPEN-36), once per investigation each.
+ * Opens Agent Activity when an agent investigation starts, and shows an Eclipse notification when it ends (OPEN-36),
+ * once per investigation each.
  *
- * <p>The view is shown with {@link IWorkbenchPage#VIEW_VISIBLE}: brought to the front of its own area, never
- * activated, so the keyboard stays where the user types (the Claude terminal). Its area: to the right of the Console
- * (plugin.xml for a new or reset perspective; {@link ActivityViewPlacement} moves it there when it shares a stack with
- * other views, for example Variables, so no other view can hide it). If the user closes the view during an investigation, it is not opened
- * again until the next investigation.
+ * <p><b>Own window (default).</b> {@link ActivityWindow}: belongs to the Eclipse window, not to a perspective, so the
+ * switch to the Debug perspective cannot hide it (user check 25 Nov 02:38: the floating view of the Java perspective
+ * disappeared at the switch). A floating view this plugin made earlier ({@link ActivityViewPlacement#AUTO_FLOATED}) is
+ * closed in each perspective it shows up in, so there is only one Agent Activity.
+ *
+ * <p><b>Docked view</b> (Preferences &gt; Agentic Debugger, own window off). The view is shown with
+ * {@link IWorkbenchPage#VIEW_VISIBLE}: brought to the front of its own area, never activated, so the keyboard stays
+ * where the user types (the Claude terminal). Its area: to the right of the Console (plugin.xml for a new or reset
+ * perspective; {@link ActivityViewPlacement} moves it there when it shares a stack with other views, for example
+ * Variables, so no other view can hide it); shown again in any perspective activated during an investigation.
+ *
+ * <p>In both cases: if the user closes it during an investigation, it is not opened again until the next one.
  *
  * <p>The notification (bottom right, fades out by itself) says how the investigation ended, how long it took and the
  * first line of the agent's analysis; it needs the {@code org.eclipse.jface.notifications} bundle, and without it
@@ -67,7 +74,9 @@ public final class ActivityViewOpener {
             // The perspective may have changed during the run (for example to Debug): keep the view clear there too.
             IWorkbenchWindow window = PlatformUI.isWorkbenchRunning() ? PlatformUI.getWorkbench().getActiveWorkbenchWindow() : null;
             IWorkbenchPage page = window == null ? null : window.getActivePage();
-            if (page != null && page.findView(AgentActivityView.ID) != null) {
+            if (ownWindow()) {
+                if (page != null) ActivityViewPlacement.hideAutoFloated(window, page);
+            } else if (page != null && page.findView(AgentActivityView.ID) != null) {
                 ActivityViewPlacement.ensureOwnArea(window);
                 page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_VISIBLE);
             }
@@ -104,7 +113,12 @@ public final class ActivityViewOpener {
                 if (debug != null && (page.getPerspective() == null || !DEBUG_PERSPECTIVE.equals(page.getPerspective().getId())))
                     page.setPerspective(debug);          // the page only: the Eclipse window is not brought to the front
             }
-            place(window, page);
+            if (ownWindow()) {
+                ActivityViewPlacement.hideAutoFloated(window, page);
+                ActivityWindow.open(window, false);
+            } else {
+                place(window, page);
+            }
         } catch (Exception | LinkageError unavailable) {
             // Showing the view is a convenience; it must never affect debugging.
             Platform.getLog(ActivityViewOpener.class).warn("[Agentic Debugger] Could not open Agent Activity: " + unavailable);
@@ -117,6 +131,12 @@ public final class ActivityViewOpener {
         page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_CREATE);
         ActivityViewPlacement.ensureOwnArea(window);
         page.showView(AgentActivityView.ID, null, IWorkbenchPage.VIEW_VISIBLE);
+    }
+
+    /** Agent Activity in its own window (default), or as a docked view: Preferences &gt; Agentic Debugger. */
+    static boolean ownWindow() {
+        return PerspectivePolicy.floatingActivityView(InstanceScope.INSTANCE
+                .getNode("org.learningfromexperience.eclipse.agentdebug").get(PerspectivePolicy.FLOATING_ACTIVITY_VIEW, null));
     }
 
     /**
@@ -135,8 +155,9 @@ public final class ActivityViewOpener {
     private static final java.util.Set<IWorkbenchWindow> watched = java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     /**
-     * Whatever changes the perspective during an investigation (this plugin, Eclipse's own setting, the user), the
-     * view is shown again in the new perspective, so it is never left behind.
+     * Whatever changes the perspective during an investigation (this plugin, Eclipse's own setting, the user): the
+     * docked view is shown again in the new perspective, so it is never left behind; with the own window, an earlier
+     * floating view of this plugin is closed there (the window itself is not affected by perspectives).
      */
     private static void listenToPerspectives(IWorkbenchWindow window) {
         synchronized (watched) {
@@ -145,13 +166,15 @@ public final class ActivityViewOpener {
         window.addPerspectiveListener(new PerspectiveAdapter() {
             @Override
             public void perspectiveActivated(IWorkbenchPage page, IPerspectiveDescriptor perspective) {
+                boolean ownWindow = ownWindow();
                 ActivityStore.Investigation current = ActivityStore.global().current();
-                if (current == null || !recent(current)) return;
+                if (!ownWindow && (current == null || !recent(current))) return;
                 Display display = Display.getDefault();
                 if (display == null || display.isDisposed()) return;
                 display.asyncExec(() -> {
                     try {
-                        place(window, page);
+                        if (ownWindow) ActivityViewPlacement.hideAutoFloated(window, page);
+                        else place(window, page);
                     } catch (Exception | LinkageError ignored) {
                         // A convenience only.
                     }

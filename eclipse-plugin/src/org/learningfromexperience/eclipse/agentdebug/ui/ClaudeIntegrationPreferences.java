@@ -56,18 +56,20 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
             }
         });
         Button floatingActivity = new Button(root, SWT.CHECK);
-        floatingActivity.setText("Show Agent Activity as a floating window");
+        floatingActivity.setText("Show Agent Activity in its own window");
         floatingActivity.setSelection(PerspectivePolicy.floatingActivityView(
                 settings.get(PerspectivePolicy.FLOATING_ACTIVITY_VIEW, null)));
         Label floatingHelp = new Label(root, SWT.WRAP);
-        floatingHelp.setText("On (default): Agent Activity opens in its own window at the bottom right of Eclipse; drag it "
-                + "anywhere, even to a second screen, and Eclipse keeps that place. No view or console output can hide it. "
-                + "Off: it opens in an area of its own next to the Console. Docking the window by hand also keeps it docked.");
+        floatingHelp.setText("On (default): Agent Activity opens in a window of its own at the right of Eclipse. It stays "
+                + "above Eclipse in every perspective; no perspective change, view or console output can hide it. Drag or "
+                + "resize it anywhere, even to a second screen, and it opens there next time. "
+                + "Off: it opens as a view in an area of its own next to the Console of each perspective.");
         GridData floatingLayout = new GridData(SWT.FILL, SWT.TOP, true, false);
         floatingLayout.widthHint = 500;
         floatingHelp.setLayoutData(floatingLayout);
         floatingActivity.addListener(SWT.Selection, event -> {
             settings.putBoolean(PerspectivePolicy.FLOATING_ACTIVITY_VIEW, floatingActivity.getSelection());
+            if (!floatingActivity.getSelection()) ActivityWindow.close();   // the docked view takes over
             try { settings.flush(); } catch (Exception error) {
                 status.setText("Failed to save the Agent Activity preference: " + error.getMessage());
             }

@@ -37,26 +37,75 @@ public final class PerspectivePolicy {
 
     private static final List<String> JDK_PACKAGES = List.of("java.", "javax.", "jdk.", "sun.", "com.sun.");
 
-    /** Preference key: show Agent Activity (OPEN-36) as a floating window; stored only when the user changes it. */
+    /**
+     * Preference key: show Agent Activity (OPEN-36) in its own window (true, default) or as a docked view (false);
+     * stored only when the user changes it. The key name is kept from the earlier floating view, so a user who turned
+     * floating off keeps the docked view.
+     */
     public static final String FLOATING_ACTIVITY_VIEW = "activityViewFloating";
 
-    /** Smallest size of the floating Agent Activity window when it is first opened. */
+    /** Preference key: where the user last put the Agent Activity window, as "x,y,width,height". */
+    public static final String ACTIVITY_WINDOW_BOUNDS = "activityWindowBounds";
+
+    /** Smallest size of the Agent Activity window when it is first opened. */
     public static final int FLOATING_MIN_WIDTH = 460, FLOATING_MIN_HEIGHT = 420;
+
+    /** Smallest size accepted from a saved place. */
+    private static final int SAVED_MIN = 200;
 
     private PerspectivePolicy() { }
 
     /**
-     * Whether Agent Activity opens as a floating window: yes unless the user turned it off. A floating window can be
-     * dragged anywhere (even to a second screen) and no view or console output can hide it.
+     * Whether Agent Activity opens in its own window: yes unless the user turned it off. The window belongs to the
+     * Eclipse window, not to a perspective, so no perspective change, view or console output can hide it, and it can be
+     * dragged anywhere (even to a second screen).
      */
     public static boolean floatingActivityView(String saved) {
         return saved == null || Boolean.parseBoolean(saved);
     }
 
+    /** A saved window place "x,y,width,height" as {x, y, width, height}; null when missing, malformed or too small. */
+    public static int[] parseBounds(String saved) {
+        if (saved == null) return null;
+        String[] parts = saved.trim().split(",");
+        if (parts.length != 4) return null;
+        int[] b = new int[4];
+        try {
+            for (int i = 0; i < 4; i++) b[i] = Integer.parseInt(parts[i].trim());
+        } catch (NumberFormatException malformed) {
+            return null;
+        }
+        return b[2] < SAVED_MIN || b[3] < SAVED_MIN ? null : b;
+    }
+
+    /** The form {@link #parseBounds} reads. */
+    public static String formatBounds(int x, int y, int width, int height) {
+        return x + "," + y + "," + width + "," + height;
+    }
+
     /**
-     * Where and how big the floating window first opens: at the right edge of the Eclipse window, reaching from near
-     * the bottom up to a little above the middle (58% of the window's height), about 35% of its width (460 to 640
-     * pixels; about 480 on a 1366 pixel screen), always inside the window. Afterwards Eclipse keeps whatever place and size the user gives it.
+     * Whether the window's title bar (its top 30 pixels) is on one of the screens enough to grab it: at least 100
+     * pixels wide (or the whole width of a narrower window) and 20 high. A saved place from a screen that is no longer
+     * connected fails this, and the window opens at its first place instead.
+     *
+     * @param bounds {x, y, width, height} of the window
+     * @param screens each screen's usable area as {x, y, width, height}
+     */
+    public static boolean titleOnScreen(int[] bounds, List<int[]> screens) {
+        if (bounds == null || screens == null) return false;
+        int top = bounds[1], bottom = bounds[1] + 30;
+        for (int[] s : screens) {
+            int wide = Math.min(s[0] + s[2], bounds[0] + bounds[2]) - Math.max(s[0], bounds[0]);
+            int high = Math.min(s[1] + s[3], bottom) - Math.max(s[1], top);
+            if (wide >= Math.min(100, bounds[2]) && high >= 20) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Where and how big the Agent Activity window first opens: at the right edge of the Eclipse window, reaching from
+     * near the bottom up to a little above the middle (58% of the window's height), about 35% of its width (460 to 640
+     * pixels; about 480 on a 1366 pixel screen), always inside the window. Afterwards it opens where the user last put it.
      * Returns {x, y, width, height}.
      */
     public static int[] floatingBounds(int windowX, int windowY, int windowWidth, int windowHeight) {
