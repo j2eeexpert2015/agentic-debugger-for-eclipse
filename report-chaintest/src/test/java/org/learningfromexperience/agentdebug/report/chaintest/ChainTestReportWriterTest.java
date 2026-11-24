@@ -122,7 +122,9 @@ class ChainTestReportWriterTest {
                 "  23 |     BigDecimal subtotal = request.unitPrice().multiply(BigDecimal.valueOf(request.quantity()));",
                 "> 24 |     int rate = percent / 100;",
                 "  25 |     BigDecimal discount = subtotal.multiply(BigDecimal.valueOf(rate));",
-                "  26 |     return new Quote(subtotal.subtract(discount));"));
+                "  26 |     return new Quote(subtotal.subtract(discount));",
+                ReportEvent.TECHNICAL_DETAILS,
+                "Tool: set_breakpoint", "lineNumber: 24", "Result: created=true, owner=agent"));
         writer.stepRecorded(step(StepKind.HTTP, StepStatus.OK, "Sent HTTP request: POST /orders/quote (discount scenario)", 20,
                 "POST /orders/quote {\"quantity\":2,\"unitPrice\":60,\"discountPercent\":10}", "Request id: r1 (pending)"));
         writer.stepRecorded(new ReportEvent.StepRecorded("inv-7f3a", Instant.now(), StepKind.STOP, StepStatus.OK,
@@ -175,23 +177,45 @@ class ChainTestReportWriterTest {
         assertTrue(html.contains("<style>" + ChainTestReportWriter.CSS + "</style>"), "filter bar not hidden");
         assertTrue(html.contains("rate        int           0"), "variable value missing");
         assertTrue(html.contains("&gt; 24 |     int rate = percent / 100;"), "source line missing");
-        assertTrue(html.contains("Investigation inv-7f3a - OrdersApplication"), "investigation not named after its launch");
+        assertTrue(html.contains("Debugging OrdersApplication</h6>"), "investigation not named after its launch");
+        assertTrue(html.contains("Investigation inv-7f3a"), "investigation ID missing from the description");
+        // Two parts with a heading each: request and analysis first, then what the agent did.
+        int fromAgent = html.indexOf("From the agent<small>");
+        int inEclipse = html.indexOf("What the agent did in Eclipse<small>");
+        assertTrue(fromAgent > 0 && fromAgent < html.indexOf("Request from the user")
+                && html.indexOf("Conclusion by the agent") < inEclipse
+                && inEclipse < html.indexOf("Set breakpoint: OrderService"), "section headings missing or in the wrong place");
         assertTrue(html.contains("data-bs-theme=\"\""), "light theme not set");
-        assertTrue(html.contains("<title>Agentic Debugger - Debugging Session Report</title>"), "page title missing");
+        assertTrue(html.contains("<title>Debugging OrdersApplication - debugging session report - "), "page title missing");
         // One self-contained file: stylesheet, script and screenshot are inside the HTML, not linked from resources/.
         assertFalse(html.contains("href=\"resources/chaintest-pkg.css\""), "stylesheet still linked");
         assertFalse(html.contains("src=\"resources/chaintest-pkg.js\""), "script still linked");
         assertFalse(html.contains("<img src=\"resources/"), "screenshot still linked");
         assertTrue(html.contains("<img src=\"data:image/png;base64,"), "screenshot not inlined");
         assertTrue(html.contains("<style id=\"style\">"), "stylesheet not inlined");
-        assertTrue(html.contains("Debugging Session Report  |"), "header missing");
+        assertTrue(html.contains("url(\"data:font/woff2;base64,"), "icon font not inlined: icons would show as empty boxes");
+        // Steps carry their kind for the colours and numbers; the cleanup card too.
+        assertTrue(html.contains("<span class=\"ad-k ad-k-breakpoint\"></span>Set breakpoint: OrderService, line 24"),
+                "breakpoint step not marked with its kind");
+        assertTrue(html.contains("<span class=\"ad-k ad-k-cleanup\"></span>"), "cleanup card not marked");
+        // Tool, arguments and raw result are collapsed under "Technical details", after what a reader needs.
+        int tech = html.indexOf("<details class=\"ad-tech\"><summary>Technical details</summary>");
+        assertTrue(tech > html.indexOf("&gt; 24 |     int rate = percent / 100;")
+                && html.indexOf("Tool: set_breakpoint") > tech
+                && html.indexOf("</details>", tech) > html.indexOf("Result: created=true, owner=agent"),
+                "technical details not collapsed after the reader's lines");
+        assertFalse(html.contains(ReportEvent.TECHNICAL_DETAILS), "the separator line itself must not be shown");
+        // Header: what was debugged, then what this page is, the product and the start time.
+        assertTrue(html.contains("Debugging OrdersApplication<small class=\"ad-sub\">Debugging session report  &#183;  "),
+                "header does not name what was debugged");
         for (String tag : List.of("BREAKPOINT", "STOP", "HTTP", "CONCLUSION", "CLEANUP", "Claude Code", "finished"))
             assertTrue(html.contains(">" + tag + "<"), "tag badge missing: " + tag);
         assertTrue(html.contains("Conclusion by the agent")
                 && html.contains("percent / 100 is integer division"), "conclusion missing");
         assertTrue(html.contains("Finished investigation and cleaned up"), "cleanup step missing");
         assertTrue(html.contains("test-container passed"), "a recovered tool error must not fail the investigation");
-        assertTrue(html.contains("1 tool call failed; the agent continued."), "failed call count missing");
+        assertTrue(html.contains("1 tool call of the agent was refused and retried"), "refused call count missing");
+        assertTrue(html.contains("this is not an error in the application"), "refused calls must not read as an application error");
         assertTrue(html.contains("List&lt;String&gt; &amp; &quot;quotes&quot; &amp; caf&#233;"), "text not escaped");
         assertFalse(html.contains("List<String>"), "unescaped text in report");
         assertFalse(html.contains("cdn.jsdelivr.net"), "report is not offline");
@@ -248,7 +272,9 @@ class ChainTestReportWriterTest {
         assertTrue(Files.isRegularFile(chosen), "the file chosen by the recorder was not used");
         String html = Files.readString(chosen, StandardCharsets.ISO_8859_1);
         assertEquals(1, html.split("Orders fixture not ready", -1).length - 1, "error shown more than once");
-        assertTrue(html.contains("Investigation 0d4fe8bf<"), "long ID not shortened in the name: " + html.contains("Investigation 0d4fe8bf"));
+        assertTrue(html.contains("Investigation 0d4fe8bf") && !html.contains("0d4fe8bf-c038"),
+                "long ID not shortened in the description");
+        assertTrue(html.contains(">Debugging session</h6>"), "an investigation without a launch is named \"Debugging session\"");
         assertTrue(html.contains("test-container failed"), "a cleanup problem must fail the investigation");
         // The investigation's own column runs from its container to its description (the tag table at the top is excluded).
         // Search for the element, not the bare class name: the stylesheet in <style> also mentions "test-container".
@@ -266,5 +292,42 @@ class ChainTestReportWriterTest {
         assertEquals("line 23: <code>int rate = percent / 100</code> is integer division",
                 ChainTestReportWriter.codeSpans(ChainTestReportWriter.html("line 23: `int rate = percent / 100` is integer division")));
         assertEquals("a ` b", ChainTestReportWriter.codeSpans("a ` b"));
+    }
+
+    @Test
+    @DisplayName("RC-U6 the agent's Markdown analysis is rendered: headings, paragraphs, lists, tables, code, bold; text stays escaped")
+    void rcU6() {
+        String analysis = String.join("\n",
+                "## Root cause",
+                "Line 23 computes `int rate = percent / 100`, which is **integer division**.",
+                "So the discount is never applied.",
+                "",
+                "- percent = 10",
+                "- rate = 0",
+                "",
+                "1. Stop at line 24",
+                "2. Read the locals",
+                "",
+                "| Variable | Value |",
+                "|---|---|",
+                "| `rate` | **0** |",
+                "",
+                "```java",
+                "int rate = percent / 100; // <0>",
+                "```",
+                "<script>alert(1)</script>");
+        String html = ChainTestReportWriter.markdown(analysis);
+        assertEquals("<div class=\"ad-md\">"
+                + "<div class=\"ad-h\">Root cause</div>"
+                + "<p>Line 23 computes <code>int rate = percent / 100</code>, which is <strong>integer division</strong>. "
+                + "So the discount is never applied.</p>"
+                + "<ul><li>percent = 10</li><li>rate = 0</li></ul>"
+                + "<ol><li>Stop at line 24</li><li>Read the locals</li></ol>"
+                + "<table><tr><th>Variable</th><th>Value</th></tr><tr><td><code>rate</code></td><td><strong>0</strong></td></tr></table>"
+                + "<code class=\"ad-block\">int rate = percent / 100; // &lt;0&gt;</code>"
+                + "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>"
+                + "</div>", html);
+        assertEquals("<div class=\"ad-md\"><p>Plain text only.</p></div>", ChainTestReportWriter.markdown("Plain text only."));
+        assertEquals("<div class=\"ad-md\"></div>", ChainTestReportWriter.markdown(null));
     }
 }

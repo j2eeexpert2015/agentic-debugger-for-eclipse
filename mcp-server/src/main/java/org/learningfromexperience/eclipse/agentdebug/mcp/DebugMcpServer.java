@@ -52,7 +52,7 @@ public class DebugMcpServer {
                 "[Eclipse Agentic Debugger] Starting MCP server..."
         );
 
-        // OPEN-30: debugging session report. Off unless AGENTDEBUG_REPORT names a writer (ADR-009).
+        // OPEN-30: debugging session report. On by default; AGENTDEBUG_REPORT=off switches it off (ADR-009).
         REPORT = SessionReport.fromEnvironment(System.getenv(), System.err);
 
         // CORE-17: notice when the agent goes away (stdin closed) and finish its open investigations.
@@ -264,12 +264,15 @@ public class DebugMcpServer {
                         + "removes only its own newly created breakpoints, and leaves user sessions and breakpoints intact. "
                         + "CONTROLLED preserves the debug session suspended and breakpoints for inspection. "
                         + "Call once after reporting actual evidence, even if a debugger step fails. "
-                        + "Pass summary: your conclusion in two or three sentences (root cause and the evidence for it); "
-                        + "it closes the debugging session report. Then call get_investigation_report.",
+                        + "Pass summary: your complete analysis in Markdown, the same findings you will give the user "
+                        + "(reproduced symptom, runtime evidence with frames and values, root cause or what remains "
+                        + "uncertain, fix suggestion not applied); it is shown in full at the top of the debugging session "
+                        + "report. Then call get_investigation_report.",
                 Map.of("investigationId", str(),
                         // Only for the session report (OPEN-30); never sent to Eclipse.
                         "summary", Map.of("type", "string", "description",
-                                "Your conclusion: the root cause and the evidence that shows it")),
+                                "Your complete analysis in Markdown (headings, lists, tables and code are rendered): "
+                                        + "symptom, runtime evidence, root cause, fix suggestion")),
                 List.of("investigationId"),
                 a -> "FINISH_INVESTIGATION " + enc(arg(a,"investigationId"))));
         // OPEN-30: where the debugging session report of an investigation is (answered by the MCP server itself).

@@ -563,7 +563,7 @@ public final class EclipseAgentOperations {
         if (investigation != null) investigation.recordLaunch(config.getName(), launched, true);
         ui.follow(launched);
         return ok(",\"launchName\":" + q(config.getName())
-                + ",\"projectName\":" + q(projectName)
+                + ",\"projectName\":" + q(projectName) + projectLocation(config)
                 + ",\"typeName\":" + q(typeName) + ",\"methodName\":" + q(methodName));
     }
 
@@ -581,7 +581,7 @@ public final class EclipseAgentOperations {
         ILaunch replacement = configuration.launch(ILaunchManager.DEBUG_MODE, null);
         investigation.replaceOwnedLaunch(name, old, replacement);
         ui.follow(replacement);
-        return ok(",\"launchName\":" + q(name) + ",\"restarted\":true");
+        return ok(",\"launchName\":" + q(name) + ",\"restarted\":true" + projectLocation(configuration));
     }
 
     private String setStepFilters(String[] p) throws CoreException {
@@ -754,17 +754,35 @@ public final class EclipseAgentOperations {
             if (investigation != null) investigation.recordLaunch(name, existing, false);
             ui.follow(existing);
             return ok(",\"launchName\":" + q(name)
-                    + ",\"createdConfiguration\":" + created + ",\"reusedSession\":true");
+                    + ",\"createdConfiguration\":" + created + ",\"reusedSession\":true" + projectLocation(config));
         }
         if (investigation != null) investigation.verifyNewLaunch(name);
         ILaunch started = config.launch(ILaunchManager.DEBUG_MODE, null);
         if (investigation != null) investigation.recordLaunch(name, started, true);
         ui.follow(started);
         return ok(",\"launchName\":" + q(name)
-                + ",\"createdConfiguration\":" + created + ",\"reusedSession\":false");
+                + ",\"createdConfiguration\":" + created + ",\"reusedSession\":false" + projectLocation(config));
     }
 
     private static ILaunchManager manager() { return DebugPlugin.getDefault().getLaunchManager(); }
+
+    /**
+     * {@code ,"projectLocation":"<folder>"} for the Eclipse project of a launch configuration, or nothing when the
+     * configuration names no project or the project has no local folder. The MCP server writes the debugging session
+     * report into this project (OPEN-30); the field is informational for every other client.
+     */
+    private static String projectLocation(ILaunchConfiguration configuration) {
+        try {
+            String projectName = configuration == null ? ""
+                    : configuration.getAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "");
+            if (projectName.isBlank()) return "";
+            IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+            if (!project.exists() || project.getLocation() == null) return "";
+            return ",\"projectLocation\":" + q(project.getLocation().toOSString());
+        } catch (CoreException | RuntimeException unavailable) {
+            return "";
+        }
+    }
 
     private String startDebug(String[] p) throws CoreException {
         String investigationId = optionalInvestigation(p, 2);
@@ -783,13 +801,13 @@ public final class EclipseAgentOperations {
         if (existing != null) {
             if (investigation != null) investigation.recordLaunch(name, existing, false);
             ui.follow(existing);
-            return ok(",\"reused\":true,\"launchName\":" + q(name));
+            return ok(",\"reused\":true,\"launchName\":" + q(name) + projectLocation(found));
         }
         if (investigation != null) investigation.verifyNewLaunch(name);
         ILaunch started = found.launch(ILaunchManager.DEBUG_MODE, null);
         if (investigation != null) investigation.recordLaunch(name, started, true);
         ui.follow(started);
-        return ok(",\"reused\":false,\"launchName\":" + q(name));
+        return ok(",\"reused\":false,\"launchName\":" + q(name) + projectLocation(found));
     }
 
     private static ILaunch activeLaunch(String name) {

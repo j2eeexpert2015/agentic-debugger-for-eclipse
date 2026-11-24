@@ -41,6 +41,8 @@ public final class FixtureHttpTools {
     private static final String APP = "OrdersApplication";
     private static final Pattern PID = Pattern.compile("Starting OrdersApplication[^\\r\\n]*?with PID (\\d+)");
     private static final Pattern PORT = Pattern.compile("Tomcat started on port (\\d+)");
+    /** How long start_fixture_http_request waits for the fixture to finish starting. */
+    static final long READY_TIMEOUT_MS = 45_000;
     private static final Map<String, Pending> REQUESTS = new ConcurrentHashMap<>();
     private static final HttpClient HTTP = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
@@ -68,7 +70,8 @@ public final class FixtureHttpTools {
                         .description("TEST FIXTURE ONLY. Begin an asynchronous POST to the owned, disposable OrdersApplication "
                                 + "to reproduce the discount bug or invalid-quantity HTTP 400. Requires explicit "
                                 + "test consent, an active NORMAL investigation owning the selected launch, and "
-                                + "verified localhost fixture identity. Returns requestId immediately; breakpoint "
+                                + "verified localhost fixture identity. Waits up to 45 s for the fixture to finish "
+                                + "starting, so it can be called right after the launch. Returns requestId; breakpoint "
                                 + "can pause the request thread. Inspect frames, resume thread, then call "
                                 + "get_fixture_http_request to obtain the actual response. No Bash/curl needed.")
                         .build())
@@ -133,15 +136,26 @@ public final class FixtureHttpTools {
                 "Another fixture HTTP request is already pending; resume or cancel it first");
         require(REQUESTS.size() < 12, "Bounded fixture HTTP request limit reached");
 
-        Map<String,Object> output = obj(Json.parse(bridge.call("GET_PROCESS_OUTPUT " + enc(launch))));
-        successBridge(output);
-        List<?> processes = array(output.get("processes"));
-        require(processes.size() == 1, "Expected exactly one process in the owned fixture launch");
-        Map<String,Object> process = obj(processes.get(0));
-        String logs = value(process,"stdout") + "\n" + value(process,"stderr")
-                + "\n" + value(process,"console");
-        Matcher pm = PID.matcher(logs), tm = PORT.matcher(logs);
-        require(pm.find() && tm.find(), "Orders fixture not ready; retry when Tomcat startup is visible");
+        // Wait for the fixture to finish starting instead of refusing: agents call this right after the launch,
+        // while Spring Boot is still starting (about 5 to 15 s), and every refusal cost a retry and showed up as a
+        // failed step in the debugging session report (OPEN-30).
+        long deadline = System.currentTimeMillis() + READY_TIMEOUT_MS;
+        Matcher pm, tm;
+        while (true) {
+            Map<String,Object> output = obj(Json.parse(bridge.call("GET_PROCESS_OUTPUT " + enc(launch))));
+            successBridge(output);
+            List<?> processes = array(output.get("processes"));
+            require(processes.size() == 1, "Expected exactly one process in the owned fixture launch");
+            Map<String,Object> process = obj(processes.get(0));
+            String logs = value(process,"stdout") + "\n" + value(process,"stderr")
+                    + "\n" + value(process,"console");
+            pm = PID.matcher(logs);
+            tm = PORT.matcher(logs);
+            if (pm.find() && tm.find()) break;
+            require(System.currentTimeMillis() < deadline, "Orders fixture did not finish starting within "
+                    + READY_TIMEOUT_MS / 1000 + " s; check the program output for a startup error");
+            Thread.sleep(500);
+        }
         long pid = Long.parseLong(pm.group(1));
         int port = Integer.parseInt(tm.group(1));
         require(port >= 1024 && port <= 65535, "Invalid fixture HTTP port");

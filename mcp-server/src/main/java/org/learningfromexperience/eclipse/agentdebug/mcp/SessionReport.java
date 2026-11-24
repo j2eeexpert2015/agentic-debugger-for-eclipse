@@ -36,9 +36,14 @@ import org.learningfromexperience.agentdebug.report.ReportSettings;
  * {@code launchName} the call names; the only open investigation. Calls outside any open investigation (ping, lists
  * before {@code begin_debug_investigation}) are not recorded: the report is about investigations.
  *
- * <p><b>Settings</b> (a Preferences setting follows): environment variable {@code AGENTDEBUG_REPORT} ({@code off} by
- * default, or {@code chaintest}) and {@code AGENTDEBUG_REPORT_DIR} (default {@code ~/.eclipse-agentdebug/reports}).
+ * <p><b>Settings</b> (a Preferences setting follows): environment variable {@code AGENTDEBUG_REPORT}
+ * ({@code chaintest} by default, {@code off} to switch reports off) and {@code AGENTDEBUG_REPORT_DIR}.
  * {@code AGENTDEBUG_REPORT_PROMPT}, set only by a test harness, is the exact prompt sent to the agent.
+ *
+ * <p><b>Where a report goes.</b> {@code AGENTDEBUG_REPORT_DIR} when set (trials use it); otherwise the
+ * {@value #PROJECT_REPORTS} folder inside the Eclipse project of the application the investigation launched (the
+ * plugin returns the project's location with every launch); otherwise, when nothing was launched or the project
+ * folder is not writable, {@code ~/.eclipse-agentdebug/reports}.
  *
  * <p><b>One report per investigation</b>, named by {@link ReportFiles}
  * ({@code OrdersApplication_2026-11-24_10-39-31.html}). This class chooses the file when the investigation ends,
@@ -57,6 +62,10 @@ final class SessionReport {
     static final String ENV_WRITER = "AGENTDEBUG_REPORT";
     static final String ENV_DIR = "AGENTDEBUG_REPORT_DIR";
     static final String ENV_PROMPT = "AGENTDEBUG_REPORT_PROMPT";
+    /** Writer used when {@code AGENTDEBUG_REPORT} is not set: reports are on by default. */
+    static final String DEFAULT_WRITER = "chaintest";
+    /** Folder created inside the Eclipse project for its reports. */
+    static final String PROJECT_REPORTS = "debug-reports";
 
     private static final Set<String> LAUNCH = Set.of("start_java_application", "start_junit_test",
             "start_debug_session", "restart_debug_session");
@@ -79,8 +88,12 @@ final class SessionReport {
     private static final String NO_RETURN_VALUE = "no method return value";
 
     private final ReportRecorder recorder;
-    /** Folder for this session's reports; null when reporting is off. */
+    /** Fixed folder for all reports ({@code AGENTDEBUG_REPORT_DIR}); null: each report goes to its project. */
     private final Path folder;
+    /** Folder when the project is unknown or not writable. */
+    private final Path fallback;
+    /** Location of the Eclipse project each open investigation launched, as returned by the plugin. */
+    private final Map<String, Path> projects = new HashMap<>();
     /** The exact prompt sent to the agent, when a test harness knows it; otherwise null. */
     private final String exactPrompt;
     private final PrintStream log;
@@ -100,24 +113,30 @@ final class SessionReport {
     SessionReport(ReportRecorder recorder, Path folder, String exactPrompt, PrintStream log) {
         this.recorder = recorder;
         this.folder = folder;
+        this.fallback = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "reports");
         this.exactPrompt = exactPrompt == null || exactPrompt.isBlank() ? null : exactPrompt;
         this.log = log;
     }
 
-    /** Reads the settings from the environment; reporting is off unless {@code AGENTDEBUG_REPORT} names a writer. */
+    /**
+     * Reads the settings from the environment. Reporting is on by default ({@value #DEFAULT_WRITER});
+     * {@code AGENTDEBUG_REPORT=off} switches it off.
+     */
     static SessionReport fromEnvironment(Map<String, String> env, PrintStream err) {
         try {
-            String writer = env.getOrDefault(ENV_WRITER, ReportSettings.OFF);
+            String writer = env.get(ENV_WRITER) == null || env.get(ENV_WRITER).isBlank()
+                    ? DEFAULT_WRITER : env.get(ENV_WRITER);
             ReportSettings probe = new ReportSettings(writer, Path.of("."), null);
             if (probe.off()) return new SessionReport(ReportRecorder.off());
-            Path base = env.containsKey(ENV_DIR) && !env.get(ENV_DIR).isBlank()
-                    ? Path.of(env.get(ENV_DIR))
+            Path fixed = env.containsKey(ENV_DIR) && !env.get(ENV_DIR).isBlank()
+                    ? Path.of(env.get(ENV_DIR)).toAbsolutePath().normalize() : null;
+            Path writerFolder = fixed != null ? fixed
                     : Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "reports");
-            Path folder = base.toAbsolutePath().normalize();
             ReportRecorder recorder = ReportRecorders.create(
-                    new ReportSettings(writer, folder, "Agentic Debugger for Eclipse"), err);
-            if (recorder.active()) err.println("[Eclipse Agentic Debugger] Debugging session reports go to " + folder);
-            return new SessionReport(recorder, recorder.active() ? folder : null, env.get(ENV_PROMPT), err);
+                    new ReportSettings(writer, writerFolder, "Agentic Debugger for Eclipse"), err);
+            if (recorder.active()) err.println("[Eclipse Agentic Debugger] Debugging session reports go to "
+                    + (fixed != null ? fixed : "the " + PROJECT_REPORTS + " folder of each launched Eclipse project"));
+            return new SessionReport(recorder, fixed, env.get(ENV_PROMPT), err);
         } catch (Throwable failure) {
             err.println("[Eclipse Agentic Debugger] Session report disabled: " + failure);
             return new SessionReport(ReportRecorder.off());
@@ -195,9 +214,9 @@ final class SessionReport {
      */
     synchronized String reportInfo(String investigationId) {
         try {
-            if (folder == null)
+            if (!recorder.active())
                 return "{\"status\":\"success\",\"enabled\":false,\"message\":"
-                        + quote("Debugging session reports are off. Set AGENTDEBUG_REPORT=chaintest for the MCP server to turn them on.") + "}";
+                        + quote("Debugging session reports are switched off for this MCP server (AGENTDEBUG_REPORT=off).") + "}";
             Path file = null;
             String id = investigationId;
             if (id != null && !id.isBlank()) file = reports.get(id);
@@ -206,13 +225,14 @@ final class SessionReport {
             }
             if (file == null) {
                 boolean stillOpen = id != null && open.contains(id);
-                return "{\"status\":\"success\",\"enabled\":true,\"reportFolder\":" + quote(folder.toString())
+                return "{\"status\":\"success\",\"enabled\":true"
+                        + (folder != null ? ",\"reportFolder\":" + quote(folder.toString()) : "")
                         + ",\"message\":" + quote(stillOpen || (id == null && !open.isEmpty())
                         ? "The report is written when the investigation is finished: call finish_debug_investigation first."
                         : "No finished investigation in this session yet.") + "}";
             }
             return "{\"status\":\"success\",\"enabled\":true,\"investigationId\":" + quote(id)
-                    + ",\"reportFile\":" + quote(file.toString()) + ",\"reportFolder\":" + quote(folder.toString())
+                    + ",\"reportFile\":" + quote(file.toString()) + ",\"reportFolder\":" + quote(file.getParent().toString())
                     + ",\"message\":" + quote("Tell the user the full path of the report: " + file) + "}";
         } catch (Throwable failure) {
             return "{\"status\":\"error\",\"message\":" + quote("Report location unavailable: " + failure.getMessage()) + "}";
@@ -221,12 +241,24 @@ final class SessionReport {
 
     /** The report file of an ending investigation; printed on stderr so it appears in the MCP server's log. */
     private Path chooseReport(String id) {
-        if (folder == null) return null;
-        Path file = org.learningfromexperience.agentdebug.report.ReportFiles.reserve(folder, targets.get(id),
+        if (!recorder.active()) return null;
+        Path file = org.learningfromexperience.agentdebug.report.ReportFiles.reserve(reportFolder(id), targets.get(id),
                 starts.getOrDefault(id, Instant.now()), ZoneId.systemDefault(), taken);
         reports.put(id, file);
         log.println("[Eclipse Agentic Debugger] Debugging session report: " + file);
         return file;
+    }
+
+    /**
+     * The fixed folder when set; otherwise {@value #PROJECT_REPORTS} in the project the investigation launched, when
+     * that project folder exists and is writable; otherwise the fallback folder in the user's home.
+     */
+    Path reportFolder(String id) {
+        if (folder != null) return folder;
+        Path project = projects.get(id);
+        if (project != null && java.nio.file.Files.isDirectory(project) && java.nio.file.Files.isWritable(project))
+            return project.resolve(PROJECT_REPORTS).toAbsolutePath().normalize();
+        return fallback;
     }
 
     private static String quote(String text) {
@@ -260,6 +292,10 @@ final class SessionReport {
     private void remember(String id, String tool, Map<String, Object> args, Map<String, Object> reply) {
         String launch = MiniJson.str(reply.get("launchName"));
         if (LAUNCH.contains(tool) && launch != null) launchOwner.put(launch, id);
+        String location = MiniJson.str(reply.get("projectLocation"));
+        if (LAUNCH.contains(tool) && location != null && !location.isBlank() && !projects.containsKey(id)) {
+            try { projects.put(id, Path.of(location)); } catch (RuntimeException invalid) { /* fallback folder */ }
+        }
         if (LAUNCH.contains(tool) && !targets.containsKey(id)) {
             // The application the report file is named after: main class, or test class and method.
             String title = title(tool, args, reply);
@@ -276,6 +312,7 @@ final class SessionReport {
         open.remove(id);
         starts.remove(id);
         targets.remove(id);
+        projects.remove(id);
         ownBreakpoints.remove(id);
         launchOwner.values().removeIf(id::equals);
     }
@@ -410,9 +447,10 @@ final class SessionReport {
                     ? launchLabel(MiniJson.str(entry.getValue())) : MiniJson.str(entry.getValue());
             lines.add(entry.getKey() + ": " + Redaction.value(entry.getKey(), value));
         }
+        int technicalEnd = lines.size();
         if (failed) {
             lines.add("Error: " + Redaction.shorten(errorText(reply, text)));
-            return lines;
+            return readerFirst(lines, technicalEnd, List.of());
         }
         // A reply that is not JSON (an old plugin, a plain message) is shown as it is, whatever the tool.
         switch (reply.isEmpty() ? "" : tool) {
@@ -458,9 +496,53 @@ final class SessionReport {
                     lines.add("");
                     lines.add("Result: " + result);
                 }
+                if (reply.get("projectLocation") != null) lines.add("Project folder: " + MiniJson.str(reply.get("projectLocation")));
             }
         }
-        return lines;
+        return readerFirst(lines, technicalEnd, plainResult(tool, reply));
+    }
+
+    /**
+     * Orders a step's lines for the reader: first what happened (stop location, values, output, HTTP, project
+     * folder, or a plain sentence about the result), then {@link ReportEvent#TECHNICAL_DETAILS} and the technical
+     * lines: tool name, arguments and the raw "Result:" line.
+     */
+    static List<String> readerFirst(List<String> lines, int technicalEnd, List<String> plain) {
+        List<String> technical = new ArrayList<>(lines.subList(0, technicalEnd));
+        List<String> reader = new ArrayList<>();
+        for (String line : lines.subList(technicalEnd, lines.size())) {
+            if (line.startsWith("Result: ")) technical.add(line);
+            else reader.add(line);
+        }
+        while (!reader.isEmpty() && reader.get(0).isBlank()) reader.remove(0);
+        while (!reader.isEmpty() && reader.get(reader.size() - 1).isBlank()) reader.remove(reader.size() - 1);
+        List<String> result = new ArrayList<>(plain);
+        result.addAll(reader);
+        result.add(ReportEvent.TECHNICAL_DETAILS);
+        result.addAll(technical);
+        return result;
+    }
+
+    /** One plain sentence about a result whose raw form says little to a reader ("created=true, owner=agent"). */
+    static List<String> plainResult(String tool, Map<String, Object> reply) {
+        boolean created = !Boolean.FALSE.equals(reply.get("created"));
+        return switch (tool) {
+            case "set_breakpoint", "set_conditional_breakpoint", "set_tracepoint", "set_exception_breakpoint" ->
+                    reply.isEmpty() ? List.of() : created
+                            ? List.of("New breakpoint owned by the agent; it is removed again at cleanup.")
+                            : List.of("This breakpoint already existed; the agent leaves it in place.");
+            case "start_java_application" -> List.of(Boolean.TRUE.equals(reply.get("reusedSession"))
+                    ? "The application was already running in debug mode; the agent attached to it."
+                    : Boolean.TRUE.equals(reply.get("createdConfiguration"))
+                    ? "Started a new JVM in debug mode with a new launch configuration."
+                    : "Started a new JVM in debug mode with the existing launch configuration.");
+            case "start_junit_test" -> List.of("Started the test in a new JVM in debug mode.");
+            case "start_debug_session" -> List.of(Boolean.TRUE.equals(reply.get("reused"))
+                    ? "The launch was already running in debug mode; the agent attached to it."
+                    : "Started the saved launch configuration in debug mode.");
+            case "restart_debug_session" -> List.of("Restarted the agent's own debug session.");
+            default -> List.of();
+        };
     }
 
     private static void stopDetails(Map<String, Object> reply, List<String> lines) {
@@ -556,7 +638,8 @@ final class SessionReport {
         for (Object v : args.values()) shownInArguments.add(MiniJson.str(v));
         List<String> parts = new ArrayList<>();
         for (var e : reply.entrySet()) {
-            if (e.getKey().equals("status") || e.getKey().equals("attachedToInvestigation")) continue;
+            if (e.getKey().equals("status") || e.getKey().equals("attachedToInvestigation")
+                    || e.getKey().equals("projectLocation")) continue;   // the project folder gets its own line
             String value = e.getKey().equals("launchName") ? launchLabel(MiniJson.str(e.getValue())) : render(e.getValue());
             if (shownInArguments.contains(MiniJson.str(e.getValue()))) continue;
             parts.add(e.getKey() + "=" + Redaction.value(e.getKey(), value));

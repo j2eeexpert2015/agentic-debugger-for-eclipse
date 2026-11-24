@@ -22,6 +22,13 @@ public sealed interface ReportEvent {
     /** When it happened. */
     Instant at();
 
+    /**
+     * A line of its own in {@link StepRecorded#details()}: the lines before it are for every reader (what happened,
+     * values, output); the lines after it are technical (tool name, arguments, raw result). A writer may show the
+     * technical part collapsed; a writer that does not know this line shows it as text.
+     */
+    String TECHNICAL_DETAILS = "--- technical details ---";
+
     /** What kind of debugging step a {@link StepRecorded} describes. */
     enum StepKind { LAUNCH, BREAKPOINT, STOP, STEP, INSPECT, HTTP, EXCEPTION, CLEANUP, OTHER }
 

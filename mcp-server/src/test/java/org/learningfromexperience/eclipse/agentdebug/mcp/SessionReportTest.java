@@ -64,14 +64,25 @@ class SessionReportTest {
     }
 
     @Test
-    @DisplayName("SR-U1 reporting is off unless AGENTDEBUG_REPORT names a writer")
+    @DisplayName("SR-U1 reporting is on by default and off with AGENTDEBUG_REPORT=off")
     void srU1() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
-        SessionReport off = SessionReport.fromEnvironment(Map.of(), new PrintStream(err, true, StandardCharsets.UTF_8));
+        SessionReport off = SessionReport.fromEnvironment(Map.of("AGENTDEBUG_REPORT", "off"),
+                new PrintStream(err, true, StandardCharsets.UTF_8));
         assertFalse(off.active());
         off.toolCalled("c", "begin_debug_investigation", Map.of(), false, BEGIN, 1);   // ignored, no error
-        assertFalse(SessionReport.fromEnvironment(Map.of("AGENTDEBUG_REPORT", "off"), System.err).active());
         assertEquals("", err.toString(StandardCharsets.UTF_8));
+        assertTrue(off.reportInfo(null).contains("\"enabled\":false"), off.reportInfo(null));
+
+        ByteArrayOutputStream log = new ByteArrayOutputStream();
+        SessionReport byDefault = SessionReport.fromEnvironment(Map.of(), new PrintStream(log, true, StandardCharsets.UTF_8));
+        try {
+            assertTrue(byDefault.active(), "reports must be on without any setting: " + log);
+            assertTrue(log.toString(StandardCharsets.UTF_8).contains("debug-reports folder of each launched Eclipse project"),
+                    log.toString(StandardCharsets.UTF_8));
+        } finally {
+            byDefault.close();
+        }
     }
 
     @Test
@@ -103,7 +114,9 @@ class SessionReportTest {
         assertEquals("Stopped at breakpoint: OrderService.quote, line 24", steps.get(2).title());
         assertEquals(StepKind.STOP, steps.get(2).kind());
         assertEquals("Resumed execution", steps.get(3).title());
-        assertEquals("Tool: set_breakpoint", steps.get(0).details().get(0), "tool name must be the first detail line");
+        List<String> first = steps.get(0).details();
+        assertEquals("Tool: set_breakpoint", first.get(first.indexOf(ReportEvent.TECHNICAL_DETAILS) + 1),
+                "the technical part starts with the tool name");
         assertTrue(steps.stream().allMatch(s -> s.investigationId().equals("inv-1") && s.status() == StepStatus.OK));
 
         var finished = (ReportEvent.InvestigationFinished) captured.events.get(captured.events.size() - 1);
@@ -217,6 +230,9 @@ class SessionReportTest {
                 "{\"status\":\"success\",\"typeName\":\"a.OrderService\",\"lineNumber\":24,\"created\":true,\"owner\":\"agent\"}");
         List<String> bp = captured.steps().get(2).details();
         assertEquals("Result: created=true, owner=agent", bp.get(bp.size() - 1), "arguments repeated in the result");
+        // What a reader needs comes first; tool, arguments and the raw result follow the technical separator.
+        assertEquals("New breakpoint owned by the agent; it is removed again at cleanup.", bp.get(0));
+        assertTrue(bp.indexOf(ReportEvent.TECHNICAL_DETAILS) < bp.indexOf("Tool: set_breakpoint"), bp::toString);
 
         call("get_frame_variables", Map.of("launchName", launch, "threadIndex", 4, "frameIndex", 0), false,
                 "{\"status\":\"success\",\"variables\":[{\"name\":\"no method return value\",\"type\":null,\"value\":null},"
@@ -252,7 +268,7 @@ class SessionReportTest {
         assertTrue(steps.get(1).details().contains("Body: {\"total\":120.00}"), steps.get(1).details()::toString);
         assertEquals("HTTP request not sent (discount scenario)", steps.get(2).title());
         List<String> failed = steps.get(2).details();
-        assertEquals("Error: Orders fixture not ready; retry when Tomcat startup is visible", failed.get(failed.size() - 1));
+        assertEquals("Error: Orders fixture not ready; retry when Tomcat startup is visible", failed.get(0));
         assertFalse(failed.contains(""), "no empty line in a failed step: " + failed);
         String frames = steps.get(3).details().stream().filter(l -> l.startsWith("Frames:")).findFirst().orElse("");
         assertEquals("Frames: OrderService.quote:24  <  OrderController.quote:31  <  (58 more)", frames);
@@ -272,7 +288,8 @@ class SessionReportTest {
         assertEquals("Why is the quote total 120 and not 108?", started.request());
         assertFalse(started.requestExact(), "a request passed by the agent is not the exact prompt");
         session.toolCalled("claude-code", "start_java_application", Map.of("projectName", "orders", "mainType", "org.example.OrdersApplication"),
-                false, "{\"status\":\"success\",\"launchName\":\"Orders\"}", 900);
+                false, "{\"status\":\"success\",\"launchName\":\"Orders\",\"projectLocation\":"
+                        + quoted(folder.resolve("orders-project").toString()) + "}", 900);
         assertTrue(session.reportInfo("inv-1").contains("call finish_debug_investigation first"), session.reportInfo("inv-1"));
         session.toolCalled("claude-code", "finish_debug_investigation", Map.of("investigationId", "inv-1",
                         "summary", "percent / 100 is integer division, so rate is 0."), false,
@@ -282,12 +299,50 @@ class SessionReportTest {
         assertEquals("percent / 100 is integer division, so rate is 0.", finished.conclusion());
         String name = finished.reportFile().getFileName().toString();
         assertTrue(name.matches("OrdersApplication_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}\\.html"), name);
+        // AGENTDEBUG_REPORT_DIR (here: folder) wins over the project's location.
         assertEquals(folder.toAbsolutePath().normalize(), finished.reportFile().getParent());
         assertTrue(log.toString(StandardCharsets.UTF_8).contains("Debugging session report: " + finished.reportFile()),
                 "full path not printed: " + log);
         String info = session.reportInfo(null);
         assertTrue(info.contains("\"reportFile\":") && info.contains(name) && info.contains("\"enabled\":true"), info);
-        assertTrue(new SessionReport(events).reportInfo(null).contains("\"enabled\":false"), "reporting off must say so");
+        assertTrue(new SessionReport(ReportRecorder.off()).reportInfo(null).contains("\"enabled\":false"), "reporting off must say so");
+    }
+
+    @Test
+    @DisplayName("SR-U13 without a report folder setting, the report goes to debug-reports in the launched Eclipse project, else to the home folder")
+    void srU13(@org.junit.jupiter.api.io.TempDir java.nio.file.Path project) {
+        Captured events = new Captured();
+        SessionReport session = new SessionReport(events, null, null, new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+        session.toolCalled("claude-code", "begin_debug_investigation", Map.of(), false, BEGIN, 5);
+        session.toolCalled("claude-code", "start_java_application", Map.of("projectName", "orders", "mainType", "org.example.OrdersApplication"),
+                false, "{\"status\":\"success\",\"launchName\":\"Orders\",\"projectLocation\":" + quoted(project.toString()) + "}", 900);
+        session.toolCalled("claude-code", "finish_debug_investigation", Map.of("investigationId", "inv-1"), false,
+                "{\"status\":\"success\",\"action\":\"CLEANUP\"}", 3);
+        List<String> launchDetails = events.steps().get(0).details();
+        assertEquals("Started a new JVM in debug mode with the existing launch configuration.", launchDetails.get(0));
+        assertTrue(launchDetails.contains("Project folder: " + project), launchDetails::toString);
+        assertFalse(launchDetails.stream().anyMatch(l -> l.startsWith("Result:") && l.contains("projectLocation")),
+                launchDetails.toString());
+        var inProject = (ReportEvent.InvestigationFinished) events.events.get(events.events.size() - 1);
+        assertEquals(project.resolve("debug-reports").toAbsolutePath().normalize(), inProject.reportFile().getParent());
+        assertTrue(session.reportInfo("inv-1").contains("\"reportFolder\":" + quoted(inProject.reportFile().getParent().toString())),
+                session.reportInfo("inv-1"));
+
+        // Nothing launched (or a project folder that does not exist): the home folder.
+        session.toolCalled("claude-code", "begin_debug_investigation", Map.of(), false, BEGIN, 5);
+        session.toolCalled("claude-code", "start_java_application", Map.of("projectName", "gone", "mainType", "org.example.Gone"),
+                false, "{\"status\":\"success\",\"launchName\":\"Gone\",\"projectLocation\":"
+                        + quoted(project.resolve("missing").toString()) + "}", 900);
+        session.toolCalled("claude-code", "finish_debug_investigation", Map.of("investigationId", "inv-1"), false,
+                "{\"status\":\"success\",\"action\":\"CLEANUP\"}", 3);
+        var atHome = (ReportEvent.InvestigationFinished) events.events.get(events.events.size() - 1);
+        assertEquals(java.nio.file.Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "reports"),
+                atHome.reportFile().getParent());
+    }
+
+    /** A JSON string literal, for building bridge replies with Windows paths. */
+    private static String quoted(String text) {
+        return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     @Test
