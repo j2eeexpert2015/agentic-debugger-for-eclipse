@@ -7,7 +7,7 @@
 
     <!--
       Debugging session report written with ChainTest (OPEN-30, ADR-009).
-      Depends on report-model (the event model) and on ChainTest; report-model knows nothing about this module.
+      Depends on report-model (the event model), report-format (escaping, Markdown, colours) and on ChainTest; report-model knows nothing about this module.
       The MCP server uses this module only at runtime scope and finds it through java.util.ServiceLoader
       (META-INF/services/org.learningfromexperience.agentdebug.report.ReportWriterProvider), by the name "chaintest".
       Only ChainTest's core engine and its static HTML generator are used, never ChainTestListener (TestNG only)
@@ -30,6 +30,12 @@
         <dependency>
             <groupId>org.learningfromexperience</groupId>
             <artifactId>agentic-debugger-report-model</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- Escaping, Markdown, colours: shared with the Agent Activity view (OPEN-36) -->
+        <dependency>
+            <groupId>org.learningfromexperience</groupId>
+            <artifactId>agentic-debugger-report-format</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>

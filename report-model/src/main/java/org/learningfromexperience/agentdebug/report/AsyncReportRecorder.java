@@ -123,6 +123,7 @@ public final class AsyncReportRecorder implements ReportRecorder {
     private void deliver(ReportEvent event) {
         switch (event) {
             case ReportEvent.InvestigationStarted started -> call(() -> writer.investigationStarted(started));
+            case ReportEvent.StepStarted started -> call(() -> writer.stepStarted(started));
             case ReportEvent.StepRecorded step -> call(() -> writer.stepRecorded(step));
             case ReportEvent.InvestigationFinished finished -> call(() -> writer.investigationFinished(finished));
         }

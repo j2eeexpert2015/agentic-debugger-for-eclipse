@@ -1,5 +1,8 @@
 package org.learningfromexperience.agentdebug.report.chaintest;
 
+import static org.learningfromexperience.agentdebug.report.format.ReportFormat.html;
+import static org.learningfromexperience.agentdebug.report.format.ReportFormat.markdown;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,6 +20,7 @@ import org.learningfromexperience.agentdebug.report.DebugReportListener;
 import org.learningfromexperience.agentdebug.report.ReportEvent;
 import org.learningfromexperience.agentdebug.report.ReportFiles;
 import org.learningfromexperience.agentdebug.report.ReportSettings;
+import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 
 import com.aventstack.chaintest.domain.Build;
 import com.aventstack.chaintest.domain.Result;
@@ -62,7 +66,7 @@ import com.aventstack.chaintest.generator.ChainTestSimpleGenerator;
  * A report is written as soon as its investigation finishes, so it exists even if the session is killed later.
  *
  * <p>Runs only on the report thread of {@code AsyncReportRecorder}; not thread-safe by design. ChainTest's templates
- * do not escape text, so everything is HTML-escaped here ({@link #html}).
+ * do not escape text, so everything is HTML-escaped here ({@link ReportFormat#html}).
  *
  * @author Ayan Dutta
  */
@@ -93,7 +97,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
      *   <li>left column: stays in view while scrolling; the investigation name is larger and followed by its outcome
      *       (Finished, Cleanup problem, Not finished) as a coloured label;</li>
      *   <li>the request card (blue) and the conclusion card (green) highlighted, shown in full without a scroll box
-     *       and without their duration badge; the agent's Markdown analysis rendered ({@link #markdown(String)});</li>
+     *       and without their duration badge; the agent's Markdown analysis rendered ({@link ReportFormat#markdown(String)});</li>
      *   <li>steps numbered 1, 2, 3 ...; each step kind has its own colour ({@link #kindMark}): left border, number
      *       and kind label (launch blue, breakpoint purple, stop orange, step cyan, inspect teal, HTTP pink, exception
      *       red, cleanup green);</li>
@@ -142,11 +146,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
             + "background:#fff!important}"
             + ".card:has(.ad-request) .fs-6,.card:has(.ad-conclusion) .fs-6{font-weight:600;font-size:1.05rem!important}"
             + ".card:has(.ad-conclusion) pre{white-space:normal;font-family:var(--bs-body-font-family);line-height:1.55}"
-            + ".ad-md code{color:#a3005b;background:rgba(0,0,0,.06);padding:0 .25rem;border-radius:.25rem}"
-            + ".ad-md code.ad-block{display:block;white-space:pre-wrap;color:inherit;padding:.5rem;margin:.25rem 0 .5rem}"
-            + ".ad-md p,.ad-md ul,.ad-md ol,.ad-md table{margin:0 0 .6rem}.ad-md .ad-h{margin:.6rem 0 .3rem;font-weight:600;color:#146c43}"
-            + ".ad-md table{border-collapse:collapse}.ad-md td,.ad-md th{border:1px solid #c8d1cc;padding:.15rem .6rem}"
-            + ".ad-md th{background:rgba(25,135,84,.12)}"
+            + ReportFormat.MARKDOWN_CSS                    // shared with the Agent Activity view
             // steps: number and colour by kind
             + ".col-8{counter-reset:ad-step}"
             + ".card:has(.ad-k){--k:#adb5bd;border-left:5px solid var(--k)!important;counter-increment:ad-step}"
@@ -154,9 +154,7 @@ public final class ChainTestReportWriter implements DebugReportListener {
             + "line-height:1.6rem;margin-right:.55rem;border-radius:50%;background:var(--k);color:#fff;text-align:center;"
             + "font-size:.8rem;font-weight:600}"
             + ".card:has(.ad-k) .tag-list .badge{background:var(--k)!important;color:#fff!important;border:0}"
-            + ".card:has(.ad-k-launch){--k:#0d6efd}.card:has(.ad-k-breakpoint){--k:#6f42c1}.card:has(.ad-k-stop){--k:#fd7e14}"
-            + ".card:has(.ad-k-step){--k:#0aa2c0}.card:has(.ad-k-inspect){--k:#20a07a}.card:has(.ad-k-http){--k:#d63384}"
-            + ".card:has(.ad-k-exception){--k:#dc3545}.card:has(.ad-k-cleanup){--k:#198754}.card:has(.ad-k-other){--k:#6c757d}"
+            + ReportFormat.kindCss(".card:has(.%s){--k:%s}")   // one colour per kind, shared with the view
             // a refused tool call: amber, not red, because it is the agent's call, not the application, that failed
             + ".card.result.failed{background:#fff8e8}"
             + ".card.result.failed .bi-exclamation-octagon-fill{color:#e08a00!important}"
@@ -242,20 +240,21 @@ public final class ChainTestReportWriter implements DebugReportListener {
         }
         boolean failed = event.status() == ReportEvent.StepStatus.FAILED;
         List<String> errors = new java.util.ArrayList<>();
-        List<String> details = new java.util.ArrayList<>(event.details());
-        int technical = details.indexOf(ReportEvent.TECHNICAL_DETAILS);
-        if (technical >= 0 && technical == details.size() - 1) details.remove(technical);          // nothing technical after it
-        boolean collapsed = false;
-        for (String line : details) {
+        ReportFormat.Details details = ReportFormat.split(event.details());
+        for (String line : details.reader()) {
             // A failed step shows its error once, in ChainTest's error box, not again among the log lines.
             if (failed && line.startsWith("Error: ")) errors.add(line.substring("Error: ".length()));
-            else if (line.equals(ReportEvent.TECHNICAL_DETAILS)) {
-                // Tool name, arguments and raw result: one click away, not in the reader's way.
-                step.addLog("<details class=\"ad-tech\"><summary>Technical details</summary>");
-                collapsed = true;
-            } else step.addLog(html(line));
+            else step.addLog(html(line));
         }
-        if (collapsed) step.addLog("</details>");
+        if (!details.technical().isEmpty()) {
+            // Tool name, arguments and raw result: one click away, not in the reader's way.
+            step.addLog("<details class=\"ad-tech\"><summary>Technical details</summary>");
+            for (String line : details.technical()) {
+                if (failed && line.startsWith("Error: ")) errors.add(line.substring("Error: ".length()));
+                else step.addLog(html(line));
+            }
+            step.addLog("</details>");
+        }
         for (Path attachment : event.attachments()) {
             String type = mediaType(attachment);
             if (type != null && Files.isRegularFile(attachment)) step.addEmbed(attachment.toFile(), type);
@@ -485,98 +484,11 @@ public final class ChainTestReportWriter implements DebugReportListener {
     private static final java.util.regex.Pattern IMAGE = java.util.regex.Pattern.compile("<img src=\"resources/([^\"/]+)\"");
 
     /**
-     * The agent's analysis as HTML. Agents write Markdown, so the common parts are rendered: headings, paragraphs,
-     * bullet and numbered lists, tables, fenced code blocks, {@code **bold**} and {@code `code`}. Everything else is
-     * shown as text. All text is escaped first ({@link #html(String)}); only the tags produced here are HTML. The
-     * result has no line breaks between blocks, because ChainTest puts it inside a {@code <pre>} element.
-     */
-    static String markdown(String text) {
-        StringBuilder out = new StringBuilder("<div class=\"ad-md\">");
-        List<String> paragraph = new java.util.ArrayList<>();
-        String list = null;            // "ul" or "ol" while a list is open
-        boolean table = false, tableHead = false, code = false;
-        StringBuilder codeText = new StringBuilder();
-        for (String raw : (text == null ? "" : text).replace("\r", "").split("\n", -1)) {
-            String line = raw.strip();
-            if (code) {
-                if (line.startsWith("```")) {
-                    out.append("<code class=\"ad-block\">").append(html(codeText.toString().stripTrailing())).append("</code>");
-                    codeText.setLength(0);
-                    code = false;
-                } else {
-                    codeText.append(raw).append('\n');
-                }
-                continue;
-            }
-            boolean isTable = line.startsWith("|") && line.endsWith("|") && line.length() > 1;
-            boolean isBullet = line.matches("[-*] .*");
-            boolean isNumbered = line.matches("\\d+[.)] .*");
-            boolean isHeading = line.matches("#{1,6} .*");
-            boolean isFence = line.startsWith("```");
-            if (!paragraph.isEmpty() && (line.isEmpty() || isTable || isBullet || isNumbered || isHeading || isFence)) {
-                out.append("<p>").append(inline(String.join(" ", paragraph))).append("</p>");
-                paragraph.clear();
-            }
-            if (list != null && !(list.equals("ul") ? isBullet : isNumbered)) {
-                out.append("</").append(list).append(">");
-                list = null;
-            }
-            if (table && !isTable) {
-                out.append("</table>");
-                table = false;
-            }
-            if (line.isEmpty()) continue;
-            if (isFence) {
-                code = true;
-            } else if (isHeading) {
-                out.append("<div class=\"ad-h\">").append(inline(line.replaceFirst("#+ ", ""))).append("</div>");
-            } else if (isBullet || isNumbered) {
-                String kind = isBullet ? "ul" : "ol";
-                if (list == null) {
-                    out.append("<").append(kind).append(">");
-                    list = kind;
-                }
-                out.append("<li>").append(inline(line.replaceFirst(isBullet ? "[-*] " : "\\d+[.)] ", ""))).append("</li>");
-            } else if (isTable) {
-                if (line.matches("\\|[\\s:|-]+\\|")) continue;      // the |---|---| line under the header
-                if (!table) {
-                    out.append("<table>");
-                    table = true;
-                    tableHead = true;
-                }
-                String cell = tableHead ? "th" : "td";
-                out.append("<tr>");
-                for (String value : line.substring(1, line.length() - 1).split("\\|", -1))
-                    out.append("<").append(cell).append(">").append(inline(value.strip())).append("</").append(cell).append(">");
-                out.append("</tr>");
-                tableHead = false;
-            } else {
-                paragraph.add(line);
-            }
-        }
-        if (code) out.append("<code class=\"ad-block\">").append(html(codeText.toString().stripTrailing())).append("</code>");
-        if (!paragraph.isEmpty()) out.append("<p>").append(inline(String.join(" ", paragraph))).append("</p>");
-        if (list != null) out.append("</").append(list).append(">");
-        if (table) out.append("</table>");
-        return out.append("</div>").toString();
-    }
-
-    /** Escaped text with {@code `code`} and {@code **bold**}. */
-    private static String inline(String text) {
-        return codeSpans(html(text)).replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>");
-    }
-
-    /**
      * Invisible marker at the start of a step's name, {@code <span class="ad-k ad-k-breakpoint"></span>}: the CSS
      * numbers the steps and colours them by kind with it.
      */
     static String kindMark(ReportEvent.StepKind kind) {
-        return "<span class=\"ad-k ad-k-" + kind.name().toLowerCase(Locale.ROOT) + "\"></span>";
-    }
-
-    /** Text the agent marked as code with backticks ({@code `int rate = percent / 100`}) is shown as code. */
-    static String codeSpans(String escaped) {
-        return escaped.replaceAll("`([^`\n]+)`", "<code>$1</code>");
+        return "<span class=\"ad-k " + ReportFormat.kindClass(kind.name()) + "\"></span>";
     }
 
     private static String mediaType(Path file) {
@@ -588,28 +500,5 @@ public final class ChainTestReportWriter implements DebugReportListener {
 
     private static String nullToDash(String value) {
         return value == null || value.isBlank() ? "-" : value;
-    }
-
-    /**
-     * ChainTest's templates insert text without escaping: escape HTML characters, and write every non-ASCII
-     * character as a numeric entity because the generator writes the file in the platform's default encoding.
-     */
-    static String html(String text) {
-        if (text == null) return "";
-        StringBuilder out = new StringBuilder(text.length() + 16);
-        text.codePoints().forEach(c -> {
-            switch (c) {
-                case '&' -> out.append("&amp;");
-                case '<' -> out.append("&lt;");
-                case '>' -> out.append("&gt;");
-                case '"' -> out.append("&quot;");
-                case '\'' -> out.append("&#39;");
-                default -> {
-                    if (c > 126) out.append("&#").append(c).append(';');
-                    else out.appendCodePoint(c);
-                }
-            }
-        });
-        return out.toString();
     }
 }

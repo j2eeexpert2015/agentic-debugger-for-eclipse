@@ -62,6 +62,8 @@ final class SessionReport {
     static final String ENV_WRITER = "AGENTDEBUG_REPORT";
     static final String ENV_DIR = "AGENTDEBUG_REPORT_DIR";
     static final String ENV_PROMPT = "AGENTDEBUG_REPORT_PROMPT";
+    /** {@code off} switches the live Agent Activity events off (OPEN-36); on by default. */
+    static final String ENV_LIVE = "AGENTDEBUG_LIVE";
     /** Writer used when {@code AGENTDEBUG_REPORT} is not set: reports are on by default. */
     static final String DEFAULT_WRITER = "chaintest";
     /** Folder created inside the Eclipse project for its reports. */
@@ -87,7 +89,10 @@ final class SessionReport {
     /** Eclipse shows this pseudo-variable after a step; it is never useful in a report. */
     private static final String NO_RETURN_VALUE = "no method return value";
 
+    /** The HTML report (off when {@code AGENTDEBUG_REPORT=off}). */
     private final ReportRecorder recorder;
+    /** Every consumer of the events: the report and the live Agent Activity view, each isolated (ADR-009). */
+    private final ReportRecorder events;
     /** Fixed folder for all reports ({@code AGENTDEBUG_REPORT_DIR}); null: each report goes to its project. */
     private final Path folder;
     /** Folder when the project is unknown or not writable. */
@@ -111,7 +116,16 @@ final class SessionReport {
     }
 
     SessionReport(ReportRecorder recorder, Path folder, String exactPrompt, PrintStream log) {
+        this(recorder, ReportRecorder.off(), folder, exactPrompt, log);
+    }
+
+    /**
+     * @param recorder the HTML report's recorder
+     * @param live     the live Agent Activity view's recorder (OPEN-36); off when the view is switched off
+     */
+    SessionReport(ReportRecorder recorder, ReportRecorder live, Path folder, String exactPrompt, PrintStream log) {
         this.recorder = recorder;
+        this.events = org.learningfromexperience.agentdebug.report.CompositeReportRecorder.of(recorder, live);
         this.folder = folder;
         this.fallback = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "reports");
         this.exactPrompt = exactPrompt == null || exactPrompt.isBlank() ? null : exactPrompt;
@@ -123,11 +137,30 @@ final class SessionReport {
      * {@code AGENTDEBUG_REPORT=off} switches it off.
      */
     static SessionReport fromEnvironment(Map<String, String> env, PrintStream err) {
+        return fromEnvironment(env, err, null);
+    }
+
+    /**
+     * As {@link #fromEnvironment(Map, PrintStream)}, plus the live Agent Activity view (OPEN-36): on by default when a
+     * bridge is given, {@code AGENTDEBUG_LIVE=off} switches it off. Report and view are independent: either can be
+     * off while the other is on.
+     */
+    static SessionReport fromEnvironment(Map<String, String> env, PrintStream err, ActivityForwarder.Bridge bridge) {
+        ReportRecorder live = ReportRecorder.off();
+        try {
+            if (bridge != null && !"off".equalsIgnoreCase(String.valueOf(env.get(ENV_LIVE)).strip())) {
+                live = new org.learningfromexperience.agentdebug.report.AsyncReportRecorder(
+                        new ActivityForwarder(bridge, err), "agent-activity", err,
+                        org.learningfromexperience.agentdebug.report.AsyncReportRecorder.DEFAULT_CAPACITY);
+            }
+        } catch (Throwable failure) {
+            err.println("[Eclipse Agentic Debugger] Agent Activity events disabled: " + failure);
+        }
         try {
             String writer = env.get(ENV_WRITER) == null || env.get(ENV_WRITER).isBlank()
                     ? DEFAULT_WRITER : env.get(ENV_WRITER);
             ReportSettings probe = new ReportSettings(writer, Path.of("."), null);
-            if (probe.off()) return new SessionReport(ReportRecorder.off());
+            if (probe.off()) return new SessionReport(ReportRecorder.off(), live, null, env.get(ENV_PROMPT), err);
             Path fixed = env.containsKey(ENV_DIR) && !env.get(ENV_DIR).isBlank()
                     ? Path.of(env.get(ENV_DIR)).toAbsolutePath().normalize() : null;
             Path writerFolder = fixed != null ? fixed
@@ -136,21 +169,51 @@ final class SessionReport {
                     new ReportSettings(writer, writerFolder, "Agentic Debugger for Eclipse"), err);
             if (recorder.active()) err.println("[Eclipse Agentic Debugger] Debugging session reports go to "
                     + (fixed != null ? fixed : "the " + PROJECT_REPORTS + " folder of each launched Eclipse project"));
-            return new SessionReport(recorder, fixed, env.get(ENV_PROMPT), err);
+            return new SessionReport(recorder, live, fixed, env.get(ENV_PROMPT), err);
         } catch (Throwable failure) {
             err.println("[Eclipse Agentic Debugger] Session report disabled: " + failure);
-            return new SessionReport(ReportRecorder.off());
+            return new SessionReport(ReportRecorder.off(), live, null, null, err);
         }
     }
 
+    /** True when the report or the live view receives events. */
     boolean active() {
-        return recorder.active();
+        return events.active();
+    }
+
+    /**
+     * A tool call is about to run (OPEN-36): records a {@link ReportEvent.StepStarted} for the live view, so it can
+     * show the step as running ("Waiting for the program to stop"). Calls outside an investigation are ignored, like
+     * in {@link #toolCalled}. Never throws.
+     */
+    synchronized void toolStarting(String tool, Map<String, Object> arguments) {
+        if (!events.active() || tool == null || tool.equals("begin_debug_investigation")) return;
+        try {
+            Map<String, Object> args = arguments == null ? Map.of() : arguments;
+            String id = investigationFor(args, Map.of());
+            if (id == null) return;
+            events.record(new ReportEvent.StepStarted(id, Instant.now(), kind(tool), startedTitle(tool, args)));
+        } catch (Throwable ignored) {
+            // A live-view problem must never affect the tool call.
+        }
+    }
+
+    /** The plain-language title of a step that is still running. */
+    static String startedTitle(String tool, Map<String, Object> args) {
+        return switch (tool) {
+            case "wait_for_stop", "wait_for_debug_pause" -> "Waiting for the program to stop";
+            case "start_java_application" -> "Starting application in debug mode: " + simple(MiniJson.str(args.get("mainType")));
+            case "start_junit_test" -> "Starting JUnit test in debug mode: " + simple(MiniJson.str(args.get("typeName")));
+            case "start_fixture_http_request" -> "Sending HTTP request (" + MiniJson.str(args.get("scenario")) + " scenario)";
+            case "finish_debug_investigation" -> "Finishing the investigation and cleaning up";
+            default -> title(tool, args, Map.of());
+        };
     }
 
     /** Records one finished tool call. Never throws. */
     synchronized void toolCalled(String client, String tool, Map<String, Object> arguments, boolean failed,
                                  String text, long durationMs) {
-        if (!recorder.active()) return;
+        if (!events.active()) return;
         try {
             Map<String, Object> args = arguments == null ? Map.of() : arguments;
             Map<String, Object> reply = MiniJson.obj(MiniJson.parse(text));
@@ -162,7 +225,7 @@ final class SessionReport {
                     starts.put(id, now);
                     String mode = MiniJson.str(reply.getOrDefault("mode", args.get("mode")));
                     String request = exactPrompt != null ? exactPrompt : MiniJson.str(args.get("request"));
-                    recorder.record(new ReportEvent.InvestigationStarted(id, now, mode == null ? "NORMAL" : mode, client,
+                    events.record(new ReportEvent.InvestigationStarted(id, now, mode == null ? "NORMAL" : mode, client,
                             request, exactPrompt != null));
                 }
                 return;
@@ -170,13 +233,13 @@ final class SessionReport {
             String id = investigationFor(args, reply);
             if (id == null) return;
             if (tool.equals("finish_debug_investigation") && !failed) {
-                recorder.record(new ReportEvent.InvestigationFinished(id, Instant.now(), ReportEvent.Outcome.FINISHED,
+                events.record(new ReportEvent.InvestigationFinished(id, Instant.now(), ReportEvent.Outcome.FINISHED,
                         MiniJson.str(args.get("summary")), cleanupLines(id, reply), chooseReport(id)));
                 forget(id);
                 return;
             }
             if (!failed) remember(id, tool, args, reply);
-            recorder.record(new ReportEvent.StepRecorded(id, Instant.now(), kind(tool),
+            events.record(new ReportEvent.StepRecorded(id, Instant.now(), kind(tool),
                     failed ? StepStatus.FAILED : StepStatus.OK, title(tool, args, reply),
                     details(tool, args, reply, failed, text), List.of(), durationMs));
         } catch (Throwable ignored) {
@@ -186,12 +249,12 @@ final class SessionReport {
 
     /** The MCP server finished an investigation the agent left open (agent gone, shutdown). Never throws. */
     synchronized void endedWithoutFinish(String id, String why) {
-        if (!recorder.active() || !open.contains(id)) return;
+        if (!events.active() || !open.contains(id)) return;
         try {
             List<String> lines = new ArrayList<>();
             lines.add("Finished by the MCP server: " + why);
             lines.addAll(cleanupLines(id, Map.of()));
-            recorder.record(new ReportEvent.InvestigationFinished(id, Instant.now(),
+            events.record(new ReportEvent.InvestigationFinished(id, Instant.now(),
                     ReportEvent.Outcome.ENDED_WITHOUT_FINISH, null, lines, chooseReport(id)));
             forget(id);
         } catch (Throwable ignored) {
@@ -199,10 +262,10 @@ final class SessionReport {
         }
     }
 
-    /** Writes the report and stops, within 5 seconds. Never throws. */
+    /** Writes the report, delivers the last live events and stops, within 5 seconds each. Never throws. */
     synchronized void close() {
         try {
-            recorder.close();
+            events.close();
         } catch (Throwable ignored) {
             // Never affects shutdown.
         }

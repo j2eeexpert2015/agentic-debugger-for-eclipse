@@ -44,11 +44,12 @@ Two levels, both separate from the 23-scenario regression (the `bridge` group is
 
 ```cmd
 :: 1. Unit tests — JUnit 5, run by the normal build, no Eclipse needed
-::    eclipse-plugin (41): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4
-::    mcp-server (20):     TR-U1..U5, TO-U1..U3, SR-U1..U12
+::    eclipse-plugin (53): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4, PP-U1..U4, AS-U1..U8
+::    mcp-server (29):     TR-U1..U5, TO-U1..U3, SR-U1..U14, AF-U1..U4
 ::    testing (18):        EV-U1..U18 (Claude transcript grader)
 ::    installer (7):       IP-U1..U4, CD-U1..U3 (setup utility)
-::    report-model (10):   RM-U1..U10 (session report: isolation rules of ADR-009, report file names)
+::    report-model (13):   RM-U1..U13 (session report: isolation rules of ADR-009, report file names, several consumers)
+::    report-format (4):   RF-U1..U4 (escaping, Markdown, colours shared by the report and the Agent Activity view)
 ::    report-chaintest (5): RC-U1..U5 (session report: ChainTest writer, prototype reports)
 ::    A failing unit test fails the build. Integration tests and Claude trials are never run by Maven.
 mvn clean package
