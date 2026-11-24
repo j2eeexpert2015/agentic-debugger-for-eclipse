@@ -55,6 +55,23 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
                 status.setText("Failed to save perspective preference: " + error.getMessage());
             }
         });
+        Button floatingActivity = new Button(root, SWT.CHECK);
+        floatingActivity.setText("Show Agent Activity as a floating window");
+        floatingActivity.setSelection(PerspectivePolicy.floatingActivityView(
+                settings.get(PerspectivePolicy.FLOATING_ACTIVITY_VIEW, null)));
+        Label floatingHelp = new Label(root, SWT.WRAP);
+        floatingHelp.setText("On (default): Agent Activity opens in its own window at the bottom right of Eclipse; drag it "
+                + "anywhere, even to a second screen, and Eclipse keeps that place. No view or console output can hide it. "
+                + "Off: it opens in an area of its own next to the Console. Docking the window by hand also keeps it docked.");
+        GridData floatingLayout = new GridData(SWT.FILL, SWT.TOP, true, false);
+        floatingLayout.widthHint = 500;
+        floatingHelp.setLayoutData(floatingLayout);
+        floatingActivity.addListener(SWT.Selection, event -> {
+            settings.putBoolean(PerspectivePolicy.FLOATING_ACTIVITY_VIEW, floatingActivity.getSelection());
+            try { settings.flush(); } catch (Exception error) {
+                status.setText("Failed to save the Agent Activity preference: " + error.getMessage());
+            }
+        });
         button(root, "Configure Claude Code", "configure");
         button(root, "Verify registration", "verify");
         button(root, "Remove managed registration", "remove");

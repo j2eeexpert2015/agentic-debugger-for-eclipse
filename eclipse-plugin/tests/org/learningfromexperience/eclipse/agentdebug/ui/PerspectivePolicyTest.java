@@ -8,7 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * JUnit 5 unit tests for {@link PerspectivePolicy} (PP-U1 to PP-U4, OPEN-35). No Eclipse needed: run by
+ * JUnit 5 unit tests for {@link PerspectivePolicy} (PP-U1 to PP-U5, OPEN-35 and OPEN-36). No Eclipse needed: run by
  * {@code mvn clean package}.
  *
  * @author Ayan Dutta
@@ -46,5 +46,18 @@ class PerspectivePolicyTest {
         assertFalse(PerspectivePolicy.jdkType("org.learningfromexperience.debugfixtures.LongRunningApplication"));
         assertFalse(PerspectivePolicy.jdkType("javaapp.Main"), "only the JDK packages, not every name starting with java");
         assertFalse(PerspectivePolicy.jdkType(null));
+    }
+
+    @Test @DisplayName("PP-U5 Agent Activity floats unless the user turned it off; it first opens at the bottom right")
+    void ppU5() {
+        assertTrue(PerspectivePolicy.floatingActivityView(null), "never set: floating");
+        assertTrue(PerspectivePolicy.floatingActivityView("true"));
+        assertFalse(PerspectivePolicy.floatingActivityView("false"), "turned off: own area next to the Console");
+        int[] at = PerspectivePolicy.floatingPosition(100, 50, 1366, 768);
+        assertEquals(100 + 1366 - PerspectivePolicy.FLOATING_WIDTH - 40, at[0]);
+        assertEquals(50 + 768 - PerspectivePolicy.FLOATING_HEIGHT - 70, at[1]);
+        int[] small = PerspectivePolicy.floatingPosition(0, 0, 300, 200);
+        assertEquals(0, small[0], "never left of the window");
+        assertEquals(0, small[1], "never above the window");
     }
 }

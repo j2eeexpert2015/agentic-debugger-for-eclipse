@@ -37,7 +37,31 @@ public final class PerspectivePolicy {
 
     private static final List<String> JDK_PACKAGES = List.of("java.", "javax.", "jdk.", "sun.", "com.sun.");
 
+    /** Preference key: show Agent Activity (OPEN-36) as a floating window; stored only when the user changes it. */
+    public static final String FLOATING_ACTIVITY_VIEW = "activityViewFloating";
+
+    /** Size of the floating Agent Activity window when it is first opened; afterwards Eclipse keeps the user's. */
+    public static final int FLOATING_WIDTH = 560, FLOATING_HEIGHT = 420;
+
     private PerspectivePolicy() { }
+
+    /**
+     * Whether Agent Activity opens as a floating window: yes unless the user turned it off. A floating window can be
+     * dragged anywhere (even to a second screen) and no view or console output can hide it.
+     */
+    public static boolean floatingActivityView(String saved) {
+        return saved == null || Boolean.parseBoolean(saved);
+    }
+
+    /**
+     * Where the floating window first opens: the bottom-right corner of the Eclipse window, a little inside it, and
+     * never left of or above the window's own corner. Returns {x, y}.
+     */
+    public static int[] floatingPosition(int windowX, int windowY, int windowWidth, int windowHeight) {
+        int x = windowX + Math.max(0, windowWidth - FLOATING_WIDTH - 40);
+        int y = windowY + Math.max(0, windowHeight - FLOATING_HEIGHT - 70);
+        return new int[] {x, y};
+    }
 
     /** JDK code that the editor skips when choosing which frame to show (the Debug view still shows it). */
     public static boolean jdkType(String typeName) {
