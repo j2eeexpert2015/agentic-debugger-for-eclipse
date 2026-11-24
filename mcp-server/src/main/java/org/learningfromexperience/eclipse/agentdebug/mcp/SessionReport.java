@@ -264,7 +264,8 @@ final class SessionReport {
             lines.add("Error: " + Redaction.shorten(errorText(reply, text)));
             return lines;
         }
-        switch (tool) {
+        // A reply that is not JSON (an old plugin, a plain message) is shown as it is, whatever the tool.
+        switch (reply.isEmpty() ? "" : tool) {
             case "wait_for_stop" -> stopDetails(reply, lines);
             case "get_frame_variables", "expand_frame_variable" -> variables(MiniJson.arr(
                     reply.containsKey("variables") ? reply.get("variables") : reply.get("children")), lines);
