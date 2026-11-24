@@ -60,4 +60,21 @@
                relationship="stack" visible="false"/>
       </perspectiveExtension>
    </extension>
+   <!-- OPEN-36: when Eclipse switches to the Debug perspective for an agent investigation, the open terminal views
+        (the Claude terminal) are shown there too (TerminalCarrier). Their place: below the Debug view, where neither the
+        Console nor Variables covers them. Placeholders only (visible="false"); the ":*" forms cover a second Terminal
+        view. IDs: Eclipse Platform Terminal (2025-09 and later) and the earlier CDT/TM Terminal. Applies to a new or
+        reset Debug perspective; in an existing one TerminalCarrier moves a covered terminal once. -->
+   <extension point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension targetID="org.eclipse.debug.ui.DebugPerspective">
+         <view id="org.eclipse.terminal.view.ui.TerminalsView" relative="org.eclipse.debug.ui.DebugView"
+               relationship="bottom" ratio="0.5" visible="false"/>
+         <view id="org.eclipse.terminal.view.ui.TerminalsView:*" relative="org.eclipse.terminal.view.ui.TerminalsView"
+               relationship="stack" visible="false"/>
+         <view id="org.eclipse.tm.terminal.view.ui.TerminalsView" relative="org.eclipse.terminal.view.ui.TerminalsView"
+               relationship="stack" visible="false"/>
+         <view id="org.eclipse.tm.terminal.view.ui.TerminalsView:*" relative="org.eclipse.terminal.view.ui.TerminalsView"
+               relationship="stack" visible="false"/>
+      </perspectiveExtension>
+   </extension>
 </plugin>

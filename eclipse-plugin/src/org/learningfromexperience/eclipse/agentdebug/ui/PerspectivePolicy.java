@@ -118,6 +118,17 @@ public final class PerspectivePolicy {
         return new int[] {x, y, width, height};
     }
 
+    /**
+     * Whether a view is a terminal view, the kind the Claude terminal runs in: Eclipse's Terminal view (since 2025-09
+     * part of the Eclipse Platform, {@code org.eclipse.terminal.view.ui.TerminalsView}; before that from CDT/TM,
+     * {@code org.eclipse.tm.terminal.view.ui.TerminalsView}; older TCF and TM IDs too). Recognised by the ID, without
+     * looking inside: which terminal runs Claude is never guessed, all of them are carried along together.
+     */
+    public static boolean terminalView(String viewId) {
+        if (viewId == null) return false;
+        return viewId.endsWith(".TerminalsView") || viewId.equals("org.eclipse.tm.terminal.view.TerminalView");
+    }
+
     /** JDK code that the editor skips when choosing which frame to show (the Debug view still shows it). */
     public static boolean jdkType(String typeName) {
         if (typeName == null) return false;

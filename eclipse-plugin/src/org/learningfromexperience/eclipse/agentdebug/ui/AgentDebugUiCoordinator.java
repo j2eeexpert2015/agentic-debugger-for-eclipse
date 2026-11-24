@@ -237,7 +237,7 @@ public final class AgentDebugUiCoordinator implements AutoCloseable {
                             || !IDebugUIConstants.ID_DEBUG_PERSPECTIVE.equals(page.getPerspective().getId())) {
                         var debug = PlatformUI.getWorkbench().getPerspectiveRegistry()
                                 .findPerspectiveWithId(IDebugUIConstants.ID_DEBUG_PERSPECTIVE);
-                        if (debug != null) page.setPerspective(debug);
+                        if (debug != null) TerminalCarrier.switchPerspective(window, page, debug);   // terminals come along
                     }
                 } else if (!changePerspective) {
                     showDebugViews(page, firstStop);

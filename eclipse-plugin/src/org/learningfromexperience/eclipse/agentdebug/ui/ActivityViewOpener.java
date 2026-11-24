@@ -111,7 +111,7 @@ public final class ActivityViewOpener {
                 IPerspectiveDescriptor debug = PlatformUI.getWorkbench().getPerspectiveRegistry()
                         .findPerspectiveWithId(DEBUG_PERSPECTIVE);
                 if (debug != null && (page.getPerspective() == null || !DEBUG_PERSPECTIVE.equals(page.getPerspective().getId())))
-                    page.setPerspective(debug);          // the page only: the Eclipse window is not brought to the front
+                    TerminalCarrier.switchPerspective(window, page, debug);   // the terminal views come along
             }
             if (ownWindow()) {
                 ActivityViewPlacement.hideAutoFloated(window, page);
@@ -164,8 +164,25 @@ public final class ActivityViewOpener {
             if (!watched.add(window)) return;
         }
         window.addPerspectiveListener(new PerspectiveAdapter() {
+            /** Terminal views of the perspective being left, for a switch this plugin did not make itself. */
+            private java.util.List<TerminalCarrier.Open> leaving = java.util.List.of();
+
+            @Override
+            public void perspectiveDeactivated(IWorkbenchPage page, IPerspectiveDescriptor perspective) {
+                ActivityStore.Investigation current = ActivityStore.global().current();
+                leaving = current != null && !current.finished() ? TerminalCarrier.open(page) : java.util.List.of();
+            }
+
             @Override
             public void perspectiveActivated(IWorkbenchPage page, IPerspectiveDescriptor perspective) {
+                java.util.List<TerminalCarrier.Open> terminals = leaving;
+                leaving = java.util.List.of();
+                if (!terminals.isEmpty()) {
+                    // Eclipse's own switch on suspend, or the user's, during an investigation: the terminals come along.
+                    Display shown = Display.getDefault();
+                    if (shown != null && !shown.isDisposed())
+                        shown.asyncExec(() -> TerminalCarrier.carry(window, page, terminals));
+                }
                 boolean ownWindow = ownWindow();
                 ActivityStore.Investigation current = ActivityStore.global().current();
                 if (!ownWindow && (current == null || !recent(current))) return;

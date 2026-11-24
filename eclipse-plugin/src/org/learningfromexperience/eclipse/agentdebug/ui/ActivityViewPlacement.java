@@ -81,7 +81,8 @@ final class ActivityViewPlacement {
                 log("the view is not in a tab group but in " + (current == null ? "nothing" : current.getClass().getSimpleName()));
                 return;
             }
-            if (stack.getParent() instanceof MWindow) return;            // floating: the user's place, left alone
+            Object holder = stack.getParent();                          // Object: ECJ refuses instanceof between the model's generic types
+            if (holder instanceof MWindow) return;                      // floating: the user's place, left alone
             if (visibleChildren(stack) <= 1) return;                     // already alone in its stack: nothing to do
 
             MPartSashContainerElement relTo = stack;
@@ -124,7 +125,9 @@ final class ActivityViewPlacement {
             for (MPlaceholder view : models.findElements(perspective, AgentActivityView.ID, MPlaceholder.class, null)) {
                 if (!view.getTags().contains(AUTO_FLOATED)) continue;
                 Object parent = view.getParent();
-                if (!(parent instanceof MPartStack stack) || !(stack.getParent() instanceof MWindow)) continue;
+                if (!(parent instanceof MPartStack stack)) continue;
+                Object holder = stack.getParent();
+                if (!(holder instanceof MWindow)) continue;
                 view.getTags().remove(AUTO_FLOATED);
                 IViewPart part = page.findView(AgentActivityView.ID);
                 if (part != null) page.hideView(part);
@@ -135,6 +138,82 @@ final class ActivityViewPlacement {
             Platform.getLog(ActivityViewPlacement.class).warn("[Agentic Debugger] Could not close the earlier floating"
                     + " Agent Activity view: " + unexpected);
         }
+    }
+
+    /** Tag on a terminal view once this plugin decided where it goes in a perspective (decided once per perspective). */
+    static final String TERMINAL_PLACED = "agentdebug.terminal.placed";
+    /** ID of the tab group this plugin creates for terminal views in a perspective. */
+    static final String TERMINAL_STACK_ID = "org.learningfromexperience.eclipse.agentdebug.terminalStack";
+    private static final String DEBUG_VIEW = "org.eclipse.debug.ui.DebugView";
+
+    /**
+     * Gives a terminal view that was brought into the Debug perspective ({@link TerminalCarrier}) a place where the
+     * debug views do not cover it. Only when it landed in a tab group with one of them (Console, Variables, Debug,
+     * Breakpoints, Expressions, which come to the front while debugging): it is moved into a tab group of its own
+     * below the Debug view (or, without one, to the left of its current group); a second terminal view joins that
+     * group. Decided once per perspective: wherever the user drags it afterwards, it stays. Never throws.
+     *
+     * @param viewId the terminal view's ID
+     * @param secondaryId its secondary ID (several Terminal views), or null
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static void giveTerminalItsArea(IWorkbenchWindow window, String viewId, String secondaryId) {
+        try {
+            MWindow model = modelWindow(window);
+            EModelService models = modelService(window, model);
+            if (model == null || models == null) return;
+            MPerspective perspective = models.getActivePerspective(model);
+            if (perspective == null) return;
+            String elementId = secondaryId == null ? viewId : viewId + ":" + secondaryId;
+            List<MPlaceholder> found = models.findElements(perspective, elementId, MPlaceholder.class, null);
+            if (found.isEmpty()) return;
+            MPlaceholder terminal = found.get(0);
+            if (terminal.getTags().contains(TERMINAL_PLACED)) return;   // decided before: the user's place now
+            Object parent = terminal.getParent();
+            if (!(parent instanceof MPartStack stack)) return;
+            Object holder = stack.getParent();
+            if (holder instanceof MWindow) return;
+            terminal.getTags().add(TERMINAL_PLACED);
+            if (!sharesWithDebugViews(stack)) return;                   // already where nothing covers it
+
+            List<MPartStack> ownStacks = models.findElements(perspective, TERMINAL_STACK_ID, MPartStack.class, null);
+            MPartStack own;
+            if (!ownStacks.isEmpty() && ownStacks.get(0) != stack) {
+                own = ownStacks.get(0);
+            } else {
+                own = models.createModelElement(MPartStack.class);
+                own.setElementId(TERMINAL_STACK_ID);
+                List<MPlaceholder> debug = models.findElements(perspective, DEBUG_VIEW, MPlaceholder.class, null);
+                Object debugParent = debug.isEmpty() ? null : debug.get(0).getParent();
+                if (debugParent instanceof MPartStack debugStack && debugStack != stack && debugStack.isToBeRendered())
+                    models.insert(own, debugStack, EModelService.BELOW, 0.5f);
+                else
+                    models.insert(own, stack, EModelService.LEFT_OF, 0.4f);
+            }
+            try {
+                models.move(terminal, (MElementContainer) own);
+            } catch (LinkageError olderEclipse) {
+                ((List) stack.getChildren()).remove(terminal);
+                own.getChildren().add((MStackElement) terminal);
+            }
+            own.setSelectedElement((MStackElement) terminal);
+            terminal.setToBeRendered(true);
+            terminal.setVisible(true);
+            Platform.getLog(ActivityViewPlacement.class).info("[Agentic Debugger] Terminal view " + elementId
+                    + " given a tab group of its own in perspective " + perspective.getElementId());
+        } catch (Exception | LinkageError unexpected) {
+            Platform.getLog(ActivityViewPlacement.class).warn("[Agentic Debugger] Terminal view left where Eclipse put"
+                    + " it: " + unexpected);
+        }
+    }
+
+    /** Whether the tab group also holds one of the debug views that come to the front while debugging. */
+    private static boolean sharesWithDebugViews(MPartStack stack) {
+        for (MStackElement child : stack.getChildren()) {
+            if (child instanceof MPlaceholder other && other.isToBeRendered()
+                    && PerspectivePolicy.DEBUG_VIEWS.contains(other.getElementId())) return true;
+        }
+        return false;
     }
 
     /** The window in the Eclipse 4 model: as a service, otherwise from the window itself. */

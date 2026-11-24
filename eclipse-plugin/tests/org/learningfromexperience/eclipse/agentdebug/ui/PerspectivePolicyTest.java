@@ -8,7 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * JUnit 5 unit tests for {@link PerspectivePolicy} (PP-U1 to PP-U6, OPEN-35 and OPEN-36). No Eclipse needed: run by
+ * JUnit 5 unit tests for {@link PerspectivePolicy} (PP-U1 to PP-U7, OPEN-35 and OPEN-36). No Eclipse needed: run by
  * {@code mvn clean package}.
  *
  * @author Ayan Dutta
@@ -85,5 +85,16 @@ class PerspectivePolicyTest {
         java.util.List<int[]> two = java.util.List.<int[]>of(new int[] {0, 0, 1366, 728}, new int[] {-1920, 0, 1920, 1040});
         assertTrue(PerspectivePolicy.titleOnScreen(new int[] {-1900, 5, 600, 400}, two), "on the second screen");
         assertFalse(PerspectivePolicy.titleOnScreen(null, one));
+    }
+
+    @Test @DisplayName("PP-U7 terminal views are recognised by their ID, all of them, so the Claude terminal comes along to Debug")
+    void ppU7() {
+        assertTrue(PerspectivePolicy.terminalView("org.eclipse.terminal.view.ui.TerminalsView"), "Eclipse Platform Terminal");
+        assertTrue(PerspectivePolicy.terminalView("org.eclipse.tm.terminal.view.ui.TerminalsView"), "CDT/TM Terminal");
+        assertTrue(PerspectivePolicy.terminalView("org.eclipse.tcf.te.ui.terminals.TerminalsView"), "old TCF ID");
+        assertTrue(PerspectivePolicy.terminalView("org.eclipse.tm.terminal.view.TerminalView"), "old TM view");
+        assertFalse(PerspectivePolicy.terminalView("org.eclipse.ui.console.ConsoleView"), "the Console is not a terminal");
+        assertFalse(PerspectivePolicy.terminalView("org.eclipse.debug.ui.VariableView"));
+        assertFalse(PerspectivePolicy.terminalView(null));
     }
 }

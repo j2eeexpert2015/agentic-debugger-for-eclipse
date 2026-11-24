@@ -44,7 +44,7 @@ Two levels, both separate from the 23-scenario regression (the `bridge` group is
 
 ```cmd
 :: 1. Unit tests — JUnit 5, run by the normal build, no Eclipse needed
-::    eclipse-plugin (64): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4, PP-U1..U6, AS-U1..U6, AS-U8, AS-U9, AP-U1..U9
+::    eclipse-plugin (65): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4, PP-U1..U7, AS-U1..U6, AS-U8, AS-U9, AP-U1..U9
 ::    mcp-server (26):     TR-U1..U5, TO-U1..U3, SR-U1..U14, AF-U1..U4
 ::    testing (18):        EV-U1..U18 (Claude transcript grader)
 ::    installer (7):       IP-U1..U4, CD-U1..U3 (setup utility)
