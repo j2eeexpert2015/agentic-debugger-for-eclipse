@@ -8,6 +8,8 @@ import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.IDebugEventSetListener;
 import org.eclipse.debug.core.ILaunch;
 import org.eclipse.debug.core.model.IDebugElement;
+import org.eclipse.debug.core.model.IDebugTarget;
+import org.eclipse.debug.core.model.IProcess;
 import org.eclipse.debug.core.model.IStackFrame;
 import org.eclipse.debug.core.model.IThread;
 import org.eclipse.debug.ui.DebugUITools;
@@ -20,6 +22,7 @@ import org.eclipse.ui.IViewPart;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
+import org.learningfromexperience.eclipse.agentdebug.activity.ActivityStore;
 
 /**
  * Follows only the Java debug session controlled by the agent and displays its suspended source.
@@ -49,6 +52,7 @@ public final class AgentDebugUiCoordinator implements AutoCloseable {
     /** Mark the exact launch object as agent-owned context, never all workspace debug sessions. */
     public void follow(ILaunch launch) {
         activeLaunch.set(launch);
+        if (launch != null && !launch.isTerminated()) ActivityStore.global().program(ActivityStore.PROGRAM_RUNNING, null);
         showSuspended(launch, false);
     }
 
@@ -119,6 +123,7 @@ public final class AgentDebugUiCoordinator implements AutoCloseable {
     private void onEvents(DebugEvent[] events) {
         ILaunch selected = activeLaunch.get();
         if (selected == null) return;
+        programState(selected, events);
         boolean suspended = false;
         for (DebugEvent event : events) {
             if (event.getKind() != DebugEvent.SUSPEND) continue;
@@ -138,6 +143,45 @@ public final class AgentDebugUiCoordinator implements AutoCloseable {
         }
         // Follow only the launch the agent selected; unrelated sessions are never activated.
         if (suspended) showSuspended(selected, false);
+    }
+
+    /**
+     * Tells the Agent Activity view (OPEN-36 B5) whether the agent's program is running, paused (and where) or has
+     * ended. Only events of the agent's launch count; evaluations (the agent reading variables) are ignored. Never
+     * throws: the view must never affect debugging.
+     */
+    private static void programState(ILaunch selected, DebugEvent[] events) {
+        try {
+            for (DebugEvent event : events) {
+                Object source = event.getSource();
+                ILaunch launch = source instanceof IDebugElement element ? element.getLaunch()
+                        : source instanceof IProcess process ? process.getLaunch() : null;
+                if (launch != selected) continue;
+                if (event.isEvaluation()) continue;
+                switch (event.getKind()) {
+                    case DebugEvent.SUSPEND -> {
+                        String where = null;
+                        if (source instanceof IThread thread && !systemThread(thread)) {
+                            IStackFrame frame = displayFrame(thread);
+                            if (frame instanceof IJavaStackFrame javaFrame) {
+                                String type = javaFrame.getDeclaringTypeName();
+                                where = type.substring(type.lastIndexOf('.') + 1) + "." + javaFrame.getMethodName()
+                                        + ":" + javaFrame.getLineNumber();
+                            }
+                        }
+                        ActivityStore.global().program(ActivityStore.PROGRAM_PAUSED, where);
+                    }
+                    case DebugEvent.RESUME -> ActivityStore.global().program(ActivityStore.PROGRAM_RUNNING, null);
+                    case DebugEvent.TERMINATE -> {
+                        if (source instanceof IDebugTarget || source instanceof IProcess)
+                            ActivityStore.global().program(ActivityStore.PROGRAM_ENDED, null);
+                    }
+                    default -> { }
+                }
+            }
+        } catch (Exception | LinkageError ignored) {
+            // The view's program line is informative only.
+        }
     }
 
     private void navigate(ILaunch launch, IStackFrame frame, boolean force) {

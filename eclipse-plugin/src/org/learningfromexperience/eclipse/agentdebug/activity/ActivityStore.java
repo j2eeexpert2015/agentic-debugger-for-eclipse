@@ -49,14 +49,23 @@ public final class ActivityStore {
         }
     }
 
-    /** One investigation as the view shows it; an immutable copy. */
+    /**
+     * One investigation as the view shows it; an immutable copy. {@code program} is what Eclipse saw of the agent's
+     * launch ({@link #PROGRAM_RUNNING}, {@link #PROGRAM_PAUSED}, {@link #PROGRAM_ENDED}, or null before the launch),
+     * {@code programWhere} where it is paused ("OrderService.quote:24"); {@code lastActivity} when the last event of
+     * this investigation arrived (receive time, ISO-8601).
+     */
     public record Investigation(String id, String mode, String client, String request, boolean requestExact,
                                 String startedAt, List<Step> steps, int droppedSteps, String outcome,
-                                String conclusion, List<String> cleanup, String reportFile, String finishedAt) {
+                                String conclusion, List<String> cleanup, String reportFile, String finishedAt,
+                                String program, String programWhere, String lastActivity) {
         public boolean finished() {
             return outcome != null;
         }
     }
+
+    /** States of the agent's program, set by the debug event listener in Eclipse. */
+    public static final String PROGRAM_RUNNING = "RUNNING", PROGRAM_PAUSED = "PAUSED", PROGRAM_ENDED = "ENDED";
 
     private final Map<String, Mutable> investigations = new LinkedHashMap<>();
     private final List<Consumer<String>> listeners = new CopyOnWriteArrayList<>();
@@ -102,6 +111,24 @@ public final class ActivityStore {
         return "{\"status\":\"success\"}";
     }
 
+    /**
+     * What Eclipse saw of the agent's launch (OPEN-36 B5): running, paused at a location, or ended. Applied to the
+     * open investigation shown in the view; ignored when none is open. Never throws.
+     */
+    public void program(String state, String where) {
+        String id = null;
+        synchronized (this) {
+            Mutable open = null;
+            for (Mutable m : investigations.values()) if (m.outcome == null) open = m;
+            if (open != null && !(java.util.Objects.equals(open.program, state) && java.util.Objects.equals(open.programWhere, where))) {
+                open.program = state;
+                open.programWhere = PROGRAM_PAUSED.equals(state) ? where : null;
+                id = open.id;
+            }
+        }
+        if (id != null) notifyListeners(id);
+    }
+
     /** All investigations, oldest first. */
     public synchronized List<Investigation> investigations() {
         List<Investigation> copy = new ArrayList<>();
@@ -140,7 +167,7 @@ public final class ActivityStore {
         String id = ActivityJson.str(e.get("investigationId"));
         if (id == null || id.isBlank()) throw new IllegalArgumentException("investigationId");
         String at = ActivityJson.str(e.get("at"));
-        Mutable inv = investigations.get(id);
+        Mutable inv;
         switch (type) {
             case "investigationStarted" -> {
                 inv = investigations.computeIfAbsent(id, Mutable::new);
@@ -174,6 +201,7 @@ public final class ActivityStore {
             }
             default -> throw new IllegalArgumentException("type");
         }
+        inv.lastActivity = Instant.now().toString();
         return id;
     }
 
@@ -228,6 +256,7 @@ public final class ActivityStore {
     private static final class Mutable {
         final String id;
         String mode, client, request, startedAt, outcome, conclusion, reportFile, finishedAt;
+        String program, programWhere, lastActivity;
         boolean requestExact;
         List<String> cleanup = List.of();
         final Deque<Step> steps = new ArrayDeque<>();
@@ -287,7 +316,8 @@ public final class ActivityStore {
 
         Investigation snapshot() {
             return new Investigation(id, mode, client, request, requestExact, startedAt, List.copyOf(steps),
-                    droppedSteps, outcome, conclusion, cleanup, reportFile, finishedAt);
+                    droppedSteps, outcome, conclusion, cleanup, reportFile, finishedAt, program, programWhere,
+                    lastActivity);
         }
     }
 }

@@ -80,6 +80,9 @@ public class AgentDebugStartup implements IStartup {
                 "[Eclipse Agentic Debugger] Early startup executed."
         );
 
+        // OPEN-36: open the Agent Activity view (without taking the focus) when an agent investigation starts.
+        org.learningfromexperience.eclipse.agentdebug.ui.ActivityViewOpener.install();
+
         Job startupJob = new Job(
                 "Eclipse Agentic Debugger - Startup"
         ) {

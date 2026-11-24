@@ -22,6 +22,29 @@
           class="org.learningfromexperience.eclipse.agentdebug.ui.AgentActivityView"
           restorable="true"/>
    </extension>
+   <!-- OPEN-36: agent status in the status bar ("Agent: running · 12 s"); a click opens Agent Activity -->
+   <extension point="org.eclipse.ui.menus">
+      <menuContribution locationURI="toolbar:org.eclipse.ui.trim.status">
+         <toolbar id="org.learningfromexperience.eclipse.agentdebug.statusToolbar">
+            <control
+                id="org.learningfromexperience.eclipse.agentdebug.agentStatus"
+                class="org.learningfromexperience.eclipse.agentdebug.ui.AgentStatusControl"/>
+         </toolbar>
+      </menuContribution>
+   </extension>
+   <!-- OPEN-36: the Agent Activity view's own area, to the right of the Console: not stacked with the Console (which
+        comes to the front whenever the program prints) nor with Variables (front at each stop). Applies to a new or
+        reset perspective (Window > Perspective > Reset Perspective...). -->
+   <extension point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension targetID="org.eclipse.jdt.ui.JavaPerspective">
+         <view id="org.learningfromexperience.eclipse.agentdebug.activityView" relative="org.eclipse.ui.console.ConsoleView"
+               relationship="right" ratio="0.45" visible="false"/>
+      </perspectiveExtension>
+      <perspectiveExtension targetID="org.eclipse.debug.ui.DebugPerspective">
+         <view id="org.learningfromexperience.eclipse.agentdebug.activityView" relative="org.eclipse.ui.console.ConsoleView"
+               relationship="right" ratio="0.45" visible="false"/>
+      </perspectiveExtension>
+   </extension>
    <!-- OPEN-35: where the debug views go when an agent session opens them in the Java perspective: their own group
         under the editor, never the group of the terminal that runs Claude. Placeholders only (visible="false"): the
         Java perspective looks unchanged until debugging starts. Applies to a new or reset Java perspective. -->

@@ -14,7 +14,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * JUnit 5 unit tests for {@link ActivityStore} and {@link ActivityPreviewHtml} (AS-U1 to AS-U8, OPEN-36 delivery 2).
+ * JUnit 5 unit tests for {@link ActivityStore} (AS-U1 to AS-U6, AS-U8 and AS-U9, OPEN-36; the page tests that were
+ * AS-U7 are in {@code ActivityPageTest}).
  * No Eclipse needed: run by {@code mvn clean package}. The events have the format the MCP server's
  * {@code ActivityForwarder} sends.
  *
@@ -83,7 +84,7 @@ class ActivityStoreTest {
         ActivityStore.Investigation inv = store.current();
         assertTrue(inv.steps().get(0).running());
         assertFalse(inv.finished());
-        assertEquals("Running: Wait for stop", ActivityPreviewHtml.statusLine(inv));
+        assertEquals("Running: Wait for stop", ActivityPage.statusLine(inv));
     }
 
     @Test @DisplayName("AS-U3 a step still running at the end is closed as UNKNOWN")
@@ -160,24 +161,24 @@ class ActivityStoreTest {
         assertTrue(notified.contains("open"), "listeners are notified, a broken one does not stop the others");
     }
 
-    @Test @DisplayName("AS-U7 the preview escapes text, colours steps and renders the analysis with the shared report-format")
-    void asU7() {
+    @Test @DisplayName("AS-U9 program state goes to the open investigation only; every event records the last activity")
+    void asU9() {
         ActivityStore store = new ActivityStore();
+        List<String> notified = new ArrayList<>();
+        store.addListener(notified::add);
+        store.program(ActivityStore.PROGRAM_RUNNING, null);
+        assertTrue(notified.isEmpty(), "no open investigation: ignored");
         store.accept(started("inv-1"));
-        store.accept(stepRecorded("inv-1", "<script>alert(1)</script>", "FAILED"));
-        String html = ActivityPreviewHtml.page(store.current(), 0);
-        assertFalse(html.contains("<script>"), "must be escaped");
-        assertTrue(html.contains("&lt;script&gt;"));
-        assertTrue(html.contains("class=\"st FAILED\""));
-        assertTrue(html.contains("style=\"color:#e08a00\""), "a refused call is amber, as in the report");
-        assertTrue(ActivityPreviewHtml.page(null, 0).contains("Waiting for an agent debugging session"));
-        // The agent's analysis is rendered from Markdown with the shared report-format module.
-        store.accept(enc("{\"type\":\"investigationFinished\",\"investigationId\":\"inv-1\","
-                + "\"at\":\"2026-11-24T10:01:00Z\",\"outcome\":\"FINISHED\",\"conclusion\":\"## Root cause\\n`rate` is **0**\","
-                + "\"cleanup\":[],\"reportFile\":null}"));
-        String done = ActivityPreviewHtml.page(store.current(), 0);
-        assertTrue(done.contains("<div class=\"ad-h\">Root cause</div>"), done);
-        assertTrue(done.contains("<code>rate</code> is <strong>0</strong>"), done);
-        assertTrue(ActivityPreviewHtml.text(store.current(), 2).contains("[FAILED] <script>alert(1)</script>"));
+        assertTrue(store.current().lastActivity() != null, "receive time of the last event");
+        assertNull(store.current().program());
+        store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:24");
+        store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:24");
+        assertEquals(List.of("inv-1", "inv-1"), notified, "one notification for the start, one for the change, none for a repeat");
+        assertEquals("OrderService.quote:24", store.current().programWhere());
+        store.program(ActivityStore.PROGRAM_RUNNING, "ignored");
+        assertNull(store.current().programWhere(), "a location only while paused");
+        store.accept(finished("inv-1"));
+        store.program(ActivityStore.PROGRAM_ENDED, null);
+        assertEquals(ActivityStore.PROGRAM_RUNNING, store.current().program(), "a finished investigation is not changed");
     }
 }
