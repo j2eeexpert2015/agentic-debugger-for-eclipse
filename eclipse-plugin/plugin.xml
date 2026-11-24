@@ -10,4 +10,19 @@
           name="Agentic Debugger"
           class="org.learningfromexperience.eclipse.agentdebug.ui.ClaudeIntegrationPreferences"/>
    </extension>
+   <!-- OPEN-35: where the debug views go when an agent session opens them in the Java perspective: their own group
+        under the editor, never the group of the terminal that runs Claude. Placeholders only (visible="false"): the
+        Java perspective looks unchanged until debugging starts. Applies to a new or reset Java perspective. -->
+   <extension point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension targetID="org.eclipse.jdt.ui.JavaPerspective">
+         <view id="org.eclipse.debug.ui.VariableView" relative="org.eclipse.ui.editorss" relationship="bottom"
+               ratio="0.62" visible="false"/>
+         <view id="org.eclipse.debug.ui.BreakpointView" relative="org.eclipse.debug.ui.VariableView"
+               relationship="stack" visible="false"/>
+         <view id="org.eclipse.debug.ui.ExpressionView" relative="org.eclipse.debug.ui.VariableView"
+               relationship="stack" visible="false"/>
+         <view id="org.eclipse.debug.ui.DebugView" relative="org.eclipse.debug.ui.VariableView"
+               relationship="stack" visible="false"/>
+      </perspectiveExtension>
+   </extension>
 </plugin>

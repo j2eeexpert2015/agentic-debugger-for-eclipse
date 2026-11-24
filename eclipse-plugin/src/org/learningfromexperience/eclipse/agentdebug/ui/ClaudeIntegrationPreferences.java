@@ -35,11 +35,22 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
         status.setText("Click Verify to check Claude Code registration.");
         status.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
         Button automaticPerspective = new Button(root, SWT.CHECK);
-        automaticPerspective.setText("Automatically switch to Debug perspective for agent-controlled sessions");
+        automaticPerspective.setText("Switch to the Debug perspective for agent-controlled sessions");
         var settings = InstanceScope.INSTANCE.getNode("org.learningfromexperience.eclipse.agentdebug");
-        automaticPerspective.setSelection(settings.getBoolean("autoDebugPerspective", true));
+        automaticPerspective.setSelection(PerspectivePolicy.switchToDebugPerspective(
+                settings.get(PerspectivePolicy.SWITCH_TO_DEBUG_PERSPECTIVE, null)));
+        Label perspectiveHelp = new Label(root, SWT.WRAP);
+        perspectiveHelp.setText("Off (recommended): Eclipse stays in the current perspective, so the terminal running "
+                + "Claude stays visible. On a stop, Variables, Breakpoints, Expressions, Debug and Console are shown "
+                + "without taking the keyboard focus; in the Java perspective they open in their own group under the "
+                + "editor (Window > Perspective > Reset Perspective applies this layout to a customised perspective). "
+                + "On: switches to the Debug perspective, which hides views that are not part of it, such as the terminal. "
+                + "Eclipse's own Run/Debug > Perspectives settings can still ask to switch.");
+        GridData helpLayout = new GridData(SWT.FILL, SWT.TOP, true, false);
+        helpLayout.widthHint = 500;
+        perspectiveHelp.setLayoutData(helpLayout);
         automaticPerspective.addListener(SWT.Selection, event -> {
-            settings.putBoolean("autoDebugPerspective", automaticPerspective.getSelection());
+            settings.putBoolean(PerspectivePolicy.SWITCH_TO_DEBUG_PERSPECTIVE, automaticPerspective.getSelection());
             try { settings.flush(); } catch (Exception error) {
                 status.setText("Failed to save perspective preference: " + error.getMessage());
             }

@@ -18,12 +18,30 @@ During an agentic investigation the user sees nothing in Eclipse about what the 
 ## 1. OPEN-35 Keep the current perspective
 
 - R35-1 For agent sessions the plugin no longer switches to the Debug perspective by default. Today `AgentDebugUiCoordinator` calls `showPerspective(ID_DEBUG_PERSPECTIVE)` when the preference `autoDebugPerspective` is on, default `true`.
-- R35-2 On a stop of the agent's launch: the editor goes to the stopped line, and the Debug, Variables and Breakpoints views are shown in the current perspective, with the stopped frame selected (Variables shows its values).
-- R35-3 The Claude terminal stays open and keeps the keyboard focus; views are brought to the front of their area, not activated.
-- R35-4 A user who explicitly saved "switch to Debug perspective" keeps that behaviour (distinguish "never set" from "set to true"). The preference page explains the setting and that Eclipse's own Run/Debug → Perspectives settings can still ask to switch.
-- R35-5 No switching on every stop; at most once per launch when the option is on.
+- R35-2 On the first stop of an agent launch, these views are opened in the current perspective, as one group of tabs: **Variables** (in front), **Breakpoints**, **Expressions**, **Debug** (its selected frame decides what Variables shows), and **Console** where it already is or opens. The editor goes to the stopped line and the stopped frame is selected. On later stops views the user closed are opened again, but Variables is not forced to the front again.
+- R35-3 None of these views is activated: "in front" means the visible tab, the **keyboard focus stays where it was**, because Claude may ask the user something in the terminal during the run.
+- R35-4 A user who explicitly saved "switch to Debug perspective" keeps that behaviour (a value never saved means "keep the perspective"). The preference page explains the setting and that Eclipse's own Run/Debug → Perspectives settings can still ask to switch.
+- R35-5 No switching on every stop: when the option is on, at most once per launch.
+- R35-6 The plugin declares where the views go in the **Java perspective** (`perspectiveExtensions`, placeholders only, so the perspective looks unchanged until debugging starts): their own group under the editor, never the terminal's group. Takes effect for a new Java perspective or after Window → Perspective → Reset Perspective; documented.
+- R35-7 Check during the manual test whether Eclipse's own "Switch to the Debug perspective?" dialog appears in agent sessions; if it does, document the setting (Run/Debug → Perspectives → "Open the associated perspective when an application suspends": Never) and consider a one-click option in our preference page; never change it silently.
+- R35-8 (V2) An optional "Agentic Debugging" perspective that contains the editor, the Terminal, the debug views, Console and the Activity view; chosen explicitly by the user, nothing is hidden because the terminal is part of it.
 
-**Check:** manual, in a Java perspective with the Claude terminal docked: a stop shows the line and the three views, the terminal stays visible and typeable; option on and off both work.
+Layout in the Java perspective (the Activity view column comes with OPEN-36):
+
+```
++-------------+-----------------------------------+----------------------+
+| Package     |  Editor (stops at the line)       |  Agentic Debugger    |
+| Explorer    |                                   |  Activity (OPEN-36)  |
+|             +-----------------------------------+                      |
+|             | Variables* | Breakpoints |        |                      |
+|             | Expressions | Debug               |                      |
++-------------+-----------------------------------+                      |
+| Terminal (Claude)        | Console              |                      |
++--------------------------+----------------------+----------------------+
+                                     * in front; keyboard stays in the terminal
+```
+
+**Check:** unit tests PP-U1 to PP-U3 (`PerspectivePolicy`); manual, in a Java perspective (after Reset Perspective) with the Claude terminal docked at the bottom: a stop shows the line, Variables in front with Breakpoints, Expressions and Debug as tabs under the editor, the terminal stays visible and typeable; option on switches once per launch; R35-7 dialog checked.
 
 ---
 

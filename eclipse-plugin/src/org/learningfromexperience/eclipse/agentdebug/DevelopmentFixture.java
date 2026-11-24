@@ -64,11 +64,25 @@ final class DevelopmentFixture {
             throw new IllegalStateException("Fixture belongs to a different checkout: " + local);
         try (var paths = Files.walk(source.resolve("src"))) {
             for (Path file : paths.filter(Files::isRegularFile).toList()) {
-                if (Files.mismatch(file, local.resolve(source.relativize(file))) != -1)
+                if (!sameContent(file, local.resolve(source.relativize(file))))
                     throw new IllegalStateException("Fixture source differs; use a fresh test workspace: " + file);
             }
         }
-        if (Files.mismatch(source.resolve("pom.xml"), local.resolve("pom.xml")) != -1)
+        if (!sameContent(source.resolve("pom.xml"), local.resolve("pom.xml")))
             throw new IllegalStateException("Fixture POM differs; use a fresh test workspace");
+    }
+
+    /**
+     * Same content, ignoring line endings: Git may check the repository out with CRLF (core.autocrlf) while the test
+     * workspace copy was made with LF, or the other way round; that is not a changed fixture.
+     */
+    static boolean sameContent(Path a, Path b) throws java.io.IOException {
+        if (!Files.isRegularFile(b)) return false;
+        if (Files.mismatch(a, b) == -1) return true;
+        return normalized(Files.readAllBytes(a)).equals(normalized(Files.readAllBytes(b)));
+    }
+
+    private static String normalized(byte[] content) {
+        return new String(content, java.nio.charset.StandardCharsets.ISO_8859_1).replace("\r\n", "\n");
     }
 }
