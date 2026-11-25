@@ -118,8 +118,8 @@ public class DevE2E {
                 problems.add("'bridgePort' is not a number: " + p.getProperty("bridgePort") + " (for example bridgePort=21766).");
             }
         }
-        if (!Files.isRegularFile(bundle.resolve("e2e-runner/pom.xml")))
-            problems.add("This checkout has no e2e-runner/pom.xml: " + bundle + " (incomplete clone? run git status).");
+        if (!Files.isRegularFile(bundle.resolve("testing/pom.xml")))
+            problems.add("This checkout has no testing/pom.xml: " + bundle + " (incomplete clone? run git status).");
 
         if (!problems.isEmpty()) {
             StringBuilder out = new StringBuilder("Fix " + (problems.size() == 1 ? "this" : "these " + problems.size() + " things")
@@ -234,7 +234,7 @@ public class DevE2E {
     private String capture(List<String> command) throws Exception {
         // Drain output while the p2 Director runs. Waiting before draining a pipe
         // can deadlock once the child's output buffer fills.
-        Path log = repo.resolve("e2e-runner/target/java-e2e-p2-director.log");
+        Path log = repo.resolve("testing/target/java-e2e-p2-director.log");
         Files.createDirectories(log.getParent());
         System.out.println("RUN (captured to " + log + "): " + String.join(" ", command));
         Process p = new ProcessBuilder(command).directory(repo.toFile())
@@ -264,8 +264,8 @@ public class DevE2E {
     private void verifySources() throws Exception {
         for (String filename : List.of("PhaseOneBridgeVerifier.java", "PhaseTwoBridgeVerifier.java",
                 "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java")) {
-            check(Files.isRegularFile(repo.resolve("e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e/" + filename)),
-                    "Missing committed Java verifier " + filename + " (restore it from git: git checkout -- e2e-runner).");
+            check(Files.isRegularFile(repo.resolve("testing/src/main/java/org/learningfromexperience/agentdebug/e2e/" + filename)),
+                    "Missing committed Java verifier " + filename + " (restore it from git: git checkout -- testing).");
         }
         check(Files.isRegularFile(repo.resolve("examples/spring-boot-debugging/src/main/java/org/learningfromexperience/bootfixture/orders/FixtureIdentityController.java")),
                 "Missing committed fixture identity controller");
@@ -373,7 +373,7 @@ public class DevE2E {
         pb.directory(eclipse.toFile());pb.environment().putAll(env);
         // Eclipse's console output must go to a file. Left as an unread pipe, it fills up and any
         // System.out.println inside Eclipse (including the debugger plugin) blocks indefinitely.
-        Path consoleLog=repo.resolve("e2e-runner/target/eclipse-console.log");
+        Path consoleLog=repo.resolve("testing/target/eclipse-console.log");
         Files.createDirectories(consoleLog.getParent());
         pb.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.appendTo(consoleLog.toFile()));
         pb.start();
@@ -393,9 +393,9 @@ public class DevE2E {
             if (!approval) throw new IllegalArgumentException("HTTP tests require --approve-fixture-post");
         }
         verifySources();
-        Path classes = repo.resolve("e2e-runner/target/phase2-classes");
+        Path classes = repo.resolve("testing/target/phase2-classes");
         Files.createDirectories(classes);
-        Path sources = repo.resolve("e2e-runner/src/main/java/org/learningfromexperience/agentdebug/e2e");
+        Path sources = repo.resolve("testing/src/main/java/org/learningfromexperience/agentdebug/e2e");
         System.out.println("== Compile Java E2E verifiers ==");
         List<String> compile = new ArrayList<>(List.of(javaBin("javac"), "--release", "21", "-encoding", "UTF-8",
                 "-d", classes.toString()));

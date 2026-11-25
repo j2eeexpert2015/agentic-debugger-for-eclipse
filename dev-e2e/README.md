@@ -79,7 +79,7 @@ Record a **baseline before deploying** a bridge change: 3 full `test --approve-f
 - [ ] `test --groups bridge` — 4/4, plus the manual shutdown check
 - [ ] **3 consecutive uninterrupted 23/23 runs**, all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
 - [ ] Every scenario that passed in the baseline still passes; no scenario more than ~20 % slower
-- [ ] Ownership checks 32/32 (`e2e-runner/ownership-tests/`)
+- [ ] Ownership checks 32/32 (`testing/ownership-tests/run.ps1`; Eclipse closed after a `DevE2E` deploy)
 - [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass
 - [ ] Manual: Preferences → Configure/Verify; one real Claude investigation; your own breakpoints and session untouched while Claude debugs
 - [ ] Record commit, bundle, JDK and date in the README tracking table
@@ -88,7 +88,7 @@ Rollback: install the previous plugin build (the single-threaded `legacy` bridge
 
 **CORE-13 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** baseline on the previous build 3× 23/23; new build: unit 13/13, 3 consecutive uninterrupted 23/23 runs, `bridge` 4/4. Open: legacy-mode comparison, ownership 32/32, overnight loop, MCP version mix.
 
-**Eclipse console output:** when DevE2E starts the dedicated Eclipse, its console goes to `e2e-runner/target/eclipse-console.log`. It must never be left as an unread pipe — once the pipe fills, every console write inside Eclipse blocks (the cause of the earlier `boot-gaps` timeouts).
+**Eclipse console output:** when DevE2E starts the dedicated Eclipse, its console goes to `testing/target/eclipse-console.log`. It must never be left as an unread pipe — once the pipe fills, every console write inside Eclipse blocks (the cause of the earlier `boot-gaps` timeouts).
 
 ## Stop event and output tests (CORE-14, CORE-15)
 
@@ -186,7 +186,7 @@ The updated installation passed all 23 direct scenarios **across separate runs**
 
 ## Retained test infrastructure
 
-Keep the Java verifiers in `e2e-runner/src/main/java/`, the 32-check ownership harness in `e2e-runner/ownership-tests/` (started by its own `run.ps1`; to be folded into the one runner, OPEN-38 step 6), the Maven fixture modules and the optional skill under `skills/eclipse-debugger/`. The older Windows batch and PowerShell runners, the `integrate`/`cleanup` migration modes and the one-off `dev-e2e` updaters were removed on 25 Nov 2026 (OPEN-38 step 1); the top-level README records current progress.
+Keep the Java verifiers in `testing/src/main/java/` (package `e2e`, compiled by every build; `DevE2E` compiles and starts them), the 32-check ownership harness in `testing/ownership-tests/` (started by its own `run.ps1`, which starts the test Eclipse itself), the Maven fixture modules and the optional skill under `skills/eclipse-debugger/`. The older Windows batch and PowerShell runners, the `integrate`/`cleanup` migration modes and the one-off `dev-e2e` updaters were removed on 25 Nov 2026 (OPEN-38 step 1); the top-level README records current progress.
 
 For a release gate, record the exact source revision, Eclipse bundle identity, JDK, command and all six direct-suite JSON reports, rerun against a clean build and distinguish direct JDT evidence from Claude agent behavior.
 

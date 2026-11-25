@@ -10,7 +10,6 @@
     <name>Agentic Debugger for Eclipse IDE</name>
     <properties>
         <tycho.version>5.0.4</tycho.version>
-        <agentdebug.phase1>false</agentdebug.phase1>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <modules>
@@ -18,19 +17,13 @@
              writer and the page; no dependencies. Used by mcp-server and embedded in eclipse-plugin (lib/report.jar) -->
         <module>report</module>
         <module>mcp-server</module>
-        <!-- Test tooling (Claude transcript grader) with its unit tests; not shipped -->
+        <!-- Test tooling, not shipped: the Claude transcript grader with its unit tests, and the direct bridge verifiers
+             (package e2e) that dev-e2e/DevE2E.java runs against a live Eclipse; Maven only compiles the verifiers -->
         <module>testing</module>
         <module>eclipse-plugin</module>
         <module>eclipse-feature</module>
         <module>eclipse-update-site</module>
     </modules>
-    <profiles>
-      <profile><id>e2e</id><modules><module>e2e-runner</module></modules></profile>
-      <profile><id>phase1-bridge</id><modules><module>e2e-runner</module></modules><properties><agentdebug.phase1>true</agentdebug.phase1></properties></profile>
-      <profile><id>installed-e2e</id><modules><module>e2e-runner</module></modules>
-        <properties><agentdebug.test.installed>true</agentdebug.test.installed></properties>
-      </profile>
-    </profiles>
     <repositories>
         <repository>
             <id>eclipse-2026-09</id>

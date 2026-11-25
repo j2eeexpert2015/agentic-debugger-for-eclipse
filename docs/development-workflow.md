@@ -15,9 +15,8 @@ Claude Code → MCP stdio server → authenticated localhost Eclipse bridge → 
 | `eclipse-plugin/` | JDT execution control, bridge, investigation ownership, Agent Activity view, perspective handling, Claude Code registration (Preferences) |
 | `mcp-server/` | MCP tools, investigation tracking, session report and live events (`SessionReport`, `ActivityForwarder`), test-only fixture HTTP tools |
 | `report/` | Report events and isolation rules (ADR-009), shared escaping/Markdown/colours/JSON, the Agent Activity store and page (embedded in the plugin as `lib/report.jar`), the HTML report writer (the same page as a file) |
-| `e2e-runner/` | Direct bridge verifiers (run by `DevE2E`) and the 32-check ownership harness (`ownership-tests/`) |
 | `dev-e2e/` | `DevE2E` (build, deploy, test), Claude trials (`ClaudeSymptomTrial`), grader launcher |
-| `testing/` | Claude transcript grader and its unit tests |
+| `testing/` | Claude transcript grader and its unit tests; the direct bridge verifiers (package `e2e`, run by `DevE2E`); the 32-check ownership harness (`ownership-tests/`) |
 | `examples/` | Intentionally buggy fixtures the tests are written against; **never changed** |
 | `skills/eclipse-debugger/` | Optional agent guidance, separate from code-enforced safety |
 | `docs/` | Decisions (ADRs), capabilities and SB scenarios, feature catalog, this workflow, designs |

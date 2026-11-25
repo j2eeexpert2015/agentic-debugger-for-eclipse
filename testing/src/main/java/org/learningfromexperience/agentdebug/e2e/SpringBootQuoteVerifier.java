@@ -95,7 +95,7 @@ public final class SpringBootQuoteVerifier {
         Path receipt=tmp.resolve("result.json"),log=tmp.resolve("client.log");
         Path java=Path.of(System.getProperty("java.home"),"bin",
                 System.getProperty("os.name").toLowerCase().contains("win")?"java.exe":"java");
-        Path classes=root.resolve("e2e-runner/target/phase2-classes");
+        Path classes=root.resolve("testing/target/phase2-classes");
         List<String> command=new ArrayList<>(List.of(java.toString(),"-cp",classes.toString(),
                 JavaFixtureQuoteClient.class.getName(),"--workspace",workspace.toString(),
                 "--bridge-port",Integer.toString(port),"--launch-name",launch,

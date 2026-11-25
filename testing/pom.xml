@@ -6,10 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <!--
-      Test tooling that needs no Eclipse and no Claude: the Claude transcript grader (EVAL-05/06).
-      Its unit tests (EV-U1..EV-U18) run in the normal build ("mvn clean package").
-      Integration tests against a live Eclipse and Claude trials are NOT run by Maven; they run only
-      through dev-e2e/DevE2E.java. This module is not shipped with the plugin.
+      Test tooling, not shipped with the plugin:
+        - the Claude transcript grader (EVAL-05/06), package testing.grading; its unit tests (EV-U1..EV-U18) run in the
+          normal build ("mvn clean package");
+        - the direct bridge verifiers, package e2e (moved here from the e2e-runner module, OPEN-38 step 6): Maven only
+          compiles them, so a broken verifier fails the build; dev-e2e/DevE2E.java compiles and runs them against a live
+          Eclipse;
+        - ownership-tests/: the 32-check ownership harness (OPEN-03), built and started by its own run.ps1.
+      Integration tests against a live Eclipse and Claude trials are NOT run by Maven; they run only through
+      dev-e2e/DevE2E.java.
     -->
     <groupId>org.learningfromexperience</groupId>
     <artifactId>agentic-debugger-testing</artifactId>

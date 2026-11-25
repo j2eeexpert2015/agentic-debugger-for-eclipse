@@ -214,7 +214,7 @@ private Process startHttpFixtureClient(String launch, Path receipt, boolean appr
         Path clientLog) throws IOException {
     String java = Path.of(System.getProperty("java.home"), "bin",
             System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java").toString();
-    Path classes = root.resolve("e2e-runner/target/phase2-classes");
+    Path classes = root.resolve("testing/target/phase2-classes");
     if (!Files.isRegularFile(classes.resolve("org/learningfromexperience/agentdebug/e2e/JavaFixtureQuoteClient.class")))
         throw new IOException("Compile JavaFixtureQuoteClient first");
     List<String> args = new ArrayList<>(List.of(java, "-cp", classes.toString(),
