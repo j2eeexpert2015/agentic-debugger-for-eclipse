@@ -140,6 +140,11 @@ public final class EclipseAgentOperations {
                 case "TEST_USER_LAUNCH_AGAIN" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
                 case "TEST_TERMINATE_LAUNCH" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
                 case "TEST_USER_CLEANUP" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
+                // OPEN-34: break and repair the build of a fixture project for the build-check tests.
+                case "TEST_WRITE_SOURCE" -> TEST_SUPPORT ? TestWorkspaceFiles.execute(p) : testOnly(p[0]);
+                case "TEST_DELETE_SOURCE" -> TEST_SUPPORT ? TestWorkspaceFiles.execute(p) : testOnly(p[0]);
+                case "TEST_DELETE_CLASS_FILE" -> TEST_SUPPORT ? TestWorkspaceFiles.execute(p) : testOnly(p[0]);
+                case "TEST_BUILD_PROJECT" -> TEST_SUPPORT ? TestWorkspaceFiles.execute(p) : testOnly(p[0]);
                 default -> error("Unknown command");
             };
         } catch (Exception e) {
@@ -571,6 +576,7 @@ public final class EclipseAgentOperations {
             for (var method : type.getMethods()) if (methodName.equals(method.getElementName())) found = true;
             if (!found) throw new IllegalArgumentException("JUnit test method not found");
         }
+        BuildCheck.verifyLaunchable(type); // OPEN-34
         var configType = manager().getLaunchConfigurationType("org.eclipse.jdt.junit.launchconfig");
         if (configType == null) throw new IllegalArgumentException("Eclipse JUnit launch support is unavailable");
         String suggestedName = "Agentic JUnit - " + projectName + " - " + type.getElementName()
@@ -765,6 +771,9 @@ public final class EclipseAgentOperations {
         if (matching.size() > 1) {
             throw new IllegalArgumentException("Several launch configurations match this application; choose one by launch name");
         }
+        // OPEN-34: before a NEW start (and before a configuration is created), compile errors or no compiled class
+        // are refused; an already running session is reused as it is.
+        if (matching.isEmpty() || activeLaunch(matching.get(0).getName()) == null) BuildCheck.verifyLaunchable(type);
         ILaunchConfiguration config;
         boolean created = matching.isEmpty();
         if (created) {
@@ -836,10 +845,22 @@ public final class EclipseAgentOperations {
             return ok(",\"reused\":true,\"launchName\":" + q(name) + projectLocation(found));
         }
         if (investigation != null) investigation.verifyNewLaunch(name);
+        verifyBuilt(found); // OPEN-34
         ILaunch started = found.launch(ILaunchManager.DEBUG_MODE, null);
         if (investigation != null) investigation.recordLaunch(name, started, true);
         ui.follow(started);
         return ok(",\"reused\":false,\"launchName\":" + q(name) + projectLocation(found));
+    }
+
+    /** OPEN-34 for an existing launch configuration: checks the project and main (or test) class it names, if found. */
+    private static void verifyBuilt(ILaunchConfiguration configuration) throws CoreException {
+        String projectName = configuration.getAttribute(IJavaLaunchConfigurationConstants.ATTR_PROJECT_NAME, "");
+        String typeName = configuration.getAttribute(IJavaLaunchConfigurationConstants.ATTR_MAIN_TYPE_NAME, "");
+        if (projectName.isBlank() || typeName.isBlank()) return;
+        IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
+        if (!project.isOpen() || !project.hasNature(JavaCore.NATURE_ID)) return;
+        IType type = JavaCore.create(project).findType(typeName);
+        if (type != null && type.exists()) BuildCheck.verifyLaunchable(type);
     }
 
     private static ILaunch activeLaunch(String name) {

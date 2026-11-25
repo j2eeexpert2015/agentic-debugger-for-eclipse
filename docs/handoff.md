@@ -24,7 +24,34 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 22:45): session control needs an investigation (OPEN-40), checked 22:52
+## Last delivery (25 Nov, 23:30): check that the project is built before a start (OPEN-34), checked 23:19
+
+Result on Eclipse 2026-09 (build 1.5.0.202611251742): plugin 58 tests, `BuildCheckTests` 2/2, regression 21/21.
+OPEN-34 moved to Done. OPEN-32 checked 23:24 by a normal start (eclipse-mcp-tools.md replaced, 6,306 to 6,471 bytes;
+unchanged files left alone) and moved to Done. How it works: the skill is refreshed only on a normal Eclipse start with the Claude marker file
+(`~/.eclipse-agentdebug/claude-registration.properties`), never in the test Eclipse (AGENTDEBUG_FIXTURE_SOURCE set);
+its check is a normal start of `C:\All_Softwares\eclipse` and a look at `~/.claude/skills/eclipse-debugger/references/`
+(a `.new` file there is also correct: the Claude trial harness copies the skill itself, so the plugin keeps that copy).
+
+
+Branch `feature/open-34-build-check` (from `main`).
+- New plugin class `BuildCheck.verifyLaunchable(type)`: compile or build-path error markers in the type's project ->
+  refused, naming up to three ("BrokenOnPurpose.java:5 Type mismatch ..."); compiled class missing from the source
+  folder's output (Maven: target/classes, target/test-classes) -> one incremental build, then refused with "is not
+  built" and what to ask the user. Warnings never block. Called before a NEW start in `startJavaApplication` (before a
+  configuration is created; a running session is reused as before), `startJUnitTest` and `startDebug`. Avoids the
+  `ClassNotFoundException` of 24 Nov and Eclipse's blocking "Errors exist in project" question.
+- Test commands (test Eclipse only, fixture projects only, `.java` under `src/` only): `TEST_WRITE_SOURCE`,
+  `TEST_DELETE_SOURCE`, `TEST_DELETE_CLASS_FILE`, `TEST_BUILD_PROJECT` (class `TestWorkspaceFiles`), classified in
+  `BridgeCommands`.
+- New integration class `BuildCheckTests` (extended suite 19, full 40): compile error refused and fixed; missing class
+  refused and built.
+- Skill reference: a refused start is reported to the user, not retried.
+- README: OPEN-38 and OPEN-29 moved to Done (housekeeping).
+Not checked by me: the plugin classes compile only against stubs here.
+Check: build, deploy, `-Dit.test=BuildCheckTests`, regression 21/21 (the check runs before every start). Trial: no.
+
+## Delivery before (25 Nov, 22:45): session control needs an investigation (OPEN-40), checked 22:52
 
 Result on Eclipse 2026-09 (build 1.5.0.202611251716, compiled against 2025-12): MCP server 32 and plugin 58 tests,
 `UserResourceSafetyTests` 8/8, regression 21/21, extended suite 17/17 (with the changed CONTROLLED cleanup); the
@@ -391,5 +418,5 @@ stop), `ActivityStore` (events in memory). Step titles and details come from `mc
 Maven against JUnit stand-ins, and renders reports from the 10:23 trial data in Chrome to look at them.
 
 **Other open items** (details in the README table): OPEN-37 (mostly covered by R4 phase 1; source line under stops open),
-OPEN-30 R2b/R3, OPEN-22/23, OPEN-32 to OPEN-34, and the older test items. `examples/README.md` has two dead links to deleted documents;
+OPEN-30 R2b/R3, OPEN-22 (parked)/23, OPEN-33, and the older test items. `examples/README.md` has two dead links to deleted documents;
 left unchanged by the rule above until the owner decides.

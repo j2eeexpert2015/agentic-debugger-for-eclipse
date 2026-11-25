@@ -73,7 +73,12 @@ public final class BridgeCommands {
             "TEST_USER_REPLACE_BREAKPOINT",
             "TEST_USER_LAUNCH_AGAIN",
             "TEST_TERMINATE_LAUNCH",
-            "TEST_USER_CLEANUP");
+            "TEST_USER_CLEANUP",
+            // Test Eclipse only (OPEN-34): break and repair a fixture project's build.
+            "TEST_WRITE_SOURCE",
+            "TEST_DELETE_SOURCE",
+            "TEST_DELETE_CLASS_FILE",
+            "TEST_BUILD_PROJECT");
 
     /** Commands that launch, restart or terminate JVMs and may legitimately take long. */
     static final Set<String> LONG_RUNNING = Set.of(

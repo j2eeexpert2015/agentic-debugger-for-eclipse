@@ -94,7 +94,7 @@ Class, then each test method as it appears in reports.
 | `InvestigationIsolationTests` (**investigation-isolation**): one investigation never stops or changes another one's program | `borrowed-app-survives-other-finish` | B uses A's running program and finishes: A's program keeps running, and B can no longer restart it |
 | | `two-apps-stay-independent` | Orders and Inventory run together for two investigations; finishing Orders leaves Inventory running |
 
-## Extended suite: `ExtendedSuite` (17 tests)
+## Extended suite: `ExtendedSuite` (19 tests)
 
 Kept out of the default because they need a short lease, the bridge's test hook or the test's user breakpoints
 and launches; run them for changes to cleanup, ownership or the bridge.
@@ -118,6 +118,8 @@ and launches; run them for changes to cleanup, ownership or the bridge.
 | | `stale-investigation-cannot-control-new-run` | After the user ended and restarted their program, an investigation that used the old run can neither pause nor finish against the new one |
 | | `controlled-investigation-keeps-its-program` | A CONTROLLED investigation keeps its stopped program and breakpoint at the finish (removed by the test afterwards) |
 | | `user-settings-are-unchanged` | After all of it: the user's breakpoints and launch configuration (main class, program and VM arguments, environment) unchanged, their program still running |
+| `BuildCheckTests` (**build-check**, OPEN-34): a project that cannot run as written is refused before the start. Breaks and repairs the test workspace's copy of `phase-one-debugging` (`examples/` untouched) | `compile-error-refuses-start` | With a compile error added (`BrokenOnPurpose.java`), starting a program is refused, naming `BrokenOnPurpose.java:5`; no configuration is created; after the file is removed the same start works |
+| | `missing-class-refuses-start` | With a compiled class deleted behind Eclipse's back, the start is refused with "is not built"; after a build it works |
 
 ## Claude end to end: `ClaudeAgentEndToEndTests` (uses Claude usage)
 

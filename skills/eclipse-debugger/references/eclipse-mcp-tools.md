@@ -27,7 +27,7 @@
 | `list_exception_breakpoints` | none | — | Inspect existing exception stops |
 | `remove_exception_breakpoint` | `exceptionName` | — | Agent-created only |
 | `set_tracepoint` | `typeName`, `lineNumber`, `expression`, `allowSideEffects` | `investigationId` | **Requires explicit consent** and `allowSideEffects=true`; prints without normal suspension |
-| `start_java_application` | `projectName`, `mainType` | `investigationId` | Java/Boot main; returns `launchName` |
+| `start_java_application` | `projectName`, `mainType` | `investigationId` | Java/Boot main; returns `launchName`. Refused when the project has compile errors or is not built: report that to the user, do not retry |
 | `start_debug_session` | `launchName` | `investigationId` | Start saved configuration; retains its settings |
 | `start_junit_test` | `projectName`, `typeName`, `methodName` | `investigationId` | `methodName` can be empty for class launch; verify exact selection |
 | `restart_debug_session` | `launchName`, `investigationId` | — | Only an investigation-owned launch; borrowed launches rejected |
