@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 
 /**
- * JUnit 5 unit tests for {@link ActivityPage}, the Agent Activity page (AP-U1 to AP-U9, OPEN-36 deliveries 4 and 5).
+ * JUnit 5 unit tests for {@link ActivityPage}, the Agent Activity page (AP-U1 to AP-U10, OPEN-36 deliveries 4 and 5).
  * No Eclipse needed: run by {@code mvn clean package}.
  *
  * @author Ayan Dutta
@@ -291,5 +291,24 @@ class ActivityPageTest {
         assertEquals("Agent: finished · 45.0 s", ActivityPage.statusBar(store.current(), START + 999_000));
         assertEquals("Debugging OrdersApplication · took 45.0 s\nPOST /orders/quote returned 120.00; expected 108.00.\n"
                 + "Details in the Agent Activity view.", ActivityPage.notification(store.current()));
+    }
+
+    @Test @DisplayName("AP-U10 the stop keeps the frame's variables when the agent expands one of them afterwards")
+    void apU10() {
+        ActivityStore store = started("Why?");
+        step(store, "stepRecorded", "STOP", "OK", "Stopped at breakpoint: OrderService.quote, line 24",
+                stopDetails("OrderService.quote:24  <  OrderController.quote:21",
+                        table("quantity", "int", "2", "unitPrice", "BigDecimal", " (id=75)", "rate", "int", "0")));
+        List<String> fields = new ArrayList<>(table("intCompact", "long", "60", "scale", "int", "0"));
+        fields.add(ReportFormat.TECHNICAL_DETAILS);
+        fields.add("Tool: expand_frame_variable");
+        step(store, "stepRecorded", "INSPECT", "OK", "Expanded variable: unitPrice", fields);
+        ActivityPage.Stop stop = ActivityPage.currentStop(store.current());
+        assertEquals(List.of("quantity", "unitPrice", "rate"), stop.variables().stream().map(ActivityPage.Variable::name).toList(),
+                "the frame's variables, not the fields of unitPrice (trial 25 Nov 09:47)");
+        finish(store, "FINISHED", "Done.");
+        String report = ActivityPage.report(store.current(), 0, KOLKATA, "Agentic Debugger for Eclipse");
+        assertTrue(report.contains("data-i=\"stop\" data-d=\"1\" open>"), "the last stop is open in the report");
+        assertTrue(report.contains("<td>rate</td>"), "with the frame's variables");
     }
 }

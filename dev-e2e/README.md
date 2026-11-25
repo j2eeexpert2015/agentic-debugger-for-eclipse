@@ -47,9 +47,9 @@ Two levels, both separate from the 23-scenario regression (the `bridge` group is
 ::    eclipse-plugin (48): BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U6, CR-U1..U6, RJ-U1..U4, PP-U1..U7
 ::    mcp-server (26):     TR-U1..U5, TO-U1..U3, SR-U1..U14, AF-U1..U4
 ::    testing (18):        EV-U1..U18 (Claude transcript grader)
-::    report (40):         RM-U1..U13 (isolation rules of ADR-009, report file names, several consumers),
+::    report (41):         RM-U1..U13 (isolation rules of ADR-009, report file names, several consumers),
 ::                         RF-U1..U5 (escaping, Markdown, colours, the shared JSON reader),
-::                         AS-U1..U6, AS-U8, AS-U9, AP-U1..U9 (Agent Activity store and page), HW-U1..U5 (HTML report)
+::                         AS-U1..U6, AS-U8, AS-U9, AP-U1..U10 (Agent Activity store and page), HW-U1..U5 (HTML report)
 ::    A failing unit test fails the build. Integration tests and Claude trials are never run by Maven.
 mvn clean package
 
@@ -88,7 +88,7 @@ Rollback: install the previous plugin build (the single-threaded `legacy` bridge
 
 **CORE-13 acceptance record (23 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** baseline on the previous build 3× 23/23; new build: unit 13/13, 3 consecutive uninterrupted 23/23 runs, `bridge` 4/4. Open: legacy-mode comparison, ownership 32/32, overnight loop, MCP version mix.
 
-**Eclipse console output:** when DevE2E starts the dedicated Eclipse, its console goes to `testing/target/eclipse-console.log`. It must never be left as an unread pipe — once the pipe fills, every console write inside Eclipse blocks (the cause of the earlier `boot-gaps` timeouts).
+**Eclipse console output:** when DevE2E starts the dedicated Eclipse, its console goes to `dev-e2e/target/eclipse-console.log` (outside every Maven module, so `mvn clean` never has to delete it while the test Eclipse runs). It must never be left as an unread pipe — once the pipe fills, every console write inside Eclipse blocks (the cause of the earlier `boot-gaps` timeouts).
 
 ## Stop event and output tests (CORE-14, CORE-15)
 

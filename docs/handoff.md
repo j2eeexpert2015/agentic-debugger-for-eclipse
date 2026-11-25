@@ -29,7 +29,7 @@ cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse ^
  && java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post --report
 ```
 
-Expected now: BUILD SUCCESS with unit tests `report` 40, `mcp-server` 26, `testing` 18, `eclipse-plugin` 48;
+Expected now: BUILD SUCCESS with unit tests `report` 41, `mcp-server` 26, `testing` 18, `eclipse-plugin` 48;
 regression 23/23; the trial `VERDICT PASS` and `REPORT CHECK PASS`.
 
 ## Where things stand
@@ -52,12 +52,16 @@ verifiers in package `e2e`, the ownership harness in `ownership-tests/`), `eclip
 - The page shows the steps in time order (running step red and breathing, done green), the pinned banner with a
   blinking dot, the current stop with call chain and variables, Follow, Expand All, Collapse All, Open HTML Report,
   clickable source references. The same page is the HTML report (`ActivityPage.report`).
-- New on 25 Nov, built but **not yet looked at by the owner**: Agent Activity opens in a window of its own
+- New on 25 Nov: Agent Activity opens in a window of its own (checked by the owner: stays on the right after the switch to Debug)
   (`ActivityWindow`, belongs to the Eclipse window, not to a perspective, so the switch to Debug cannot hide it;
   remembers its place); the docked view stays available (Preferences > Agentic Debugger > "Show Agent Activity in its
   own window" off). And the terminal views are carried into the Debug perspective (`TerminalCarrier`; same sessions,
   nothing chosen or started). Manual check for the terminal: Java perspective with a Terminal view open (any shell),
   run the trial, the Terminal must be there after the switch to Debug, below the Debug view.
+- Fixed 25 Nov after the owner's look at a trial report: the stop panel no longer takes an expanded variable's fields
+  as the frame's variables, and the report shows the last stop open (AP-U10). Checked 10:23 with a trial.
+- `DevE2E` writes its logs (`eclipse-console.log`, the p2 log) to `dev-e2e/target`, outside every Maven module, so
+  `mvn clean` works while the test Eclipse is still open. Start Maven with `call mvn ...` in `&&` chains.
 
 **Ideas agreed but not started:**
 - A report and view organised by program flow instead of tool calls, like the IntelliJ investigation page the owner

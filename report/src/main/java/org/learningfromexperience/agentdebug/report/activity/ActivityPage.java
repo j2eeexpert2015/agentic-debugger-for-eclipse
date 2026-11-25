@@ -315,6 +315,9 @@ public final class ActivityPage {
         String banner = u.get("banner").replace("<span id=\"timer\"></span>", "<span id=\"timer\">" + took + "</span>");
         // Steps open: without the script (mail preview, some viewers) the details are still there to read.
         String steps = u.get("steps").replaceAll("<details data-i=\"(\\d)", "<details open data-i=\"$1");
+        // The last stop open too: in a report it is a result to read, not a live panel to keep small.
+        String stop = u.get("stop").replace("<details class=\"stopbox\" data-i=\"stop\" data-d=\"0\">",
+                "<details class=\"stopbox\" data-i=\"stop\" data-d=\"1\" open>");
         String started = inv == null || inv.startedAt() == null ? "" : clock(inv.startedAt(), zone);
         String title = (inv == null ? "Agent Activity" : title(inv)) + " - debugging session report"
                 + (started.isEmpty() ? "" : " - " + started);
@@ -328,7 +331,7 @@ public final class ActivityPage {
                 + "<button onclick=\"return adSteps(false)\" title=\"Close the details of every step\">Collapse All</button>"
                 + "<span id=\"toast\"></span></div><div id=\"banner\">" + banner + "</div></div>"
                 + "<div id=\"head\">" + u.get("head") + "</div>"
-                + "<ol id=\"steps\">" + steps + "</ol><div id=\"stop\">" + u.get("stop") + "</div>"
+                + "<ol id=\"steps\">" + steps + "</ol><div id=\"stop\">" + stop + "</div>"
                 + "<div id=\"warn\">" + u.get("warn") + "</div><div id=\"jswarn\"></div>"
                 + "<div id=\"analysis\">" + u.get("analysis") + "</div><div id=\"note\">" + u.get("note") + "</div>"
                 + "<a id=\"jump\" href=\"#\"></a>"
@@ -553,7 +556,9 @@ public final class ActivityPage {
      * "Stopped after step: ...", "Paused: ...", or "Thread suspended: ..." after a pause), with the call chain from the
      * stop itself or from a later "Read call stack", and the variables of the latest variables table at or after it
      * (the stop itself, or a later read of the variables). A value is marked changed when an earlier table had the
-     * same variable with another value. Null when the program has not stopped yet.
+     * same variable with another value. Tables of "Expanded variable" steps do not count: they list the fields of one
+     * object, not the frame's variables (trial 25 Nov 09:47: the stop showed the fields of a BigDecimal instead of
+     * quantity, percent and rate). Null when the program has not stopped yet.
      */
     public static Stop currentStop(ActivityStore.Investigation inv) {
         List<ActivityStore.Step> steps = inv.steps();
@@ -583,7 +588,7 @@ public final class ActivityPage {
         List<Variable> current = List.of();
         int currentAt = -1;
         for (int i = steps.size() - 1; i >= stopAt; i--) {
-            List<Variable> table = variables(steps.get(i));
+            List<Variable> table = frameVariables(steps.get(i));
             if (!table.isEmpty()) {
                 current = table;
                 currentAt = i;
@@ -592,7 +597,7 @@ public final class ActivityPage {
         }
         Map<String, String> before = new LinkedHashMap<>();
         for (int i = currentAt - 1; i >= 0 && currentAt >= 0; i--) {
-            List<Variable> table = variables(steps.get(i));
+            List<Variable> table = frameVariables(steps.get(i));
             if (table.isEmpty()) continue;
             for (Variable v : table) before.put(v.name(), v.value());
             break;
@@ -609,6 +614,11 @@ public final class ActivityPage {
      * The variables table in a step's reader lines, as the MCP server writes it: a header line
      * {@code Variable    Type    Value}, a line of dashes, then one aligned row per variable. Empty when there is none.
      */
+    /** The frame's variables in a step: its variables table, except for an expanded object's fields. */
+    static List<Variable> frameVariables(ActivityStore.Step step) {
+        return step.title() != null && step.title().startsWith("Expanded variable") ? List.of() : variables(step);
+    }
+
     static List<Variable> variables(ActivityStore.Step step) {
         List<String> lines = ReportFormat.split(step.details()).reader();
         List<Variable> out = new ArrayList<>();

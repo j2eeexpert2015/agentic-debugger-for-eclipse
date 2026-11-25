@@ -234,7 +234,8 @@ public class DevE2E {
     private String capture(List<String> command) throws Exception {
         // Drain output while the p2 Director runs. Waiting before draining a pipe
         // can deadlock once the child's output buffer fills.
-        Path log = repo.resolve("testing/target/java-e2e-p2-director.log");
+        // dev-e2e/target, not a module's target: "mvn clean" must not need to delete it (OPEN-38 step 6).
+        Path log = repo.resolve("dev-e2e/target/java-e2e-p2-director.log");
         Files.createDirectories(log.getParent());
         System.out.println("RUN (captured to " + log + "): " + String.join(" ", command));
         Process p = new ProcessBuilder(command).directory(repo.toFile())
@@ -373,7 +374,9 @@ public class DevE2E {
         pb.directory(eclipse.toFile());pb.environment().putAll(env);
         // Eclipse's console output must go to a file. Left as an unread pipe, it fills up and any
         // System.out.println inside Eclipse (including the debugger plugin) blocks indefinitely.
-        Path consoleLog=repo.resolve("testing/target/eclipse-console.log");
+        // Not under a Maven module's target: the running test Eclipse keeps this file open, and "mvn clean" of the
+        // testing module then failed to delete it (25 Nov 10:09). dev-e2e is no Maven module, so nothing cleans it.
+        Path consoleLog=repo.resolve("dev-e2e/target/eclipse-console.log");
         Files.createDirectories(consoleLog.getParent());
         pb.redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.appendTo(consoleLog.toFile()));
         pb.start();
