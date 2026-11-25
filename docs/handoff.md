@@ -41,12 +41,10 @@ verifiers in package `e2e`, the ownership harness in `ownership-tests/`), `eclip
 
 **OPEN-38 codebase reduction** ([analysis](codebase-reduction-analysis.md)):
 - Steps 1 to 3 done and checked (unused files, documents, one JSON reader, no legacy bridge).
-- Step 4 (report: one module, our own HTML writer, ChainTest gone), step 5 (installer removed, test commands only in a
-  `DevE2E` Eclipse) and step 6 (reduced: `e2e-runner` merged into `testing`) were built successfully on 25 Nov with the
-  expected test counts. The first regression after step 6 failed only because two verifiers still pointed to
-  `e2e-runner/target/phase2-classes`; fixed in `PhaseTwoBridgeVerifier` and `SpringBootQuoteVerifier`.
-  **Pending:** the standard check with that fix. When it passes, mark steps 4 to 6 done in the README OPEN-38 row and
-  in the analysis document, and count the files.
+- Steps 4 to 6 done and checked on 25 Nov: report as one module with our own HTML writer (ChainTest gone), installer
+  removed, test commands only in a `DevE2E` Eclipse, `e2e-runner` merged into `testing`. Build with the test counts
+  below, regression 23/23, Claude trial PASS with REPORT CHECK PASS (three runs). Result: 189 files to 125, 13 Maven
+  modules to 7. OPEN-38 is done.
 - Not done on purpose: one runner with scenario classes (most verifiers already share `PhaseOneBridgeVerifier.Bridge`
   and `.Json`; a rewrite only the live regression can check costs more than it saves).
 

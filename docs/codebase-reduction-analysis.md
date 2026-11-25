@@ -16,6 +16,8 @@ document; every step below is a separate, verified delivery. Counts exclude `tar
 | Maven modules (`pom.xml`) | 13 | | 3 of them for one report |
 | **Total** | **189** | | |
 
+**Result (25 Nov, after step 6):** 125 files (same counting), 7 Maven modules instead of 13, about 21,500 lines of Java, Markdown, XML and scripts; all six steps checked by the build, the regression 23/23 and a Claude trial with the report.
+
 The product itself is not the problem. The weight is in **test tooling built in several generations** (PowerShell,
 then batch, then Java runners, then `DevE2E`), **one-off migration scripts that stayed**, **documentation per phase**,
 and **the same small helpers written again in each module**.
@@ -137,9 +139,9 @@ Each step is one delivery with the usual checks: `mvn clean package`, regression
 | 1 | Delete the unused files of A, and the `integrate`/`cleanup` modes of `DevE2E` (done 25 Nov: build, regression 23/23 and trial PASS) | none: nothing uses them |
 | 2 | Documentation down to 5 files in `docs/` plus the designs (B; done 25 Nov) | none for the code |
 | 3 | One JSON reader in the product (C1) and no legacy bridge (D3) (done 25 Nov: build, regression 23/23 and three trials PASS); the test tools' JSON readers and bridge clients (C2) move to step 6, because `DevE2E` compiles those tools without the project's jars | low |
-| 4 | Report: merge modules, remove the plug-in mechanism, our own HTML writer (C4, C5; delivered 25 Nov: one module `report`, the report is the Agent Activity page as a file, ChainTest and `report-chaintest` gone) | medium; checked by the report trial |
-| 5 | Test support switched off unless a test asks (D2); installer decision (C3) (delivered 25 Nov: `installer` removed; `GET_E2E_INFO` and `VERIFY_OWNED_FIXTURE_LAUNCH` only with `AGENTDEBUG_E2E=1`; unused `PREPARE_SMOKE_TEST` and `SmokeTestProject` removed) | low |
-| 6 | One e2e runner, grader moved (C6) (delivered 25 Nov, reduced: `e2e-runner` merged into `testing`, which already held the grader; ownership harness moved there and its launcher repaired; the scenario-class runner and one helper class dropped: the verifiers already share the bridge client and JSON reader of `PhaseOneBridgeVerifier`, the rest are one-line helpers, and a rewrite only the live regression can check costs more than it saves) | medium; checked by the full regression |
+| 4 | Report: merge modules, remove the plug-in mechanism, our own HTML writer (C4, C5; done 25 Nov: one module `report`, the report is the Agent Activity page as a file, ChainTest and `report-chaintest` gone) | medium; checked by the report trial |
+| 5 | Test support switched off unless a test asks (D2); installer decision (C3) (done 25 Nov: `installer` removed; `GET_E2E_INFO` and `VERIFY_OWNED_FIXTURE_LAUNCH` only with `AGENTDEBUG_E2E=1`; unused `PREPARE_SMOKE_TEST` and `SmokeTestProject` removed) | low |
+| 6 | One e2e runner, grader moved (C6) (done 25 Nov, reduced: `e2e-runner` merged into `testing`, which already held the grader; ownership harness moved there and its launcher repaired; the scenario-class runner and one helper class dropped: the verifiers already share the bridge client and JSON reader of `PhaseOneBridgeVerifier`, the rest are one-line helpers, and a rewrite only the live regression can check costs more than it saves) | medium; checked by the full regression |
 
 ## 6. Decisions needed
 
