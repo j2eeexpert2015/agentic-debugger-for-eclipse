@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.SWTError;
 import org.eclipse.swt.browser.Browser;
@@ -91,7 +92,7 @@ final class ActivityPanel {
                     return action(arguments);
                 }
             };
-            browser.setText(ActivityPage.shell());
+            browser.setText(ActivityPage.shell(dark()));
         } catch (SWTError noBrowser) {
             browser = null;
             text = new Text(parent, SWT.MULTI | SWT.READ_ONLY | SWT.WRAP | SWT.V_SCROLL);
@@ -142,7 +143,7 @@ final class ActivityPanel {
         } else {
             // The script could not run: the page is not (or no longer) there. Load it again; a poll fills it.
             loaded = false;
-            browser.setText(ActivityPage.shell());
+            browser.setText(ActivityPage.shell(dark()));
         }
     }
 
@@ -162,7 +163,7 @@ final class ActivityPanel {
 
     /**
      * The page's buttons and links: {@code open} (class, line) opens the source at that line, {@code openReport} opens
-     * the HTML report in the system browser.
+     * the HTML report in the system browser, {@code theme} ("dark" or "light") keeps the look the user chose.
      * Returns a short message the page shows for a moment. Runs on the UI thread; never throws.
      */
     private String action(Object[] arguments) {
@@ -189,12 +190,31 @@ final class ActivityPanel {
                         return "The report file is not there any more";
                     return Program.launch(current.reportFile()) ? "Opening the report" : "Could not open the report";
                 }
+                case "theme" -> {
+                    // The page has already switched; kept for the next load, in this window and the docked view.
+                    var preferences = InstanceScope.INSTANCE.getNode(PLUGIN_ID);
+                    preferences.put(PerspectivePolicy.ACTIVITY_THEME,
+                            "dark".equals(arguments.length > 1 ? String.valueOf(arguments[1]) : "") ? "dark" : "light");
+                    preferences.flush();
+                    return "";
+                }
                 default -> {
                     return "Unknown action";
                 }
             }
         } catch (Exception | LinkageError failure) {
             return "Failed: " + failure.getMessage();
+        }
+    }
+
+    private static final String PLUGIN_ID = "org.learningfromexperience.eclipse.agentdebug";
+
+    /** True when the user chose the dark look (the Dark / Light button of the page); light by default. */
+    private static boolean dark() {
+        try {
+            return "dark".equals(InstanceScope.INSTANCE.getNode(PLUGIN_ID).get(PerspectivePolicy.ACTIVITY_THEME, "light"));
+        } catch (RuntimeException unreadable) {
+            return false;
         }
     }
 

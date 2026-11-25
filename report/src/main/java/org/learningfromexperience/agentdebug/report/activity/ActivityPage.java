@@ -190,7 +190,8 @@ public final class ActivityPage {
             function adApply(){var ds=document.querySelectorAll('details[data-i]');
               for(var i=0;i<ds.length;i++){var d=ds[i],k=d.getAttribute('data-i'),def=d.getAttribute('data-d');
                 var want=(k in ad.state)?ad.state[k]:(def!==null?def==='1':ad.all);if(d.open!==want)d.open=want;}}
-            function adSteps(on){ad.all=on;var st={};if('stop' in ad.state)st.stop=ad.state.stop;ad.state=st;adApply();return false;}
+            function adSteps(on){ad.all=on;var st={};for(var k in ad.state)if(k==='stop'||k.charAt(0)==='f')st[k]=ad.state[k];
+              ad.state=st;adApply();return false;}
             document.addEventListener('click',function(e){var s=e.target.closest?e.target.closest('summary'):null;if(!s)return;
               var d=s.parentElement;if(!d||!d.getAttribute)return;var k=d.getAttribute('data-i');if(k===null)return;
               ad.state[k]=!d.open;});
@@ -206,7 +207,7 @@ public final class ActivityPage {
               var newId=u.id!==ad.id;
               if(newId){document.getElementById('head').innerHTML=u.head;ad.id=u.id;ad.state={};ad.all=true;ad.paused=false;}
               else{var h=document.querySelector('#head h1');if(h&&h.innerHTML!==u.title)h.innerHTML=u.title;}
-              ['tools','banner','warn','stop','steps','analysis','note'].forEach(function(k){
+              ['tools','banner','warn','stop','steps','flow','analysis','note'].forEach(function(k){
                 document.getElementById(k).innerHTML=u[k];});
               adApply();
               ad.start=u.start;ad.end=u.end;ad.last=u.last;ad.wait=u.wait;ad.running=u.running;
@@ -217,6 +218,14 @@ public final class ActivityPage {
               // analysis are at the bottom; scrolled there once the browser has laid the new content out.
               adFollow();
               return true;}
+            // Flow (default) or Steps: what the page shows; kept while the page lives.
+            function adView(steps){document.body.classList.toggle('vsteps',steps);
+              document.getElementById('vflow').classList.toggle('on',!steps);
+              document.getElementById('vsteps').classList.toggle('on',steps);adFollow();return false;}
+            function adTheme(){var d=!document.body.classList.contains('dark');document.body.classList.toggle('dark',d);
+              var b=document.getElementById('theme');if(b)b.textContent=d?'Light':'Dark';
+              if(typeof window.adAction==='function'){try{window.adAction('theme',d?'dark':'light','');}catch(x){}}
+              return false;}
             function adCall(name,a,b){
               if(typeof window.adAction!=='function')return adToast('Not available in this view');
               try{adToast(window.adAction(name,a===undefined?'':String(a),b===undefined?'':String(b))||'');}
@@ -236,14 +245,28 @@ public final class ActivityPage {
      * while the page scrolls: the toolbar and the status banner (Running with the live dot and timer, Finished).
      */
     public static String shell() {
+        return shell(false);
+    }
+
+    /**
+     * The page in the dark or the light look ({@code dark}); the Dark / Light button switches it in place and tells
+     * Eclipse ({@code adAction('theme', 'dark'|'light')}), which keeps the choice for the next time the page loads.
+     */
+    public static String shell(boolean dark) {
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + CSS + ReportFormat.MARKDOWN_CSS
-                + "</style><script>" + SCRIPT + "</script></head><body>"
-                + "<div id=\"pin\"><div id=\"bar\"><label title=\"Keep the newest step in sight\"><input type=\"checkbox\""
+                + FlowPage.CSS + FlowPage.LIVE_CSS + FlowPage.DARK_CSS + "</style><script>" + SCRIPT + "</script></head><body"
+                + (dark ? " class=\"dark\"" : "") + ">"
+                + "<div id=\"pin\"><div id=\"bar\"><span id=\"vbar\"><button id=\"vflow\" class=\"on\" onclick=\"return adView(false)\""
+                + " title=\"Where the program went: one box per place, a click shows what is known there\">Flow</button>"
+                + "<button id=\"vsteps\" onclick=\"return adView(true)\" title=\"Every tool call in order\">Steps</button></span>"
+                + "<label title=\"Keep the newest step in sight\"><input type=\"checkbox\""
                 + " id=\"follow\" checked onchange=\"ad.follow=this.checked;if(this.checked)adJump()\">Follow</label>"
-                + "<button onclick=\"return adSteps(true)\" title=\"Open the details of every step\">Expand All</button>"
-                + "<button onclick=\"return adSteps(false)\" title=\"Close the details of every step\">Collapse All</button>"
+                + "<button class=\"xa\" onclick=\"return adSteps(true)\" title=\"Open the details of every step\">Expand All</button>"
+                + "<button class=\"xa\" onclick=\"return adSteps(false)\" title=\"Close the details of every step\">Collapse All</button>"
+                + "<button id=\"theme\" onclick=\"return adTheme()\" title=\"Switch between the dark and the light look\">"
+                + (dark ? "Light" : "Dark") + "</button>"
                 + "<span id=\"tools\"></span><span id=\"toast\"></span></div><div id=\"banner\"></div></div>"
-                + "<div id=\"head\">" + waitingHead() + "</div>"
+                + "<div id=\"head\">" + waitingHead() + "</div><div id=\"flow\"></div>"
                 + "<ol id=\"steps\"></ol><div id=\"stop\"></div>"
                 // Warnings are about now, so they sit with the newest events, where Follow keeps the view.
                 + "<div id=\"warn\"></div><div id=\"jswarn\"></div><div id=\"analysis\"></div><div id=\"note\"></div>"
@@ -270,7 +293,7 @@ public final class ActivityPage {
             u.put("id", "");
             u.put("title", "Agent Activity");
             u.put("head", waitingHead());
-            for (String k : List.of("tools", "banner", "warn", "stop", "steps", "analysis")) u.put(k, "");
+            for (String k : List.of("tools", "banner", "warn", "stop", "steps", "flow", "analysis")) u.put(k, "");
             u.put("note", note);
             return new Parts(u, 0, 0, 0, 0, false);
         }
@@ -287,6 +310,7 @@ public final class ActivityPage {
         u.put("warn", warnings(inv));
         u.put("stop", stop(inv));
         u.put("steps", steps(inv));
+        u.put("flow", report ? "" : FlowPage.live(inv));
         u.put("analysis", analysis(inv, !report));
         u.put("note", note);
         return new Parts(u, start, end, epoch(inv.lastActivity()), wait, running != null);
@@ -300,11 +324,15 @@ public final class ActivityPage {
             """;
 
     /**
-     * The debugging session report (OPEN-30, OPEN-38 step 4): the same page as the Agent Activity view, as one
-     * self-contained HTML file. Everything is in the file itself (styles, script, content; nothing is loaded from
-     * anywhere), and the content is in the HTML, so the report reads without its script too. The script only adds
-     * Expand All and Collapse All. Differences from the view: a line saying what the page is, no Follow and no Open
-     * HTML Report, source references are text, the time taken is written in, every step's details are open.
+     * The debugging session report (OPEN-30, OPEN-38 step 4): one self-contained HTML file. Everything is in the file
+     * itself (styles, script, content; nothing is loaded from anywhere), and the content is in the HTML, so the report
+     * reads without its script too; the script only adds the interactions.
+     *
+     * <p>Two views of the same investigation (OPEN-30 R4, phase 1): <b>Program flow</b> (the default, {@link FlowPage}):
+     * where the program went, one place at a time, with Previous, Next and Replay; and <b>All steps</b>: the page of
+     * the Agent Activity view, every tool call in order, with Expand All and Collapse All. Differences of All steps
+     * from the view: no Follow and no Open HTML Report, source references are text, the time taken is written in,
+     * every step's details and the last stop are open. Without the script both views are shown, one after the other.
      *
      * @param product shown next to "Debugging session report" (the report setting's project name)
      */
@@ -323,19 +351,24 @@ public final class ActivityPage {
                 + (started.isEmpty() ? "" : " - " + started);
         return "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
                 + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>" + html(title)
-                + "</title><style>" + CSS + ReportFormat.MARKDOWN_CSS + REPORT_CSS + "</style><script>" + SCRIPT
-                + "</script></head><body class=\"report\">"
+                + "</title><style>" + CSS + ReportFormat.MARKDOWN_CSS + REPORT_CSS + FlowPage.CSS + FlowPage.DARK_CSS + "</style><script>" + SCRIPT
+                + FlowPage.SCRIPT + "</script></head><body class=\"report dark\">"
                 + "<div id=\"pin\"><div id=\"bar\"><span class=\"rep\">" + html("Debugging session report · "
                 + (product == null ? "Agentic Debugger" : product)) + "</span>"
-                + "<button onclick=\"return adSteps(true)\" title=\"Open the details of every step\">Expand All</button>"
-                + "<button onclick=\"return adSteps(false)\" title=\"Close the details of every step\">Collapse All</button>"
+                + "<button class=\"xa\" onclick=\"return adSteps(true)\" title=\"Open the details of every step\">Expand All</button>"
+                + "<button class=\"xa\" onclick=\"return adSteps(false)\" title=\"Close the details of every step\">Collapse All</button>"
+                + (inv == null ? "" : "<button id=\"ftheme\" onclick=\"return flTheme()\" title=\"Switch between the dark"
+                + " and the light look\">Light theme</button>")
                 + "<span id=\"toast\"></span></div><div id=\"banner\">" + banner + "</div></div>"
                 + "<div id=\"head\">" + u.get("head") + "</div>"
+                + (inv == null ? "" : FlowPage.render(inv))
+                + "<div id=\"all\"><h2 class=\"fallh\">All steps</h2>"
                 + "<ol id=\"steps\">" + steps + "</ol><div id=\"stop\">" + stop + "</div>"
                 + "<div id=\"warn\">" + u.get("warn") + "</div><div id=\"jswarn\"></div>"
-                + "<div id=\"analysis\">" + u.get("analysis") + "</div><div id=\"note\">" + u.get("note") + "</div>"
+                + "<div id=\"analysis\">" + u.get("analysis") + "</div><div id=\"note\">" + u.get("note") + "</div></div>"
                 + "<a id=\"jump\" href=\"#\"></a>"
-                + "<script>ad.follow=false;ad.id=" + js(inv == null ? "" : inv.id()) + ";</script>"
+                + "<script>ad.follow=false;ad.id=" + js(inv == null ? "" : inv.id()) + ";"
+                + (inv == null ? "" : "flInit();") + "</script>"
                 + "</body></html>";
     }
 
@@ -610,15 +643,15 @@ public final class ActivityPage {
         return new Stop(where, steps.get(stopAt).title(), frames, List.copyOf(marked));
     }
 
-    /**
-     * The variables table in a step's reader lines, as the MCP server writes it: a header line
-     * {@code Variable    Type    Value}, a line of dashes, then one aligned row per variable. Empty when there is none.
-     */
     /** The frame's variables in a step: its variables table, except for an expanded object's fields. */
     static List<Variable> frameVariables(ActivityStore.Step step) {
         return step.title() != null && step.title().startsWith("Expanded variable") ? List.of() : variables(step);
     }
 
+    /**
+     * The variables table in a step's reader lines, as the MCP server writes it: a header line
+     * {@code Variable    Type    Value}, a line of dashes, then one aligned row per variable. Empty when there is none.
+     */
     static List<Variable> variables(ActivityStore.Step step) {
         List<String> lines = ReportFormat.split(step.details()).reader();
         List<Variable> out = new ArrayList<>();

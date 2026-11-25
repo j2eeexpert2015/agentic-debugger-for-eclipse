@@ -44,6 +44,9 @@ public final class PerspectivePolicy {
      */
     public static final String FLOATING_ACTIVITY_VIEW = "activityViewFloating";
 
+    /** Preference key: the look of the Agent Activity page, "dark" or "light" (default); set by its Dark / Light button. */
+    public static final String ACTIVITY_THEME = "activityTheme";
+
     /** Preference key: where the user last put the Agent Activity window, as "x,y,width,height". */
     public static final String ACTIVITY_WINDOW_BOUNDS = "activityWindowBounds";
 
