@@ -154,8 +154,8 @@ class ActivityPageTest {
         assertTrue(head.contains("x".repeat(ActivityPage.REQUEST_PREVIEW) + "&#8230;"), "preview cut with an ellipsis");
         assertTrue(head.contains("(click to show all)"));
         assertTrue(head.contains("<div class=\"full\">" + longRequest + "</div>"), "the full request is there when expanded");
-        assertTrue(head.contains("started 15:30:00"), "local time, not UTC: " + head);
-        assertTrue(head.contains("Investigation 3b80cb03"));
+        assertTrue(head.contains("<b>Started:</b> 24 Nov, 15:30:00"), "local date and time, not UTC: " + head);
+        assertTrue(head.contains("<b>Investigation ID:</b> <code title=\"3b80cb03-1111\">3b80cb03</code>"), head);
         assertTrue(ActivityPage.update(store.current(), 0, KOLKATA).contains("title:'Debugging OrdersApplication'"),
                 "the title is sent with every update: the header is drawn once, before the launch names the program");
     }
@@ -320,5 +320,44 @@ class ActivityPageTest {
         String report = ActivityPage.report(store.current(), 0, KOLKATA, "Agentic Debugger for Eclipse");
         assertTrue(report.contains("data-i=\"stop\" data-d=\"1\" open>"), "the last stop is open in the report");
         assertTrue(report.contains("<td>rate</td>"), "with the frame's variables");
+    }
+
+    @Test @DisplayName("AP-U11 the Agent details block: agent by its name, model/skill/effort marked as the agent's own statement, cleanup in plain words (OPEN-41)")
+    void apU11() {
+        ActivityStore store = new ActivityStore();
+        store.accept(enc(org.learningfromexperience.agentdebug.report.ActivityEvents.json(
+                new org.learningfromexperience.agentdebug.report.ReportEvent.InvestigationStarted("3b80cb03-1111",
+                        java.time.Instant.parse("2026-11-24T10:00:00Z"), "NORMAL", "claude-code 2.1.3", "Why?", false,
+                        "eclipse-debugger 0.1.0", "claude-haiku-5-5", null))));
+        String head = ActivityPage.head(store.current(), KOLKATA);
+        assertTrue(head.contains("<details class=\"dby\"><summary><span class=\"dby-h\">Agent details</span><span class=\"facts\">"
+                + " <b class=\"fa\">Claude Code</b> \u00B7 <span class=\"fm\">claude-haiku-5-5</span> \u00B7 <span class=\"fs\">"
+                + "eclipse-debugger 0.1.0</span></span><span class=\"tog\">"),
+                "folded to one line in the window, the full block a click away: " + head);
+        assertTrue(ActivityPage.report(store.current(), 0, KOLKATA, "P").contains("<details class=\"dby\" open>"),
+                "open in the report");
+        assertTrue(head.contains("<span class=\"k\">Agent</span><span class=\"v\"><b>Claude Code</b> <span class=\"ver\">2.1.3</span>"),
+                "the client ID becomes the agent's name: " + head);
+        assertTrue(head.contains("<span class=\"k\">Model</span><span class=\"v\"><b>claude-haiku-5-5</b> <span class=\"said\""), head);
+        assertTrue(head.contains("<b>eclipse-debugger</b> <span class=\"ver\">0.1.0</span> <span class=\"said\""),
+                "the skill name and its version apart: " + head);
+        assertTrue(head.contains("<span class=\"k\">Effort</span><span class=\"v none\">not stated</span>"), head);
+        assertTrue(head.contains("Reported by the agent itself; Eclipse cannot verify it"), head);
+        assertTrue(head.contains("<b>After it finishes:</b> the agent&#39;s own breakpoints are removed")
+                || head.contains("<b>After it finishes:</b> the agent's own breakpoints are removed"), head);
+        assertFalse(head.contains("NORMAL"), "no mode names on the page: " + head);
+        String md = ActivityPage.markdown(store.current(), KOLKATA);
+        assertTrue(md.contains("**Agent details:** Claude Code 2.1.3 · Model claude-haiku-5-5 \u25C6 · Skill eclipse-debugger 0.1.0 \u25C6"
+                + " · Effort not stated"), md);
+        assertTrue(md.contains("**Investigation ID:** 3b80cb03"), md);
+
+        String bare = ActivityPage.head(started("Why?").current(), KOLKATA);
+        assertTrue(bare.contains("<span class=\"v none\">none reported</span>"), "without a skill: " + bare);
+        assertFalse(bare.contains("dby-key"), "nothing stated, so no key: " + bare);
+
+        assertEquals("Cursor", ActivityPage.agent("cursor 1.0")[0]);
+        assertEquals("some-agent", ActivityPage.agent("some-agent 3")[0], "unknown clients as they are");
+        assertEquals("unknown agent", ActivityPage.agent(null)[0]);
+        assertTrue(ActivityPage.afterFinish("CONTROLLED").contains("kept, so you can inspect them"));
     }
 }

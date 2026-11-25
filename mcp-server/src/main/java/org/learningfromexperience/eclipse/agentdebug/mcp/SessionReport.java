@@ -227,7 +227,8 @@ final class SessionReport {
                     String mode = Json.str(reply.getOrDefault("mode", args.get("mode")));
                     String request = exactPrompt != null ? exactPrompt : Json.str(args.get("request"));
                     events.record(new ReportEvent.InvestigationStarted(id, now, mode == null ? "NORMAL" : mode, client,
-                            request, exactPrompt != null));
+                            request, exactPrompt != null, Json.str(args.get("skill")), Json.str(args.get("model")),
+                            Json.str(args.get("effort"))));
                 }
                 return;
             }

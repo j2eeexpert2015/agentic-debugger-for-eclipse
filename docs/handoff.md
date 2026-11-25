@@ -24,7 +24,66 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 23:30): check that the project is built before a start (OPEN-34), checked 23:19
+## Last delivery (26 Nov, 00:35): "Debugged by" renamed to "Agent details" (OPEN-41, fourth step), waiting for check
+
+Result of the third step (26 Nov, 00:25): build OK, Haiku trial PASS (tools=13, flow 6/7, purpose 3/3; so the 00:11
+FAIL was Haiku's variance: 2 of 3 runs pass). Ayan's screenshot: the block folds to one line in Eclipse's window as
+planned. He found "Debugged by" misleading; the block, its folded line and the Markdown line now say "Agent details".
+Only the text changed (`ActivityPage`, AP-U11, README). Check: build, deploy, a look at the window (folded, opened,
+dark) and the report. Trial needed: no.
+
+## Delivery before (26 Nov, 00:20): the "Debugged by" block folded in the window (OPEN-41, third step), checked 00:25
+
+Result of the second step (26 Nov, 00:11): build OK, disconnect test PASS; Haiku now passed `model` (the block showed
+claude-haiku-5-5), so the firmer SKILL.md wording works. Ayan: the block takes too much height in the narrow window.
+Now the block is a `<details class="dby">`: in the window folded to one line ("Debugged by Claude Code ·
+claude-haiku-5-5 · eclipse-debugger 0.1.0", cut with an ellipsis when narrow, "more" opens the full block, "less" folds
+it); in the HTML report open (`report()` adds `open`). AP-U11 checks both. The same Haiku trial ended FAIL
+(stopped-at-expected-frame, observed-percent, observed-rate, diagnosis; tools=23, two investigations): Haiku set an
+exception breakpoint on AssertionError and the program ended without stopping. Not yet explained; a rerun and the
+verdict.json decide whether it is Haiku's variance or something we changed (only the SKILL.md step 3 wording changed
+for the agent).
+
+## Delivery before (26 Nov, 00:05): the "Debugged by" block (OPEN-41, second step), checked 00:11
+
+Same branch `feature/open-41-agent-and-skill-in-report`. Result of the first step (25 Nov, 23:50): build OK (report 52,
+MCP 33, plugin 58, grader 21), disconnect test PASS, Haiku trial PASS; the header showed agent and skill but no model:
+Haiku did not pass `model` because the skill said "when you know them". Ayan asked for a clearer, coloured block. Now:
+- `ActivityPage.debuggedBy`: under the request a purple "Debugged by" block, the same in the Agent Activity window and
+  the HTML report (both use `head`). Two-tone chips: Agent (name from `agent()`: claude-code -> Claude Code, Cursor,
+  GitHub Copilot, ...; unknown IDs as sent), Model (blue), Skill (teal, name and version apart), Effort (grey); missing
+  values "not stated" / "none reported". What the agent said about itself is marked with an amber diamond and one key
+  "Reported by the agent itself; Eclipse cannot verify it" (only when something was stated).
+- No mode names on the page: "After it finishes: the agent's own breakpoints are removed and the debug session it
+  started is stopped. Your breakpoints and sessions are left alone." (CONTROLLED: "... are kept, so you can inspect
+  them."). "Started: 25 Nov, 23:49:41". "Investigation ID: db14c2d9" (full ID as tooltip) with what it is for.
+- Dark look: `body.dark` rules for the block (the page's Dark/Light button; the report opens dark).
+- Markdown export: the same facts as plain lines (`debuggedByText`); `skillText` and the old info line removed.
+- SKILL.md step 3, `references/eclipse-mcp-tools.md` and the `begin_debug_investigation` schema: always pass `model`
+  as the instructions state it; `effort` only if stated.
+- Tests: AP-U11 rewritten, AP-U3 updated (report still 52).
+Check: build; disconnect test (block with "none reported", no key); one Haiku trial: block shows Claude Code, the
+model, the skill; screenshots of the window in light and dark and of the report. Trial needed: yes.
+
+## Delivery before (25 Nov, 23:45): the agent, its model, effort and skill in the report and window (OPEN-41), checked 23:50
+
+Branch `feature/open-41-agent-and-skill-in-report` (from `main`). Our MCP server cannot see which skills Claude uses
+(that happens inside Claude Code); the trial grader only knows from transcripts. Now:
+- `begin_debug_investigation` takes optional `skill`, `model` and `effort`; SKILL.md (step 3) and
+  `references/eclipse-mcp-tools.md` tell the agent to pass `eclipse-debugger 0.1.0`, and its model ID and effort level
+  when it knows them (MCP itself carries only the client name and version). Recorded in
+  `ReportEvent.InvestigationStarted` (new components; the old constructors stay), carried by `ActivityEvents` and
+  `ActivityStore` (`Investigation.skill/model/effort`).
+- The client line now has the version from the MCP handshake (`ReportingTools.client`: "claude-code 2.1.3").
+- `ActivityPage` header and Markdown: "claude-code 2.1.3 · model claude-haiku-5-5 · effort high · skill
+  eclipse-debugger 0.1.0 (stated by the agent) · NORMAL mode · ..."; an unstated model or effort is left out; without a
+  skill: "no skill reported". Same in the HTML report (it uses the page).
+- Tests: AP-U11 (report 52), SR-U16 (MCP server 33); FlowPageTest constructions updated for the new component.
+Check: build; one Claude trial (Haiku, about $0.01) shows model and skill in the report and the window (a stated
+model other than Haiku is a finding); the
+agent-disconnect test shows "no skill reported". Trial needed: yes (one run; it is the only way the skill line appears).
+
+## Delivery before (25 Nov, 23:30): check that the project is built before a start (OPEN-34), checked 23:19
 
 Result on Eclipse 2026-09 (build 1.5.0.202611251742): plugin 58 tests, `BuildCheckTests` 2/2, regression 21/21.
 OPEN-34 moved to Done. OPEN-32 checked 23:24 by a normal start (eclipse-mcp-tools.md replaced, 6,306 to 6,471 bytes;
@@ -418,5 +477,5 @@ stop), `ActivityStore` (events in memory). Step titles and details come from `mc
 Maven against JUnit stand-ins, and renders reports from the 10:23 trial data in Chrome to look at them.
 
 **Other open items** (details in the README table): OPEN-37 (mostly covered by R4 phase 1; source line under stops open),
-OPEN-30 R2b/R3, OPEN-22 (parked)/23, OPEN-33, and the older test items. `examples/README.md` has two dead links to deleted documents;
+OPEN-30 R2b/R3, OPEN-22 (parked)/23, OPEN-33, OPEN-41 (delivered), OPEN-05 (after OPEN-41), and the older test items. `examples/README.md` has two dead links to deleted documents;
 left unchanged by the rule above until the owner decides.

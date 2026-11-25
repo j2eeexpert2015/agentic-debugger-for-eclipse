@@ -49,17 +49,28 @@ public sealed interface ReportEvent {
      * @param request      what the user asked for, or null when unknown; shown first in the report
      * @param requestExact true when {@code request} is the exact prompt sent to the agent (known only to a test
      *                     harness); false when the agent passed it on in its own words
+     * @param skill        OPEN-41: the skill the agent says it follows ("eclipse-debugger 0.1.0"), or null when it named
+     *                     none; the agent's own statement, shown as such
+     * @param model        OPEN-41: the model the agent says it runs on ("claude-haiku-5-5"), or null; its statement
+     * @param effort       OPEN-41: the effort or thinking level the agent says it uses ("high"), or null; its statement
      */
     record InvestigationStarted(String investigationId, Instant at, String mode, String client,
-                                String request, boolean requestExact) implements ReportEvent {
+                                String request, boolean requestExact, String skill, String model, String effort)
+            implements ReportEvent {
         public InvestigationStarted {
             Objects.requireNonNull(investigationId, "investigationId");
             Objects.requireNonNull(at, "at");
         }
 
+        /** Without a skill. */
+        public InvestigationStarted(String investigationId, Instant at, String mode, String client,
+                                    String request, boolean requestExact) {
+            this(investigationId, at, mode, client, request, requestExact, null, null, null);
+        }
+
         /** Without a request. */
         public InvestigationStarted(String investigationId, Instant at, String mode, String client) {
-            this(investigationId, at, mode, client, null, false);
+            this(investigationId, at, mode, client, null, false, null, null, null);
         }
     }
 

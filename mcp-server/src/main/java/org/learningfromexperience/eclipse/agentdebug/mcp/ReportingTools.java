@@ -79,7 +79,10 @@ final class ReportingTools {
     private static String client(McpSyncServerExchange exchange) {
         try {
             McpSchema.Implementation info = exchange == null ? null : exchange.getClientInfo();
-            return info == null ? null : info.name();
+            if (info == null) return null;
+            // OPEN-41: name and version of the agent's MCP client ("claude-code 2.1.3"), shown in the report header.
+            String version = info.version();
+            return version == null || version.isBlank() ? info.name() : info.name() + " " + version;
         } catch (Throwable unknown) {
             return null;
         }

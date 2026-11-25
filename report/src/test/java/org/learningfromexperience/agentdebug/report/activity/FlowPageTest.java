@@ -40,7 +40,7 @@ class FlowPageTest {
     private static ActivityStore.Investigation inv(List<ActivityStore.Step> steps, String conclusion, String analysis) {
         return new ActivityStore.Investigation("0e462d67-0590", "NORMAL", "claude-code", "Why 120.00?", true,
                 "2026-11-25T04:52:44Z", steps, 0, "FINISHED", conclusion, List.of(), null, "2026-11-25T04:53:13Z",
-                ActivityStore.PROGRAM_ENDED, null, "2026-11-25T04:53:13Z", analysis);
+                ActivityStore.PROGRAM_ENDED, null, "2026-11-25T04:53:13Z", analysis, null, null, null);
     }
 
     /** A variables table as the MCP server writes it (name, type, value triples). */
@@ -251,7 +251,7 @@ class FlowPageTest {
         ActivityStore.Investigation inv = new ActivityStore.Investigation("0e462d67-0590", "NORMAL", "claude-code", "Why?",
                 true, "2026-11-25T04:52:44Z", List.of(breakpoint("OrderService", 24), breakpoint("OrderRepository", 40),
                 LAUNCH, REQUEST, STOP_24, running), 0, null, null, List.of(), null, null, ActivityStore.PROGRAM_PAUSED,
-                "OrderService.quote:24", "2026-11-25T04:53:05Z", null);
+                "OrderService.quote:24", "2026-11-25T04:53:05Z", null, null, null, null);
         assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.REQUEST, FlowPage.Kind.STOP), kinds(FlowPage.nodes(inv)),
                 "no never-hit node while the investigation runs: OrderRepository:40 may still be hit");
         assertTrue(FlowPage.nodes(inv).get(2).expressions().isEmpty(), "a running evaluation has no result yet");

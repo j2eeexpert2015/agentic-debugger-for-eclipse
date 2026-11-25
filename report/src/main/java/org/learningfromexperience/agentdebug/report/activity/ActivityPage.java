@@ -86,7 +86,56 @@ public final class ActivityPage {
             .req[open] .clip{display:none}
             .req .full{white-space:pre-wrap;background:#eef4ff;border-left:4px solid #0d6efd;border-radius:6px;
             padding:6px 10px;margin-top:4px}
-            .info{color:#6b7280;font-size:11.5px;margin-bottom:6px}
+            .dby{background:#EEEDFE;border:1px solid #AFA9EC;border-radius:8px;padding:8px 12px 7px;margin:4px 0 8px;
+            color:#3C3489}
+            .dby-h{font-size:13px;font-weight:700;color:#26215C}
+            .dby>summary{list-style:none;cursor:pointer;font-size:12px;display:flex;align-items:baseline;gap:5px}
+            .dby .facts{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .dby[open] .tog{flex:1}
+            .dby>summary::-webkit-details-marker{display:none}
+            .dby[open]>summary{margin-bottom:6px}
+            .dby[open]>summary .facts{display:none}
+            .dby .fa{color:#3C3489}
+            .dby .fm{color:#185FA5;font-weight:600}
+            .dby .fs{color:#0F6E56;font-weight:600}
+            .dby .tog{color:#534AB7;font-size:11.5px;white-space:nowrap;text-decoration:underline dotted}
+            .dby .tog::after{content:"more \\25B8"}
+            .dby[open] .tog::after{content:"less \\25B4"}
+            .dby:not([open]){padding:4px 12px}
+            .dby .chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:6px}
+            .dby .chip{display:inline-flex;border-radius:6px;overflow:hidden;font-size:12px;border:1px solid var(--cb)}
+            .dby .chip .k{background:var(--ck);color:#fff;padding:3px 8px}
+            .dby .chip .v{background:var(--cv);color:var(--ct);padding:3px 9px}
+            .dby .chip .v b{font-weight:700}
+            .dby .chip .ver{opacity:.8}
+            .dby .chip .v.none{font-style:italic;color:#5F5E5A;background:#F1EFE8}
+            .dby .chip.agent{--cb:#534AB7;--ck:#534AB7;--cv:#3C3489;--ct:#fff}
+            .dby .chip.model{--cb:#185FA5;--ck:#185FA5;--cv:#E6F1FB;--ct:#042C53}
+            .dby .chip.skill{--cb:#0F6E56;--ck:#0F6E56;--cv:#E1F5EE;--ct:#04342C}
+            .dby .chip.effort{--cb:#888780;--ck:#5F5E5A;--cv:#F1EFE8;--ct:#2C2C2A}
+            .dby .said{color:#BA7517;font-weight:700}
+            .dby-key{display:inline-block;background:#FAEEDA;border:1px solid #EF9F27;color:#633806;border-radius:6px;
+            padding:1px 8px;font-size:11.5px;font-weight:600;margin-bottom:5px}
+            .dby-more{border-top:1px solid #AFA9EC;padding-top:5px;font-size:11.5px;display:grid;gap:2px}
+            .dby-more b{color:#26215C}
+            .dby-more code{font:11.5px Consolas,'Cascadia Mono',monospace;background:#fff;border:1px solid #AFA9EC;
+            border-radius:4px;padding:0 4px;color:#26215C}
+            .dby-more .why{color:#534AB7}
+            body.dark .dby{background:#26215C;border-color:#534AB7;color:#CECBF6}
+            body.dark .dby-h,body.dark .dby-more b,body.dark .dby .fa{color:#EEEDFE}
+            body.dark .dby .fm{color:#85B7EB}
+            body.dark .dby .fs{color:#5DCAA5}
+            body.dark .dby .tog{color:#AFA9EC}
+            body.dark .dby .chip.agent{--cb:#7F77DD;--ck:#534AB7;--cv:#7F77DD;--ct:#fff}
+            body.dark .dby .chip.model{--cb:#378ADD;--ck:#185FA5;--cv:#042C53;--ct:#B5D4F4}
+            body.dark .dby .chip.skill{--cb:#1D9E75;--ck:#0F6E56;--cv:#04342C;--ct:#9FE1CB}
+            body.dark .dby .chip.effort{--cb:#888780;--ck:#5F5E5A;--cv:#2C2C2A;--ct:#D3D1C7}
+            body.dark .dby .chip .v.none{color:#B4B2A9;background:#2C2C2A}
+            body.dark .dby .said{color:#EF9F27}
+            body.dark .dby-key{background:#412402;border-color:#BA7517;color:#FAC775}
+            body.dark .dby-more{border-top-color:#534AB7}
+            body.dark .dby-more code{background:#3C3489;border-color:#534AB7;color:#EEEDFE}
+            body.dark .dby-more .why{color:#AFA9EC}
             #pin{position:sticky;top:0;z-index:5;background:#fff;margin:-8px -10px 6px;padding:6px 10px 6px;
             box-shadow:0 2px 4px rgba(0,0,0,.06)}
             #bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 5px;font-size:12px;color:#374151}
@@ -344,6 +393,8 @@ public final class ActivityPage {
         // Steps open: without the script (mail preview, some viewers) the details are still there to read.
         String steps = u.get("steps").replaceAll("<details data-i=\"(\\d)", "<details open data-i=\"$1");
         // The last stop open too: in a report it is a result to read, not a live panel to keep small.
+        // The "Agent details" block open: the report has the room, and it is read later.
+        String head = u.get("head").replace("<details class=\"dby\">", "<details class=\"dby\" open>");
         String stop = u.get("stop").replace("<details class=\"stopbox\" data-i=\"stop\" data-d=\"0\">",
                 "<details class=\"stopbox\" data-i=\"stop\" data-d=\"1\" open>");
         String started = inv == null || inv.startedAt() == null ? "" : clock(inv.startedAt(), zone);
@@ -360,7 +411,7 @@ public final class ActivityPage {
                 + (inv == null ? "" : "<button id=\"ftheme\" onclick=\"return flTheme()\" title=\"Switch between the dark"
                 + " and the light look\">Light theme</button>")
                 + "<span id=\"toast\"></span></div><div id=\"banner\">" + banner + "</div></div>"
-                + "<div id=\"head\">" + u.get("head") + "</div>"
+                + "<div id=\"head\">" + head + "</div>"
                 + (inv == null ? "" : FlowPage.render(inv))
                 + "<div id=\"all\"><h2 class=\"fallh\">All steps</h2>"
                 + "<ol id=\"steps\">" + steps + "</ol><div id=\"stop\">" + stop + "</div>"
@@ -383,11 +434,96 @@ public final class ActivityPage {
                     .append(html(clip)).append(" <span class=\"more\">(click to show all)</span></span></summary>")
                     .append("<div class=\"full\">").append(html(request.strip())).append("</div></details>");
         }
-        out.append("<div class=\"info\">").append(html(join(" · ", inv.client(),
-                inv.mode() == null ? null : inv.mode() + " mode",
-                inv.startedAt() == null ? null : "started " + clock(inv.startedAt(), zone),
-                "Investigation " + shortId(inv.id())))).append("</div>");
+        out.append(debuggedBy(inv, zone));
         return out.toString();
+    }
+
+    /** Marks a value the agent reported about itself (model, effort, skill): Eclipse cannot check it. */
+    static final String SAID = "\u25C6";
+
+    /**
+     * OPEN-41: the "Agent details" block under the request. Coloured chips for the agent (from the MCP handshake, so
+     * reliable), the model, the skill and the effort (what the agent said about itself, each marked with
+     * {@link #SAID} and explained once); then, in plain words, what happens when the investigation finishes (instead of
+     * the mode names NORMAL and CONTROLLED), the start date and time, and the investigation ID with what it is for.
+     */
+    static String debuggedBy(ActivityStore.Investigation inv, ZoneId zone) {
+        String[] agent = agent(inv.client());
+        String model = blankToNull(inv.model()), effort = blankToNull(inv.effort()), skill = blankToNull(inv.skill());
+        // Folded to one line in the Agent Activity window (a narrow view); open in the report (see report()).
+        StringBuilder out = new StringBuilder("<details class=\"dby\"><summary><span class=\"dby-h\">Agent details</span>")
+                .append("<span class=\"facts\"> <b class=\"fa\">").append(html(agent[0])).append("</b>");
+        if (model != null) out.append(" · <span class=\"fm\">").append(html(model)).append("</span>");
+        if (skill != null) out.append(" · <span class=\"fs\">").append(html(skill)).append("</span>");
+        out.append("</span><span class=\"tog\"></span></summary><div class=\"chips\">");
+        out.append("<span class=\"chip agent\"><span class=\"k\">Agent</span><span class=\"v\"><b>")
+                .append(html(agent[0])).append("</b>")
+                .append(agent[1] == null ? "" : " <span class=\"ver\">" + html(agent[1]) + "</span>").append("</span></span>");
+        out.append(chip("model", "Model", model, "not stated"));
+        out.append(chip("skill", "Skill", skill, "none reported"));
+        out.append(chip("effort", "Effort", effort, "not stated"));
+        out.append("</div>");
+        if (model != null || effort != null || skill != null)
+            out.append("<div class=\"dby-key\">").append(SAID)
+                    .append(" Reported by the agent itself; Eclipse cannot verify it</div>");
+        out.append("<div class=\"dby-more\">");
+        String after = afterFinish(inv.mode());
+        if (after != null) out.append("<div><b>After it finishes:</b> ").append(html(after)).append("</div>");
+        if (inv.startedAt() != null)
+            out.append("<div><b>Started:</b> ").append(html(dateTime(inv.startedAt(), zone))).append("</div>");
+        if (inv.id() != null && !inv.id().isBlank())
+            out.append("<div><b>Investigation ID:</b> <code title=\"").append(html(inv.id())).append("\">")
+                    .append(html(shortId(inv.id()))).append("</code> <span class=\"why\">identifies this investigation;"
+                    + " the agent passes it with its tool calls</span></div>");
+        return out.append("</div></details>").toString();
+    }
+
+    private static String chip(String kind, String label, String value, String missing) {
+        StringBuilder out = new StringBuilder("<span class=\"chip ").append(kind).append("\"><span class=\"k\">")
+                .append(label).append("</span>");
+        if (value == null) return out.append("<span class=\"v none\">").append(missing).append("</span></span>").toString();
+        int space = "skill".equals(kind) ? value.lastIndexOf(' ') : -1;
+        String name = space > 0 ? value.substring(0, space) : value;
+        String version = space > 0 ? value.substring(space + 1) : null;
+        out.append("<span class=\"v\"><b>").append(html(name)).append("</b>");
+        if (version != null) out.append(" <span class=\"ver\">").append(html(version)).append("</span>");
+        return out.append(" <span class=\"said\" title=\"Reported by the agent itself\">").append(SAID)
+                .append("</span></span></span>").toString();
+    }
+
+    /** Known MCP client IDs and how people call them; anything else is shown as the client sent it. */
+    private static final Map<String, String> AGENT_NAMES = Map.of(
+            "claude-code", "Claude Code", "github-copilot", "GitHub Copilot", "copilot", "GitHub Copilot",
+            "cursor", "Cursor", "windsurf", "Windsurf", "cline", "Cline", "codex-mcp-client", "Codex",
+            "codex", "Codex", "gemini-cli", "Gemini CLI", "claude-ai", "Claude");
+
+    /** {@code "claude-code 2.1.331"} -> {@code ["Claude Code", "2.1.331"]}; no client -> {@code ["unknown agent", null]}. */
+    static String[] agent(String client) {
+        String text = blankToNull(client);
+        if (text == null) return new String[] {"unknown agent", null};
+        int space = text.indexOf(' ');
+        String id = space > 0 ? text.substring(0, space) : text;
+        String version = space > 0 ? text.substring(space + 1).strip() : null;
+        return new String[] {AGENT_NAMES.getOrDefault(id.toLowerCase(Locale.ROOT), id), version};
+    }
+
+    /** The mode in plain words: what the end of the investigation does to the debug state. */
+    static String afterFinish(String mode) {
+        if (mode == null) return null;
+        return "CONTROLLED".equals(mode)
+                ? "its breakpoints and the paused debug session are kept, so you can inspect them."
+                : "the agent's own breakpoints are removed and the debug session it started is stopped."
+                        + " Your breakpoints and sessions are left alone.";
+    }
+
+    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("d MMM, HH:mm:ss", Locale.ENGLISH);
+
+    static String dateTime(String isoInstant, ZoneId zone) {
+        try {
+            return DATE_TIME.format(Instant.parse(isoInstant).atZone(zone));
+        } catch (RuntimeException unparsable) {
+            return isoInstant;
+        }
     }
 
     /** Action buttons; each one calls back into Eclipse ({@code adAction}). Open HTML Report once a report exists. */
@@ -751,7 +887,32 @@ public final class ActivityPage {
 
     // ---- Markdown export and text fallback -----------------------------------------------------------------
 
+    /**
+     * OPEN-41: the "Agent details" facts as Markdown lines (no colours there): agent, model, skill, effort, the
+     * {@link #SAID} key, what happens when it finishes, and the investigation ID.
+     */
+    static String debuggedByText(ActivityStore.Investigation inv, ZoneId zone) {
+        String[] agent = agent(inv.client());
+        String model = blankToNull(inv.model()), effort = blankToNull(inv.effort()), skill = blankToNull(inv.skill());
+        StringBuilder out = new StringBuilder("**Agent details:** ").append(join(" ", agent[0], agent[1]))
+                .append(" · Model ").append(model == null ? "not stated" : model + " " + SAID)
+                .append(" · Skill ").append(skill == null ? "none reported" : skill + " " + SAID)
+                .append(" · Effort ").append(effort == null ? "not stated" : effort + " " + SAID).append("  \n");
+        if (model != null || effort != null || skill != null)
+            out.append(SAID).append(" reported by the agent itself; Eclipse cannot verify it  \n");
+        String after = afterFinish(inv.mode());
+        if (after != null) out.append("**After it finishes:** ").append(after).append("  \n");
+        if (inv.startedAt() != null) out.append("**Started:** ").append(dateTime(inv.startedAt(), zone)).append("  \n");
+        out.append("**Investigation ID:** ").append(shortId(inv.id())).append("\n\n");
+        return out.toString();
+    }
+
     /** The whole investigation as Markdown, for the text fallback (no embedded browser). */
+
+    private static String blankToNull(String text) {
+        return text == null || text.isBlank() ? null : text.strip();
+    }
+
     public static String markdown(ActivityStore.Investigation inv, ZoneId zone) {
         StringBuilder out = new StringBuilder("# ").append(title(inv)).append("\n\n");
         if (inv.request() != null && !inv.request().isBlank())
@@ -759,9 +920,7 @@ public final class ActivityPage {
         out.append("**Status:** ").append(statusLine(inv));
         long took = epoch(inv.finishedAt()) - epoch(inv.startedAt());
         if (inv.finished() && epoch(inv.startedAt()) > 0 && took >= 0) out.append(" in ").append(duration(took));
-        out.append("  \n**Investigation:** ").append(shortId(inv.id())).append(" · ")
-                .append(join(" · ", inv.client(), inv.mode() == null ? null : inv.mode() + " mode",
-                        inv.startedAt() == null ? null : "started " + clock(inv.startedAt(), zone))).append("\n\n");
+        out.append("\n\n").append(debuggedByText(inv, zone));
         out.append("## Steps\n\n");
         int n = inv.droppedSteps();
         for (ActivityStore.Step step : inv.steps()) {

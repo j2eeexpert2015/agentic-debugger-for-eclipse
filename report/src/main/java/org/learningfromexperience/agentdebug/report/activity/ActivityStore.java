@@ -59,12 +59,14 @@ public final class ActivityStore {
      * launch ({@link #PROGRAM_RUNNING}, {@link #PROGRAM_PAUSED}, {@link #PROGRAM_ENDED}, or null before the launch),
      * {@code programWhere} where it is paused ("OrderService.quote:24"); {@code lastActivity} when the last event of
      * this investigation arrived (receive time, ISO-8601); {@code analysis} the agent's structured findings at the
-     * finish as a JSON object (see {@code ReportEvent.InvestigationFinished}), or null.
+     * finish as a JSON object (see {@code ReportEvent.InvestigationFinished}), or null; {@code skill}, {@code model}, {@code effort}
+     * what the agent said at the start about the skill it follows, its model and its effort level (OPEN-41), or null.
      */
     public record Investigation(String id, String mode, String client, String request, boolean requestExact,
                                 String startedAt, List<Step> steps, int droppedSteps, String outcome,
                                 String conclusion, List<String> cleanup, String reportFile, String finishedAt,
-                                String program, String programWhere, String lastActivity, String analysis) {
+                                String program, String programWhere, String lastActivity, String analysis,
+                                String skill, String model, String effort) {
         public boolean finished() {
             return outcome != null;
         }
@@ -191,6 +193,9 @@ public final class ActivityStore {
                 inv.client = Json.str(e.get("client"));
                 inv.request = Json.str(e.get("request"));
                 inv.requestExact = Boolean.TRUE.equals(e.get("requestExact"));
+                inv.skill = Json.str(e.get("skill"));
+                inv.model = Json.str(e.get("model"));
+                inv.effort = Json.str(e.get("effort"));
                 inv.startedAt = at;
                 trim();
             }
@@ -281,7 +286,7 @@ public final class ActivityStore {
     /** The store's own, changeable form of an investigation. */
     private static final class Mutable {
         final String id;
-        String mode, client, request, startedAt, outcome, conclusion, reportFile, finishedAt, analysis;
+        String mode, client, request, startedAt, outcome, conclusion, reportFile, finishedAt, analysis, skill, model, effort;
         String program, programWhere, lastActivity;
         boolean requestExact;
         List<String> cleanup = List.of();
@@ -347,7 +352,7 @@ public final class ActivityStore {
         Investigation snapshot() {
             return new Investigation(id, mode, client, request, requestExact, startedAt, List.copyOf(steps),
                     droppedSteps, outcome, conclusion, cleanup, reportFile, finishedAt, program, programWhere,
-                    lastActivity, analysis);
+                    lastActivity, analysis, skill, model, effort);
         }
     }
 }

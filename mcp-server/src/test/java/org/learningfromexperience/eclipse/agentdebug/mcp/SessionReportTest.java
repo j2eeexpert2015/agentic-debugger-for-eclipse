@@ -379,6 +379,20 @@ class SessionReportTest {
     }
 
     @Test
+    @DisplayName("SR-U16 the skill, model and effort the agent names at the start are recorded with the investigation; none: null (OPEN-41)")
+    void srU16() {
+        call("begin_debug_investigation", Map.of("skill", "eclipse-debugger 0.1.0", "model", "claude-haiku-5-5", "effort", "high"),
+                false, BEGIN);
+        var started = (ReportEvent.InvestigationStarted) captured.events.get(0);
+        assertEquals("eclipse-debugger 0.1.0", started.skill());
+        assertEquals("claude-haiku-5-5", started.model());
+        assertEquals("high", started.effort());
+        Captured without = new Captured();
+        new SessionReport(without).toolCalled("claude-code", "begin_debug_investigation", Map.of(), false, BEGIN, 5);
+        assertEquals(null, ((ReportEvent.InvestigationStarted) without.events.get(0)).skill());
+    }
+
+    @Test
     @DisplayName("SR-U8 the small JSON reader handles the bridge's replies and rejects invalid text")
     void srU8() {
         var stop = Json.obj(Json.parse(STOP));

@@ -12,7 +12,7 @@ import java.util.List;
  *
  * <p>The JSON object has a {@code type} and the event's fields:
  * <ul>
- *   <li>{@code investigationStarted}: investigationId, at, mode, client, request, requestExact;</li>
+ *   <li>{@code investigationStarted}: investigationId, at, mode, client, request, requestExact, skill, model, effort;</li>
  *   <li>{@code stepStarted}: investigationId, at, kind, title;</li>
  *   <li>{@code stepRecorded}: investigationId, at, kind, status, title, details (array), durationMs;</li>
  *   <li>{@code investigationFinished}: investigationId, at, outcome, conclusion, cleanup (array), reportFile;</li>
@@ -31,7 +31,8 @@ public final class ActivityEvents {
     public static String json(ReportEvent.InvestigationStarted e) {
         return new Writer("investigationStarted").field("investigationId", e.investigationId())
                 .field("at", e.at().toString()).field("mode", e.mode()).field("client", e.client())
-                .field("request", e.request()).flag("requestExact", e.requestExact()).toString();
+                .field("request", e.request()).flag("requestExact", e.requestExact()).field("skill", e.skill())
+                .field("model", e.model()).field("effort", e.effort()).toString();
     }
 
     public static String json(ReportEvent.StepStarted e) {

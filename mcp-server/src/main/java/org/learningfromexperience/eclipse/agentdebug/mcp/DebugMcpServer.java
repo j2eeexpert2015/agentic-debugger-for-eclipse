@@ -260,7 +260,13 @@ public class DebugMcpServer {
                 Map.of("mode", Map.of("type", "string", "enum", List.of("NORMAL", "CONTROLLED")),
                         // Only for the session report (OPEN-30); never sent to Eclipse.
                         "request", Map.of("type", "string", "description",
-                                "The user's request that started this investigation, in the user's own words")),
+                                "The user's request that started this investigation, in the user's own words"),
+                        // OPEN-41: only for the report and Agent Activity; never sent to Eclipse.
+                        "skill", Map.of("type", "string", "description",
+                                "The skill you are following, as its heading names it; omit when none"),
+                        "model", Map.of("type", "string", "description", "Your exact model ID as your system instructions state it (for example claude-sonnet-5-5); please always pass it"),
+                        "effort", Map.of("type", "string", "description",
+                                "Your effort or thinking level (low, medium, high, ...), only if your instructions state it")),
                 List.of(), a -> "BEGIN_INVESTIGATION " + enc(mode(a))));
         allTools.add(bridgeTool("finish_debug_investigation",
                 "Finish the exact investigationId. NORMAL terminates only the session it started, "
