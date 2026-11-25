@@ -28,7 +28,8 @@ import org.junit.jupiter.api.Timeout;
  *
  * <p>These are the 32 ownership checks of the former in-Eclipse harness {@code testing/ownership-tests} (started by
  * PowerShell), each still recorded under its old name in the report, plus the OPEN-02 check that the user's launch
- * configuration keeps every setting. The tests run in the order given (the user's program is borrowed, duplicated,
+ * configuration keeps every setting, and the OPEN-40 checks that a session control without an investigation is
+ * refused for the user's program but works for the agent's own. The tests run in the order given (the user's program is borrowed, duplicated,
  * ended and restarted along the way).
  *
  * @author Ayan Dutta
@@ -108,6 +109,10 @@ class UserResourceSafetyTests extends EclipseIntegrationTest {
         // the middle of evaluating a variable for its views; run of 25 Nov 21:36 on Eclipse 2025-12).
         String countBefore = userLoopCount();
         put("userLoopCountBefore", countBefore);
+        // OPEN-40: without any investigation, the user's program can be neither stopped nor resumed.
+        check("user program cannot be stopped without an investigation", rejected("CONTROL_DEBUG", userLaunch, 0, "STOP"));
+        check("user program cannot be resumed without an investigation", rejected("CONTROL_DEBUG", userLaunch, 0, "RESUME"));
+        check("user program still running after the refused calls", alive(userLaunch));
         String borrower = begin("NORMAL");
         try {
             check("pre-existing launch reused",
@@ -192,6 +197,9 @@ class UserResourceSafetyTests extends EclipseIntegrationTest {
         check("malformed step filter rejected", rejected("SET_STEP_FILTERS", launch, true, "java.*!"));
         check("too many step filters rejected",
                 rejected("SET_STEP_FILTERS", launch, true, String.join(",", Collections.nCopies(31, "java.*"))));
+        // OPEN-40: the agent's own program (started by its open investigation) is still controlled without the ID.
+        check("own program controlled without investigationId",
+                "success".equals(bridge.call("CONTROL_DEBUG", true, launch, stop.thread(), "RESUME").get("status")));
         verdict();
     }
 

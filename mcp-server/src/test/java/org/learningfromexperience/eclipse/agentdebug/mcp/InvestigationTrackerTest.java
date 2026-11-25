@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 
@@ -56,6 +58,18 @@ class InvestigationTrackerTest {
         t.observe("FINISH_INVESTIGATION " + enc("c"), "{\"status\":\"error\",\"message\":\"IllegalArgumentException: Unknown investigationId: c\"}");
         t.observe("FINISH_INVESTIGATION " + enc("d"), "{\"status\":\"error\",\"message\":\"CONTROLLED investigation is not suspended\"}");
         assertEquals(List.of("d"), t.openIds());
+    }
+
+    @Test @DisplayName("TR-U6 control_debug_session joins the only open investigation like the other changing tools (OPEN-40)")
+    void trU6() throws Exception {
+        String code = Files.readString(Path.of("src/main/java/org/learningfromexperience/eclipse/agentdebug/mcp/DebugMcpServer.java"),
+                StandardCharsets.UTF_8);
+        int tool = code.indexOf("bridgeTool(\"control_debug_session\"");
+        int end = code.indexOf("allTools.add(", tool + 1);
+        assertTrue(tool >= 0 && end > tool, "control_debug_session found");
+        assertTrue(code.substring(tool, end).contains("ownedId(a)"),
+                "a control request without investigationId is attached to the only open investigation");
+        assertTrue(!code.contains("optionalId("), "no tool passes the investigation without resolving it");
     }
 
     private static InvestigationTracker open(String... ids) {

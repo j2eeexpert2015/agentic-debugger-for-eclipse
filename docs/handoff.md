@@ -24,7 +24,29 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 22:20): OPEN-31 done, Eclipse 2025-12 to 2026-09, checked 22:22
+## Last delivery (25 Nov, 22:45): session control needs an investigation (OPEN-40), checked 22:52
+
+Result on Eclipse 2026-09 (build 1.5.0.202611251716, compiled against 2025-12): MCP server 32 and plugin 58 tests,
+`UserResourceSafetyTests` 8/8, regression 21/21, extended suite 17/17 (with the changed CONTROLLED cleanup); the
+Agent Activity window after the disconnect test says "Program: ended". OPEN-40 moved to Done.
+
+
+Branch `fix/open-40-session-control-safety` (from `main` after OPEN-31 was merged). Found while porting the ownership
+checks: `control_debug_session` without `investigationId` could STOP or RESUME any session, also the user's program.
+- MCP server: `control_debug_session` uses `ownedId` like the other changing tools: without an ID it joins the only
+  open investigation (reply `attachedToInvestigation`); with several open it is refused. `optionalId` removed.
+  Tool description: "(refused outside an investigation)". TR-U6 (MCP server tests 32).
+- Plugin: `DebugInvestigationPolicy.ownerOf(launch)` = the open investigation that started it; `control()` without
+  an investigation refuses a session without such an owner, saying what to do. PO-U8 (plugin tests 58).
+- `UserResourceSafetyTests`: the user's program can be neither stopped nor resumed without an investigation; the
+  agent's own program is still resumed without the ID. `AbandonedSessionCleanupTests.controlledModeKeepsSession` ends
+  its kept session with `TEST_TERMINATE_LAUNCH` (its STOP without investigation is now refused, by design).
+- Skill reference (`eclipse-mcp-tools.md`): control without an investigation is refused.
+Not checked by me: the plugin change compiles only in the real build; the policy and tracker tests run here.
+Check: build, deploy, `UserResourceSafetyTests` 8/8, regression 21/21, `ExtendedSuite`. Trial needed: no (the
+agent flow is unchanged: the skill always begins an investigation); optional one Haiku trial.
+
+## Delivery before (25 Nov, 22:20): OPEN-31 done, Eclipse 2025-12 to 2026-09, checked 22:22
 
 Final check 22:19-22:22: plain `mvn clean package` built against 2025-12 by default (report 51, MCP server 31, grader 21,
 plugin 57); build 1.5.0.202611251648 with the 2025-12 minimums installed into Eclipse 2026-09; regression 21/21.
@@ -369,6 +391,5 @@ stop), `ActivityStore` (events in memory). Step titles and details come from `mc
 Maven against JUnit stand-ins, and renders reports from the 10:23 trial data in Chrome to look at them.
 
 **Other open items** (details in the README table): OPEN-37 (mostly covered by R4 phase 1; source line under stops open),
-OPEN-30 R2b/R3, OPEN-22/23, OPEN-32 to OPEN-34, `control_debug_session` without an investigation can
-stop or resume any session (found 25 Nov, decision pending), and the older test items. `examples/README.md` has two dead links to deleted documents;
+OPEN-30 R2b/R3, OPEN-22/23, OPEN-32 to OPEN-34, and the older test items. `examples/README.md` has two dead links to deleted documents;
 left unchanged by the rule above until the owner decides.

@@ -205,6 +205,18 @@ public final class DebugInvestigationPolicy {
         return result;
     }
 
+    /**
+     * OPEN-40: the open investigation that started this launch (owns it), or null. A control request without an
+     * investigationId is allowed only on such a launch; a session the agent did not start (the user's own program, or
+     * one an investigation only borrowed) is controlled only inside an investigation that names it.
+     */
+    public Investigation ownerOf(Object launch) {
+        if (launch == null) return null;
+        for (Investigation investigation : investigations.values())
+            if (!investigation.complete() && investigation.ownedLaunch() == launch) return investigation;
+        return null;
+    }
+
     /** True while the investigation is open (not finished, not expired). */
     public boolean isActive(String id) {
         Investigation result = investigations.get(id);

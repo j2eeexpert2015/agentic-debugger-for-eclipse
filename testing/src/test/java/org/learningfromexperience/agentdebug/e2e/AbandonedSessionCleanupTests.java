@@ -88,8 +88,9 @@ class AbandonedSessionCleanupTests extends EclipseIntegrationTest {
                     "The CONTROLLED investigation expired and says its resources were kept: " + late);
             put("keptAfterExpiry", true);
         } finally {
-            // Test cleanup of the kept resources (no investigation any more).
-            bridge.call("CONTROL_DEBUG", true, launch, num(stop.get("threadIndex")), "STOP");
+            // Test cleanup of the kept resources (no investigation any more; since OPEN-40 a STOP without an
+            // investigation is refused for a session no open investigation started, so the test command ends it).
+            bridge.call("TEST_TERMINATE_LAUNCH", true, launch, "all");
             bridge.call("REMOVE_BREAKPOINT", true, STEP_APP, line);
         }
     }

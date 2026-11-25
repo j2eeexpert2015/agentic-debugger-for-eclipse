@@ -422,13 +422,13 @@ public class DebugMcpServer {
                 }));
         allTools.add(bridgeTool("control_debug_session", "PAUSE, RESUME, STEP_INTO, STEP_OVER, STEP_RETURN or STOP execution. "
                         + "For an investigation use finish_debug_investigation for safe completion; "
-                        + "do not STOP or resume unrelated/user-owned sessions.",
+                        + "do not STOP or resume unrelated/user-owned sessions (refused outside an investigation).",
                 Map.of("launchName",str(),"threadIndex",integer(),"action",Map.of("type","string",
                         "enum",List.of("PAUSE","RESUME","STEP_INTO","STEP_OVER","STEP_RETURN","STOP")),
                         "investigationId",str(),"purpose",PURPOSE),
                 List.of("launchName","threadIndex","action"),
                 a -> "CONTROL_DEBUG " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
-                        + " " + enc(arg(a,"action")) + optionalId(a)));
+                        + " " + enc(arg(a,"action")) + ownedId(a)));
         allTools.add(bridgeTool("wait_for_stop",
                 "Wait (1-60 s) for the next debugger stop in this launch - breakpoint, exception, step end or pause - "
                         + "and get everything about it in one call: reason (BREAKPOINT, EXCEPTION, STEP_END, PAUSED), "
@@ -670,8 +670,10 @@ public class DebugMcpServer {
     private static final ThreadLocal<String> ATTACHED = new ThreadLocal<>();
 
     /**
-     * investigationId for requests that create breakpoints or sessions: the given one, else the
-     * session's only open investigation (attached automatically, so cleanup includes it), else none.
+     * investigationId for requests that create breakpoints or sessions or control a session: the given one, else the
+     * session's only open investigation (attached automatically, so cleanup includes it), else none. Since OPEN-40
+     * also for control_debug_session: the plugin refuses control without an investigation on a session no open
+     * investigation started, so a model that leaves the ID out still works on its own program.
      */
     private static String ownedId(Map<String,Object> args) {
         Object given = args.get("investigationId");
@@ -687,11 +689,6 @@ public class DebugMcpServer {
         ATTACHED.remove();
         if (id == null || response == null || !response.startsWith("{")) return response;
         return "{\"attachedToInvestigation\":\"" + id + "\"," + response.substring(1);
-    }
-
-    private static String optionalId(Map<String,Object> args) {
-        Object id = args.get("investigationId");
-        return id == null ? "" : " " + enc(arg(args, "investigationId"));
     }
 
     private static String enc(String value) {

@@ -87,6 +87,23 @@ class DebugInvestigationPolicyTest {
     }
 
     @Test
+    @DisplayName("PO-U8 a launch has an owner only while the investigation that started it is open (OPEN-40)")
+    void poU8() {
+        var normal = registry.begin(null);
+        var borrower = registry.begin(null);
+        Object started = new Object(), usersOwn = new Object();
+        normal.recordLaunch("Calculator", started, true);
+        borrower.recordLaunch("Users app", usersOwn, false);
+        assertSame(normal, registry.ownerOf(started), "the investigation that started it owns it");
+        assertNull(registry.ownerOf(usersOwn), "a borrowed session has no owner");
+        assertNull(registry.ownerOf(new Object()), "an unknown session has no owner");
+        assertNull(registry.ownerOf(null));
+        registry.finish(normal.id());
+        assertNull(registry.ownerOf(started), "after the finish nobody owns it any more");
+        registry.finish(borrower.id());
+    }
+
+    @Test
     @DisplayName("PO-U7 the finish reply confirms a verified cleanup only (OPEN-39)")
     void poU7() {
         String note = DebugInvestigationPolicy.cleanupNote(0, true, true);

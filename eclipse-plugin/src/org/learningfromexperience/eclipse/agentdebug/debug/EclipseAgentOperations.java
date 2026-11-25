@@ -1148,6 +1148,12 @@ public final class EclipseAgentOperations {
             if ("STOP".equals(action) && investigation.ownedLaunch() != l) {
                 throw new IllegalStateException("Cannot terminate a reused/user-owned session");
             }
+        } else if (investigations.ownerOf(l) == null) {
+            // OPEN-40: without an investigation, only a session an open investigation started may be controlled;
+            // never the user's own program (or one an investigation only borrowed).
+            throw new IllegalStateException("Refused: this debug session was not started by an open agent investigation"
+                    + " (it may be the user's own program). Use begin_debug_investigation, start or reuse the session in"
+                    + " it, and pass its investigationId; a reused session can be stepped and resumed, never stopped");
         }
         ui.follow(l);
         if ("STOP".equals(action)) {

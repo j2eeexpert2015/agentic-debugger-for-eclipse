@@ -46,7 +46,7 @@
 | `wait_for_debug_pause` | `launchName`, `timeoutSeconds` | Legacy polling wait; use `wait_for_stop` instead |
 | `get_process_output` | `launchName` | Captured stdout/stderr/console. Output over 8000 characters returns the first and last 4000 with an omission marker; `stdoutChars`/`stderrChars`/`consoleChars` give the full sizes. With the Eclipse Console open, output is usually only in `console`; read it first. Don't leak secrets |
 | `show_debug_location` | `launchName` | Navigate Eclipse to source; no execution control |
-| `control_debug_session` | `launchName`, `threadIndex`, `action` | `investigationId?`; actions `PAUSE`, `RESUME`, `STEP_INTO`, `STEP_OVER`, `STEP_RETURN`, `STOP`. `STEP_RETURN` means Step Out. Never STOP a borrowed/user-owned JVM. |
+| `control_debug_session` | `launchName`, `threadIndex`, `action` | `investigationId?`; actions `PAUSE`, `RESUME`, `STEP_INTO`, `STEP_OVER`, `STEP_RETURN`, `STOP`. `STEP_RETURN` means Step Out. Never STOP a borrowed/user-owned JVM. Without an investigation (none open, or the session not started by one) the call is refused: begin an investigation first. |
 | `evaluate_expression` | `launchName`, `threadIndex`, `frameIndex`, `expression`, `allowSideEffects` | Requires explicit consent and `allowSideEffects=true`; may mutate state. Prefer locals/expansion. |
 
 ## No corresponding verified MCP tool
