@@ -62,6 +62,11 @@
                      JSON (on the bundle's class path: MANIFEST.MF Bundle-ClassPath) -->
                 <copy file="${project.basedir}/../report/target/agentic-debugger-report-1.0.0-SNAPSHOT.jar"
                       tofile="${project.basedir}/lib/report.jar" overwrite="true"/>
+                <!-- OPEN-32: the Claude Code skill, installed by the plugin into ~/.claude/skills/eclipse-debugger -->
+                <delete dir="${project.basedir}/lib/skill" quiet="true"/>
+                <copy todir="${project.basedir}/lib/skill/eclipse-debugger" overwrite="true">
+                  <fileset dir="${project.basedir}/../skills/eclipse-debugger"/>
+                </copy>
               </target></configuration>
             </execution>
           </executions>

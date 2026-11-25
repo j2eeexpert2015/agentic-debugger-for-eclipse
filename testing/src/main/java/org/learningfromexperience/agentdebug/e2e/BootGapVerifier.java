@@ -276,15 +276,23 @@ public final class BootGapVerifier {
         try {
             String launch=startOwned(owner, FAILURE_PKG + "NeverReadyApplication");
             long start=System.nanoTime();
-            long until=start+Duration.ofSeconds(6).toNanos();
+            // First wait for the application to have started (Spring Boot can take more than 6 s on a busy machine:
+            // 25 Nov 14:28 the marker came too late once), then watch 6 s that it never becomes ready.
+            long startedBy=start+Duration.ofSeconds(45).toNanos();
             boolean marker=false;
+            while(!marker && System.nanoTime()<startedBy) {
+                String out=processOutput(launch);
+                marker = out.contains("AGENTDEBUG_NONWEB_STARTED");
+                require(!out.contains("Tomcat started on port"),"A non-web fixture started a listening web server");
+                if(!marker) Thread.sleep(200);
+            }
+            require(marker,"Non-web Spring application never reached running fixture state");
+            long until=System.nanoTime()+Duration.ofSeconds(6).toNanos();
             while(System.nanoTime()<until) {
                 String out=processOutput(launch);
-                marker |= out.contains("AGENTDEBUG_NONWEB_STARTED");
                 require(!out.contains("Tomcat started on port"),"A non-web fixture started a listening web server");
                 Thread.sleep(200);
             }
-            require(marker,"Non-web Spring application never reached running fixture state");
             require(alive(launch),"Never-ready fixture terminated before timeout");
             evidence.put("timeoutMillis",Duration.ofNanos(System.nanoTime()-start).toMillis());
             evidence.put("readinessDetected",false);

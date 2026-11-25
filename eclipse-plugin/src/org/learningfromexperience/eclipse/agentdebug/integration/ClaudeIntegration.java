@@ -26,6 +26,8 @@ import org.osgi.framework.FrameworkUtil;
 public final class ClaudeIntegration {
     public static final String SERVER = "eclipse-debugger";
     private static final String PAYLOAD = "lib/agentic-debugger-mcp.jar";
+    /** The skill packed into the plugin by the build (OPEN-32), copied from {@code skills/eclipse-debugger}. */
+    private static final String SKILL_PAYLOAD = "lib/skill/eclipse-debugger";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private final Path directory;
 
@@ -38,9 +40,48 @@ public final class ClaudeIntegration {
     private Path jar() { return directory.resolve("agentic-debugger-mcp.jar"); }
     private Path marker() { return directory.resolve("claude-registration.properties"); }
 
-    /** Called on Eclipse startup, silently refreshes only an already-managed payload. */
+    /**
+     * Called on Eclipse startup, silently refreshes only an already-managed payload: the MCP server jar and (OPEN-32)
+     * the Claude Code skill. Only for users who let the plugin configure Claude (the marker file exists).
+     */
     public void refreshBundledRuntime() throws Exception {
-        if (Files.isRegularFile(marker())) stageJar();
+        if (!Files.isRegularFile(marker())) return;
+        stageJar();
+        stageSkill();
+    }
+
+    /**
+     * Copies the bundled skill to {@code ~/.claude/skills/eclipse-debugger/} where it differs, keeping the user's own
+     * edits ({@link SkillInstaller}). Writes what it did to the Eclipse console. Never throws: the skill is a help for
+     * the agent, not needed for the MCP server to work.
+     */
+    void stageSkill() {
+        try {
+            Bundle bundle = FrameworkUtil.getBundle(ClaudeIntegration.class);
+            if (bundle == null) return;
+            java.util.Enumeration<URL> entries = bundle.findEntries(SKILL_PAYLOAD, "*", true);
+            if (entries == null) return;
+            Map<String, byte[]> files = new java.util.TreeMap<>();
+            while (entries.hasMoreElements()) {
+                URL url = entries.nextElement();
+                String path = url.getPath();
+                int at = path.indexOf(SKILL_PAYLOAD + "/");
+                if (at < 0 || path.endsWith("/")) continue;
+                try (InputStream in = url.openStream()) {
+                    files.put(path.substring(at + SKILL_PAYLOAD.length() + 1), in.readAllBytes());
+                }
+            }
+            if (files.isEmpty()) return;
+            List<String> done = SkillInstaller.install(files, skillFolder(), directory.resolve("skill-installed.properties"));
+            for (String line : done) System.out.println("[Eclipse Agentic Debugger] Skill " + line);
+        } catch (Exception | LinkageError failure) {
+            System.err.println("[Eclipse Agentic Debugger] Skill update failed: " + failure.getMessage());
+        }
+    }
+
+    /** {@code ~/.claude/skills/eclipse-debugger}; Claude Code reads user skills from there. */
+    private static Path skillFolder() {
+        return Path.of(System.getProperty("user.home"), ".claude", "skills", "eclipse-debugger");
     }
 
     private void stageJar() throws Exception {
@@ -72,7 +113,8 @@ public final class ClaudeIntegration {
             if (registration.exactJar(jar())) {
                 stageJar();
                 writeMarker(); // Adopt our exact, user-scoped registration without touching Claude JSON.
-                return "Already configured (user scope). Bundled MCP runtime refreshed.";
+                stageSkill();
+                return "Already configured (user scope). Bundled MCP runtime and skill refreshed.";
             }
             if (registration.legacyJar(Path.of(System.getProperty("user.home")), isWindows())) {
                 throw new MigrationRequiredException(registration.command + " " + registration.args);
@@ -85,7 +127,8 @@ public final class ClaudeIntegration {
         register(cli, java.toString(), jar().toAbsolutePath().toString());
         verifyCurrent(cli);
         writeMarker();
-        return "Configured at user scope. Restart Claude Code to load the MCP server.";
+        stageSkill();
+        return "Configured at user scope, with the eclipse-debugger skill. Restart Claude Code to load the MCP server.";
     }
 
     /** Called ONLY after displaying the existing command and receiving explicit approval. */

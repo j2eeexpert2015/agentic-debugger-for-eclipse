@@ -34,7 +34,6 @@ not rebuild earlier work from memory: the files in the repository are the truth.
 ```
 cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse ^
  && powershell -Command "Expand-Archive -Force -Path '%USERPROFILE%\Downloads\flow-phase2-steps2-4.zip' -DestinationPath ." ^
- && copy /Y skills\eclipse-debugger\SKILL.md "%USERPROFILE%\.claude\skills\eclipse-debugger\SKILL.md" ^
  && call mvn clean package ^
  && java dev-e2e/DevE2E.java deploy --suite regression --approve-fixture-post ^
  && java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post --report
@@ -59,7 +58,7 @@ plugin code was not changed. The test now gives that command 1.2 s (`build-fix-1
 ### Phase 2 step 1, checked 11:58
 
 The earlier delivery (`flow-live-themes.zip`, flow report and live flow with both looks) was built and tested 25 Nov
-11:26 to 11:32: BUILD SUCCESS (`report` 47, `mcp-server` 26, `testing` 18, `eclipse-plugin` 48), regression all PASS,
+11:26 to 11:32: BUILD SUCCESS (`report` 47, `mcp-server` 26, `testing` 18, `eclipse-plugin` 48 at that time), regression all PASS,
 trial `VERDICT PASS` and `REPORT CHECK PASS` (report `OrdersApplication_2026-11-25_11-32-17.html`). Its look (window Flow,
 Dark staying dark, the report) is still to be confirmed by eye.
 
@@ -88,7 +87,7 @@ cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse ^
  && java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post --report
 ```
 
-Expected now: BUILD SUCCESS with unit tests `report` 49, `mcp-server` 30, `testing` 19, `eclipse-plugin` 48;
+Expected now: BUILD SUCCESS with unit tests `report` 49, `mcp-server` 30, `testing` 19, `eclipse-plugin` 52;
 regression 23/23; the trial `VERDICT PASS` and `REPORT CHECK PASS`.
 
 ## Where things stand
@@ -142,6 +141,13 @@ investigation page:
 - Phase 2 steps 2 to 4 done 25 Nov (two trials 12:27 and 12:29: flowFields=7/7, purpose=2/2): `purpose` on breakpoints, evaluations and
   steps shown at the stops; value tracker row with FIRST WRONG and the mismatch line; grader metric (`flowFields`,
   `purposeCalls`) on the VERDICT line and in the trial summary (FP-U8, EV-U19).
+- OPEN-32 (skill) delivered 25 Nov afternoon, waiting for check (`open32-skill.zip`): the plugin packs the skill
+  (`eclipse-plugin/lib/skill/`, copied by the build from `skills/eclipse-debugger`) and keeps
+  `%USERPROFILE%\.claude\skills\eclipse-debugger` current on a normal start (`SkillInstaller`, SI-U1..U4); `DevE2E test`
+  copies the repository's skill before Claude trials (`syncSkill`). No manual `copy` of SKILL.md any more.
+  Its deploy (14:28) failed once in `boot-gap/readiness-timeout`: the never-ready fixture's start marker had to appear
+  within the same 6 s window that checks it never gets ready, and Spring Boot started late. Not related to OPEN-32. The
+  verifier now waits up to 45 s for the start, then watches 6 s (`BootGapVerifier.readinessTimeout`).
 - Next: the same tracker in the live window is not planned (the agent's fields arrive only at the finish); open
   candidates: OPEN-32 (skill installed by the plugin, now worth it), R2b/R3, OPEN-35, OPEN-03.
 

@@ -427,6 +427,8 @@ public class DevE2E {
             check(Files.isRegularFile(evaluatorSource),"Missing Claude transcript evaluator Java source");
             runProcess(List.of(javaBin("javac"),"--release","21","-encoding","UTF-8",
                     "-d",classes.toString(),claudeSource.toString(),evaluatorSource.toString()),repo,Map.of(),60);
+            // OPEN-32: the trial uses the skill of this repository (the test Eclipse does not install it).
+            if(!claudeNoSkill) syncSkill();
         }
         startAndWait();
         Map<String,String> env = Map.of("AGENTDEBUG_PORT", Integer.toString(port));
@@ -669,6 +671,63 @@ public class DevE2E {
      * Runs the tool and turns failures into clear messages: a setup problem is explained with what to do (exit 2),
      * any other failure is one line saying what failed (exit 1); --trace adds the Java stack trace.
      */
+    /**
+     * Makes %USERPROFILE%\.claude\skills\eclipse-debugger the same as skills/eclipse-debugger of this repository
+     * before Claude trials (OPEN-32; a normal Eclipse start does the same from the installed plugin). A file that
+     * differs from what was installed last (recorded in .eclipse-agentdebug\skill-installed.properties, the plugin's
+     * record) is kept as name.bak-time first. Other files in the skill folder are not touched.
+     */
+    private void syncSkill() throws IOException {
+        Path source = repo.resolve("skills/eclipse-debugger");
+        if (!Files.isDirectory(source)) return;
+        Path home = Path.of(System.getProperty("user.home"));
+        Path target = home.resolve(".claude/skills/eclipse-debugger");
+        Path stateFile = home.resolve(".eclipse-agentdebug/skill-installed.properties");
+        Properties state = new Properties();
+        if (Files.isRegularFile(stateFile)) try (InputStream in = Files.newInputStream(stateFile)) { state.load(in); }
+        List<Path> files;
+        try (var walk = Files.walk(source)) { files = walk.filter(Files::isRegularFile).sorted().toList(); }
+        boolean changed = false;
+        String stamp = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
+        for (Path file : files) {
+            String name = source.relativize(file).toString().replace('\\', '/');
+            byte[] content = Files.readAllBytes(file);
+            String sha = sha256(content);
+            Path installed = target.resolve(name);
+            if (Files.isRegularFile(installed)) {
+                String current = sha256(Files.readAllBytes(installed));
+                if (current.equals(sha)) {
+                    if (!sha.equals(state.getProperty(name))) { state.setProperty(name, sha); changed = true; }
+                    continue;
+                }
+                if (!current.equals(state.getProperty(name))) {
+                    Path backup = installed.resolveSibling(installed.getFileName() + ".bak-" + stamp);
+                    Files.copy(installed, backup, StandardCopyOption.REPLACE_EXISTING);
+                    System.out.println("Skill: kept the previous " + name + " as " + backup.getFileName());
+                }
+            }
+            Files.createDirectories(installed.getParent());
+            Files.write(installed, content);
+            state.setProperty(name, sha);
+            changed = true;
+            System.out.println("Skill updated from the repository: " + installed);
+        }
+        if (changed) {
+            Files.createDirectories(stateFile.getParent());
+            try (OutputStream out = Files.newOutputStream(stateFile)) {
+                state.store(out, "Agentic Debugger: skill files as last written (SHA-256)");
+            }
+        }
+    }
+
+    private static String sha256(byte[] content) {
+        try {
+            return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(content));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
     public static void main(String[] args) {
         boolean trace = Arrays.asList(args).contains("--trace");
         String[] rest = Arrays.stream(args).filter(a -> !a.equals("--trace")).toArray(String[]::new);
