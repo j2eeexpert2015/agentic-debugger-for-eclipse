@@ -234,8 +234,10 @@ final class SessionReport {
             String id = investigationFor(args, reply);
             if (id == null) return;
             if (tool.equals("finish_debug_investigation") && !failed) {
+                // The structured findings (OPEN-30 R4 phase 2), with the root cause's source lines read from the project.
+                String analysis = FinishAnalysis.json(args, projects.get(id));
                 events.record(new ReportEvent.InvestigationFinished(id, Instant.now(), ReportEvent.Outcome.FINISHED,
-                        Json.str(args.get("summary")), cleanupLines(id, reply), chooseReport(id)));
+                        Json.str(args.get("summary")), cleanupLines(id, reply), chooseReport(id), analysis));
                 forget(id);
                 return;
             }

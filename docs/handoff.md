@@ -24,28 +24,51 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 11:30): built and tested 11:32, look still to be confirmed
+## Last delivery (25 Nov): phase 2 steps 2 to 4, checked 12:20 to 12:29
 
-`flow-live-themes.zip` (contains everything delivered on 25 Nov after 10:23, nothing else needed):
-`report/.../activity/FlowPage.java` (new), `ActivityPage.java`, `FlowPageTest.java` (new), `eclipse-plugin/.../ui/ActivityPanel.java`,
-`PerspectivePolicy.java`, `README.md`, this file, `docs/design/flow-report.md` (new), `docs/design/README.md`.
+`flow-phase2-steps2-4.zip` (on top of the repository with `flow-phase2-step1.zip` and `handoff-1158.zip` applied):
+`report/.../activity/FlowPage.java`, `FlowPageTest.java`; `mcp-server/.../DebugMcpServer.java` (purpose argument);
+`testing/.../grading/ClaudeTranscriptEvaluator.java`, `ClaudeTranscriptEvaluatorTest.java`; `skills/eclipse-debugger/SKILL.md`;
+`README.md`, this file, `docs/design/flow-report.md`.
 
 ```
 cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse ^
- && powershell -Command "Expand-Archive -Force -Path '%USERPROFILE%\Downloads\flow-live-themes.zip' -DestinationPath ." ^
+ && powershell -Command "Expand-Archive -Force -Path '%USERPROFILE%\Downloads\flow-phase2-steps2-4.zip' -DestinationPath ." ^
+ && copy /Y skills\eclipse-debugger\SKILL.md "%USERPROFILE%\.claude\skills\eclipse-debugger\SKILL.md" ^
  && call mvn clean package ^
  && java dev-e2e/DevE2E.java deploy --suite regression --approve-fixture-post ^
  && java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post --report
 ```
 
-What to look at, besides the counts below: in the Agent Activity window, "Flow" fills node by node and the running
-call pulses in its node; "Dark" switches the look and a second trial opens dark again; "Steps" still shows the step
-list. In the new report file: opens dark on "Program flow", Previous / Next / Replay, "Light theme", "All steps".
-Result 25 Nov 11:26 to 11:32: BUILD SUCCESS (`report` 47, `mcp-server` 26, `testing` 18, `eclipse-plugin` 48),
-regression all PASS, Claude trial `VERDICT PASS` (17 debugger calls, 24 turns, 45 s) and `REPORT CHECK PASS`, report
-`evaluation\reports\claude-trials\boot-quote-20261125-060203-220.report\OrdersApplication_2026-11-25_11-32-17.html`.
-Still to confirm by eye: the window's Flow and Dark (and that dark stays for the next trial), the report's look.
-Then phase 2.
+Result 25 Nov 12:19 to 12:29: BUILD SUCCESS, regression all PASS, two Claude trials both `VERDICT PASS`,
+`REPORT CHECK PASS` and `flowFields=7/7 purpose=2/2` (15 and 17 debugger calls; reports
+`OrdersApplication_2026-11-25_12-27-32.html` and `..._12-29-06.html`). Claude gave every flow field and a purpose
+on every call that takes one, two runs out of two. Still to confirm by eye: the tracker row and "Why the agent stopped
+here" in those reports; in the Agent Activity window, Flow filling node by node and Dark staying dark for the second
+trial.
+Fix after the owner's screenshot 12:33 (`tracker-number.zip`): Claude wrote the expected value as "0.10 (10%)"; the
+tracker now compares the first number in such a text, so a correct 0.1 would show green (FP-U8 extended).
+
+### Phase 2 step 1, checked 11:58
+
+The earlier delivery (`flow-live-themes.zip`, flow report and live flow with both looks) was built and tested 25 Nov
+11:26 to 11:32: BUILD SUCCESS (`report` 47, `mcp-server` 26, `testing` 18, `eclipse-plugin` 48), regression all PASS,
+trial `VERDICT PASS` and `REPORT CHECK PASS` (report `OrdersApplication_2026-11-25_11-32-17.html`). Its look (window Flow,
+Dark staying dark, the report) is still to be confirmed by eye.
+
+`flow-phase2-step1.zip` (on top of the repository as pushed after `flow-live-themes.zip`): report module
+`ReportEvent.java`, `ActivityEvents.java`, `activity/ActivityStore.java`, `activity/FlowPage.java`, `FlowPageTest.java`;
+mcp-server `DebugMcpServer.java`, `SessionReport.java`, `FinishAnalysis.java` (new), `FinishAnalysisTest.java` (new);
+`skills/eclipse-debugger/SKILL.md`; `README.md`, this file, `docs/design/flow-report.md`.
+
+(Delivered as `flow-phase2-step1.zip`.)
+
+Result 25 Nov 11:48 to 11:58: BUILD SUCCESS, regression all PASS, trial `VERDICT PASS` (14 debugger calls, 20 turns,
+44 s) and `REPORT CHECK PASS`. Report `OrdersApplication_2026-11-25_11-58-15.html`: Claude filled every new field
+without being told more than the skill and tool description say: title, trackedValue (rate, 0.10, 0; the tool's check
+says OBSERVED, rate = 0 at OrderService.quote:24), a finding at the stop, rootCause OrderService.java line 23 (the tool
+read the real file and highlighted `int rate = percent / 100;`), fix, two notObserved items, assumedPath. (The first
+`deploy` in that round stopped because Eclipse was still open; closing it and running again worked.)
 
 ## The standard check
 
@@ -58,7 +81,7 @@ cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse ^
  && java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post --report
 ```
 
-Expected now: BUILD SUCCESS with unit tests `report` 47, `mcp-server` 26, `testing` 18, `eclipse-plugin` 48;
+Expected now: BUILD SUCCESS with unit tests `report` 49, `mcp-server` 30, `testing` 19, `eclipse-plugin` 48;
 regression 23/23; the trial `VERDICT PASS` and `REPORT CHECK PASS`.
 
 ## Where things stand
@@ -104,7 +127,16 @@ investigation page:
 - Phase 2 designed, not started: `purpose` arguments, structured fields on `finish_debug_investigation` (title,
   tracked value, findings per stop, root cause with the source lines read by the tool, fix, not observed, assumed
   path), cross-checks against the recorded values, value tracker, skill text, a grader metric.
-- Next after the owner's check: phase 2.
+- Phase 2 step 1 done 25 Nov (checked 11:58, Claude filled every field): optional structured fields on
+  `finish_debug_investigation` (`FinishAnalysis` in the MCP server reads the root cause's source lines from the
+  project), shown in the flow: findings at their stops, assumed path node, the agent's node with the value check
+  (OBSERVED / DIFFERS / NOT RECORDED), root-cause box with highlighted source lines, fix, not observed (FP-U7,
+  FA-U1..U4). Skill updated: copy `skills\eclipse-debugger\SKILL.md` to `%USERPROFILE%\.claude\skills\eclipse-debugger\`.
+- Phase 2 steps 2 to 4 done 25 Nov (two trials 12:27 and 12:29: flowFields=7/7, purpose=2/2): `purpose` on breakpoints, evaluations and
+  steps shown at the stops; value tracker row with FIRST WRONG and the mismatch line; grader metric (`flowFields`,
+  `purposeCalls`) on the VERDICT line and in the trial summary (FP-U8, EV-U19).
+- Next: the same tracker in the live window is not planned (the agent's fields arrive only at the finish); open
+  candidates: OPEN-32 (skill installed by the plugin, now worth it), R2b/R3, OPEN-35, OPEN-03.
 
 **Where the code is** (for the flow work): `report/src/main/java/org/learningfromexperience/agentdebug/report/activity/`:
 `FlowPage` (grouping into nodes, `render` for the report, `live` for the window, `CSS`, `LIVE_CSS`, `DARK_CSS`,

@@ -45,7 +45,7 @@ import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 final class FlowPage {
 
     /** What a node stands for. */
-    enum Kind { PREP, REQUEST, RESPONSE, STOP, NOSTOP, NEVER, CLEAN, AGENT }
+    enum Kind { PREP, REQUEST, ASSUMED, RESPONSE, STOP, NOSTOP, NEVER, CLEAN, AGENT }
 
     /** One call, or several identical ones, at a node: the tool, what it was about (path, action), how often. */
     record Call(String tool, String about, int count, boolean refused) {
@@ -55,7 +55,11 @@ final class FlowPage {
     }
 
     /** An expression the agent evaluated and its result (or why it failed). */
-    record Expression(String expression, String result, boolean failed) {
+    record Expression(String expression, String result, boolean failed, String purpose) {
+        Expression(String expression, String result, boolean failed) {
+            this(expression, result, failed, null);
+        }
+
     }
 
     /** An object the agent expanded at a stop: its path, how often, and the fields read (in order, without repeats). */
@@ -116,10 +120,206 @@ final class FlowPage {
         while (at > 0 && nodes.get(at - 1).kind() == Kind.CLEAN) at--;
         // Only once the investigation is over: while it runs, a breakpoint not hit yet may still be hit.
         if (inv.finished()) nodes.addAll(at, missed(inv, nodes));
-        if (inv.conclusion() != null && !inv.conclusion().isBlank())
-            nodes.add(new Node(Kind.AGENT, "From the agent", firstLine(inv.conclusion()), List.of(), null, null, null,
+        // Phase 2 step 2: why the agent stopped where it did, from the purpose it gave the breakpoint or the step.
+        for (int i = 0; i < nodes.size(); i++) {
+            Node n = nodes.get(i);
+            if (n.kind() != Kind.STOP || n.steps().isEmpty()) continue;
+            String why = stopPurpose(inv, n);
+            if (why != null) nodes.set(i, withPurpose(n, why));
+        }
+        // Phase 2: the agent's statements at the finish, placed where they belong, always tagged as the agent's.
+        Analysis a = analysis(inv);
+        for (int i = 0; i < nodes.size(); i++) {
+            Node n = nodes.get(i);
+            if (n.kind() != Kind.STOP) continue;
+            List<String> texts = new ArrayList<>();
+            for (String[] f : a.findings()) if (f[0] != null && sameLocation(f[0], n.where())) texts.add(f[1]);
+            if (!texts.isEmpty()) nodes.set(i, withFinding(n, String.join("\n", texts)));
+        }
+        if (a.assumedPath() != null) {
+            for (int i = 0; i < nodes.size(); i++) {
+                if (nodes.get(i).kind() != Kind.REQUEST) continue;
+                if (i + 1 < nodes.size() && nodes.get(i + 1).kind() == Kind.STOP)
+                    nodes.add(i + 1, new Node(Kind.ASSUMED, "Assumed call path", a.assumedPath(), List.of(), null, null,
+                            null, List.of(), List.of(), List.of(), List.of(), null, List.of(), false, null, null));
+                break;
+            }
+        }
+        boolean concluded = inv.conclusion() != null && !inv.conclusion().isBlank();
+        if (concluded || a.present()) {
+            String sub = a.title() != null ? a.title()
+                    : a.rootExplanation() != null ? a.rootExplanation()
+                    : concluded ? firstLine(inv.conclusion())
+                    : a.trackedName() != null ? "Value followed: " + a.trackedName() : "";
+            nodes.add(new Node(Kind.AGENT, "From the agent", sub, List.of(), null, null, null,
                     List.of(), List.of(), List.of(), List.of(), null, List.of(), false, null, null));
+        }
         return nodes;
+    }
+
+    private static Node withPurpose(Node n, String purpose) {
+        return new Node(n.kind(), n.name(), n.sub(), n.steps(), n.where(), n.frames(), n.thread(), n.variables(),
+                n.expansions(), n.expressions(), n.calls(), n.movement(), n.lines(), n.breakpointHit(), purpose,
+                n.finding());
+    }
+
+    /** The agent's {@code purpose} argument of a call (a "purpose: ..." technical line), or null. */
+    static String purposeOf(ActivityStore.Step step) {
+        String p = valueOf(ReportFormat.split(step.details()).technical(), "purpose: ");
+        return p == null || p.isBlank() ? null : p;
+    }
+
+    /**
+     * Why the program stopped here, in the agent's words: for a breakpoint hit, the purpose given when that breakpoint
+     * (same class and line) was set; after a step, the purpose of the step that led here. Null when none was given.
+     */
+    private static String stopPurpose(ActivityStore.Investigation inv, Node n) {
+        int first = n.steps().get(0);
+        Matcher at = FRAME.matcher(n.where() == null ? "" : n.where());
+        for (int i = first - 1; i >= 0; i--) {
+            ActivityStore.Step s = inv.steps().get(i);
+            if (s.title() == null || "FAILED".equals(s.status())) continue;
+            if (n.breakpointHit() && at.matches()) {
+                Matcher bp = BREAKPOINT.matcher(s.title());
+                if (bp.find() && simple(bp.group(1)).equals(simple(at.group(1))) && bp.group(2).equals(at.group(3)))
+                    return purposeOf(s);
+            } else if (!n.breakpointHit() && s.title().startsWith("Stepped")) {
+                return purposeOf(s);
+            }
+        }
+        return null;
+    }
+
+    private static Node withFinding(Node n, String finding) {
+        return new Node(n.kind(), n.name(), n.sub(), n.steps(), n.where(), n.frames(), n.thread(), n.variables(),
+                n.expansions(), n.expressions(), n.calls(), n.movement(), n.lines(), n.breakpointHit(), n.purpose(),
+                finding);
+    }
+
+    // ---- the agent's structured findings (phase 2) ----------------------------------------------------------------
+
+    /**
+     * What the agent gave at the finish besides its Markdown (OPEN-30 R4 phase 2): {@code findings} as {at, text};
+     * {@code source} the root cause's lines as the MCP server read them from the project (path, first line number,
+     * highlighted range, lines), or {@code sourceNote} why not. Everything but {@code source} is the agent's text.
+     */
+    record Analysis(String title, String trackedName, String expected, String actual, List<String[]> findings,
+                    String rootFile, String rootLines, String rootExplanation, String sourcePath, int sourceFrom,
+                    int highlightFrom, int highlightTo, List<String> sourceLines, String sourceNote, String fix,
+                    List<String> notObserved, String assumedPath) {
+        static final Analysis NONE = new Analysis(null, null, null, null, List.of(), null, null, null, null, 0, 0, 0,
+                List.of(), null, null, List.of(), null);
+
+        boolean present() {
+            return title != null || actual != null || expected != null || !findings.isEmpty() || rootFile != null
+                    || rootExplanation != null || fix != null || !notObserved.isEmpty() || assumedPath != null;
+        }
+    }
+
+    /** The analysis of an investigation; {@link Analysis#NONE} when the agent gave none or it cannot be read. */
+    static Analysis analysis(ActivityStore.Investigation inv) {
+        if (inv.analysis() == null || inv.analysis().isBlank()) return Analysis.NONE;
+        try {
+            Map<String, Object> a = org.learningfromexperience.agentdebug.report.format.Json.obj(
+                    org.learningfromexperience.agentdebug.report.format.Json.parse(inv.analysis()));
+            Map<String, Object> tracked = org.learningfromexperience.agentdebug.report.format.Json.obj(a.get("trackedValue"));
+            Map<String, Object> root = org.learningfromexperience.agentdebug.report.format.Json.obj(a.get("rootCause"));
+            Map<String, Object> source = org.learningfromexperience.agentdebug.report.format.Json.obj(a.get("source"));
+            List<String[]> findings = new ArrayList<>();
+            for (Object f : org.learningfromexperience.agentdebug.report.format.Json.arr(a.get("findings"))) {
+                Map<String, Object> m = org.learningfromexperience.agentdebug.report.format.Json.obj(f);
+                if (str(m.get("text")) != null) findings.add(new String[]{str(m.get("at")), str(m.get("text"))});
+            }
+            List<String> lines = new ArrayList<>();
+            for (Object l : org.learningfromexperience.agentdebug.report.format.Json.arr(source.get("lines")))
+                lines.add(l == null ? "" : String.valueOf(l));
+            List<String> notObserved = new ArrayList<>();
+            for (Object o : org.learningfromexperience.agentdebug.report.format.Json.arr(a.get("notObserved")))
+                if (str(o) != null) notObserved.add(str(o));
+            return new Analysis(str(a.get("title")), str(tracked.get("name")), str(tracked.get("expected")),
+                    str(tracked.get("actual")), List.copyOf(findings), str(root.get("file")), str(root.get("lines")),
+                    str(root.get("explanation")), lines.isEmpty() ? null : str(source.get("path")), number(source.get("from")),
+                    number(source.get("highlightFrom")), number(source.get("highlightTo")), List.copyOf(lines),
+                    str(a.get("sourceNote")), str(a.get("fix")), List.copyOf(notObserved), str(a.get("assumedPath")));
+        } catch (RuntimeException unreadable) {
+            return Analysis.NONE;
+        }
+    }
+
+    private static String str(Object o) {
+        String s = org.learningfromexperience.agentdebug.report.format.Json.str(o);
+        return s == null || s.isBlank() ? null : s.strip();
+    }
+
+    private static int number(Object o) {
+        return o instanceof Number n ? n.intValue() : 0;
+    }
+
+    /** "OrderService.quote:24", "OrderService.java:24", "OrderService:24", "org.x.OrderService.quote, line 24". */
+    private static final Pattern LOCATION = Pattern.compile(
+            "([A-Za-z_$][\\w$]*)(?:\\.java)?(?:\\.[a-z_$<][\\w$<>]*)?\\s*(?::|,?\\s*line\\s*)\\s*(\\d+)");
+
+    /** True when the agent's location names the stop's class (simple name) and line. */
+    static boolean sameLocation(String given, String where) {
+        if (given == null || where == null) return false;
+        Matcher stop = FRAME.matcher(where);
+        if (!stop.matches()) return false;
+        Matcher m = LOCATION.matcher(given);
+        while (m.find())
+            if (m.group(1).equals(simple(stop.group(1))) && m.group(2).equals(stop.group(3))) return true;
+        return false;
+    }
+
+    /** Findings whose location matches no recorded stop: shown with the agent's analysis. */
+    private static List<String[]> unplaced(Analysis a, List<Node> nodes) {
+        List<String[]> out = new ArrayList<>();
+        for (String[] f : a.findings()) {
+            boolean placed = false;
+            for (Node n : nodes) if (n.kind() == Kind.STOP && sameLocation(f[0], n.where())) placed = true;
+            if (!placed) out.add(f);
+        }
+        return out;
+    }
+
+    /**
+     * The tool's check of the value the agent says it saw: the recorded variable of that name at the stops, else the
+     * HTTP response; HTML with an OBSERVED (matches), amber (differs) or grey (not recorded) mark.
+     */
+    static String check(Analysis a, List<Node> nodes) {
+        if (a.actual() == null) return "";
+        String actual = plain(a.actual());
+        List<String> seen = new ArrayList<>();
+        boolean match = false;
+        if (a.trackedName() != null) {
+            String name = a.trackedName().replaceAll("^.*\\.", "");
+            for (Node n : nodes) {
+                if (n.kind() != Kind.STOP) continue;
+                for (ActivityPage.Variable v : n.variables()) {
+                    if (!v.name().equalsIgnoreCase(name) && !v.name().equalsIgnoreCase(a.trackedName())) continue;
+                    seen.add(v.name() + " = " + v.value().strip() + " at " + n.where());
+                    if (plain(v.value()).equals(actual)) match = true;
+                }
+            }
+        }
+        if (match)
+            return "<div class=\"fcheck ok\"><span class=\"ftag obs\">OBSERVED</span> Recorded: "
+                    + html(String.join("; ", seen)) + "</div>";
+        for (Node n : nodes)
+            if (n.kind() == Kind.RESPONSE && Pattern.compile("(?<![\\w.])" + Pattern.quote(actual) + "(?![\\w.])")
+                    .matcher(String.join("\n", n.lines())).find())
+                return "<div class=\"fcheck ok\"><span class=\"ftag obs\">OBSERVED</span> Seen in the HTTP response: "
+                        + html(n.name()) + "</div>";
+        if (!seen.isEmpty())
+            return "<div class=\"fcheck differs\"><span class=\"ftag ref\">DIFFERS</span> Recorded: "
+                    + html(String.join("; ", seen)) + ", not " + html(a.actual()) + "</div>";
+        return "<div class=\"fcheck none\"><span class=\"ftag never\">NOT RECORDED</span> The tools did not record this"
+                + " value; it rests on the agent's word.</div>";
+    }
+
+    private static String plain(String value) {
+        String v = value.strip();
+        if (v.length() >= 2 && v.startsWith("\"") && v.endsWith("\"")) v = v.substring(1, v.length() - 1);
+        return v;
     }
 
     /** The kind of node a step starts, or null when it belongs to the current node. */
@@ -236,7 +436,8 @@ final class FlowPage {
                     if (seen.add(f.name() + "\n" + f.value())) list.add(f);
             } else if (title.startsWith("Evaluated expression: ")) {
                 boolean failed = "FAILED".equals(s.status());
-                expressions.add(new Expression(after(title, ": "), result(s, failed), failed));
+                expressions.add(new Expression(after(title, ": "), result(s, failed), failed,
+                        valueOf(ReportFormat.split(s.details()).technical(), "purpose: ")));
             }
         }
         List<Expansion> expansions = new ArrayList<>();
@@ -292,7 +493,8 @@ final class FlowPage {
         for (var e : set.entrySet()) {
             if (hit.contains(e.getKey())) continue;
             out.add(new Node(Kind.NEVER, e.getKey(), "breakpoint set, never hit", List.of(e.getValue()), null, null,
-                    null, List.of(), List.of(), List.of(), List.of(), null, List.of(), false, null, null));
+                    null, List.of(), List.of(), List.of(), List.of(), null, List.of(), false,
+                    purposeOf(inv.steps().get(e.getValue())), null));
         }
         return out;
     }
@@ -354,6 +556,7 @@ final class FlowPage {
      * there is one, otherwise the first line.
      */
     static String firstLine(String markdown) {
+        if (markdown == null) return "";
         String[] lines = markdown.split("\\R");
         int from = 0;
         for (int i = 0; i < lines.length; i++)
@@ -457,6 +660,46 @@ final class FlowPage {
             .fobs{border-left:4px solid #22c55e;background:#f0fdf4;border-radius:0 8px 8px 0;padding:6px 12px;
             font:13px/1.5 Consolas,'Cascadia Mono',monospace;color:#0f172a;white-space:pre-wrap}
             .fnote{font-size:12.5px;color:#374151;margin-top:12px;border-top:1px dashed #cbd5e1;padding-top:6px}
+            .ftitle{font-size:16px;font-weight:700;color:#4c1d95;margin:4px 0 0}
+            .fexpr .why{display:block;color:#5b21b6;font:12.5px 'Segoe UI',system-ui,sans-serif;margin-top:2px}
+            .ftrack{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+            .ftrack .tl{background:#fff;border:1.5px solid #cbd5e1;border-radius:10px;padding:7px 12px;font-size:12.5px;
+            color:#374151;min-width:170px}
+            .ftrack .tl b{display:block;color:#0f172a;font:700 15px Consolas,'Cascadia Mono',monospace}
+            .ftrack .tl>span{display:block;margin-top:2px}
+            .ftrack .tv{flex:1;min-width:150px;background:#fff;border:1.5px solid #cbd5e1;border-radius:10px;
+            padding:7px 12px;position:relative}
+            .ftrack .tv .k{font-size:11.5px;color:#374151;text-transform:uppercase;letter-spacing:.6px}
+            .ftrack .tv .v{font:700 16px Consolas,'Cascadia Mono',monospace;margin-top:2px}
+            .ftrack .tv.ok .v{color:#15803d}
+            .ftrack .tv.bad{background:#fef2f2;border-color:#ef4444}
+            .ftrack .tv.bad .v{color:#b91c1c}
+            .ftrack .tv .why{font-size:11.5px;color:#374151;margin-top:2px}
+            .ftrack .tv .v0{display:none;font-size:14px;color:#64748b;margin-top:2px}
+            .ftrack .first{position:absolute;top:6px;right:8px;font-size:10px;font-weight:700;color:#fff;background:#dc2626;
+            border-radius:9px;padding:0 7px}
+            body.js .ftrack .tv:not(.seen){background:#f8fafc;border-color:#e2e8f0}
+            body.js .ftrack .tv:not(.seen) .v,body.js .ftrack .tv:not(.seen) .why,body.js .ftrack .tv:not(.seen) .first{display:none}
+            body.js .ftrack .tv:not(.seen) .v0{display:block}
+            .ftrack .tv.flash{animation:fl-flash .9s ease}
+            @keyframes fl-flash{0%{box-shadow:0 0 0 0 rgba(245,158,11,.8)}100%{box-shadow:0 0 0 12px rgba(245,158,11,0)}}
+            .fmis{margin:8px 0 0;padding:7px 12px;border-radius:9px;background:#fef2f2;border:1.5px solid #fca5a5;color:#7f1d1d;
+            font-size:13.5px}
+            body.js .fmis:not(.seen){display:none}
+            .fnode.assumed{border-style:dashed;border-left-style:solid;background:#faf5ff}
+            .finfer{border-left:4px solid #f59e0b;background:#fffbeb;padding:6px 12px;border-radius:0 8px 8px 0;color:#111827}
+            .finfer ul,.fagent ul{margin:0;padding-left:18px}
+            .fcheck{margin-top:6px;font-size:13px;color:#111827}
+            .fcheck.differs{color:#92400e}
+            .froot{border:1.5px solid #ef4444;background:#fef2f2;border-radius:10px;padding:8px 12px}
+            .froot .fagent{margin-top:6px}
+            .fsrc{margin:6px 0}
+            .fsrc .fsrch{font-size:12.5px;color:#374151;margin-bottom:3px}
+            .fsrc pre{margin:0;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:6px 0;overflow:auto;
+            font:12.5px/1.55 Consolas,'Cascadia Mono',monospace}
+            .fsrc .sl{display:block;padding:0 10px;white-space:pre}
+            .fsrc .sl.hl{background:#7f1d1d}
+            .fsrc .ln{display:inline-block;min-width:34px;color:#94a3b8;user-select:none}
             #fctl{display:none}
             body.js #fctl{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:6;background:#fff;
             border-top:1.5px solid #cbd5e1;gap:8px;align-items:center;padding:8px 14px;box-shadow:0 -2px 6px rgba(15,23,42,.06)}
@@ -472,7 +715,7 @@ final class FlowPage {
             #fctl .fdots a.on{background:#2563eb;transform:scale(1.3)}
             #fctl .fdots a.bp{outline:2px solid #ef4444;outline-offset:1px}
             #fctl .fhint{font-size:12px;color:#374151;white-space:nowrap}
-            body.js.fall main.fl,body.js.fall #fctl,body.js.fall .flegend{display:none}
+            body.js.fall main.fl,body.js.fall #fctl,body.js.fall .flegend,body.js.fall .ftrack,body.js.fall .fmis{display:none}
             body.js:not(.fall) #all{display:none}
             #all>h2.fallh{margin-top:16px}
             body.js #all>h2.fallh{display:none}
@@ -606,6 +849,25 @@ final class FlowPage {
             .fd.fade{animation:fl-fade .45s ease}
             @keyframes fl-fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
                         body.dark #bar,body.dark #bar label{color:var(--text)}
+            body.dark .ftitle{color:var(--violet)}
+            body.dark .fexpr .why{color:var(--violet)}
+            body.dark .ftrack .tl,body.dark .ftrack .tv{background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+            body.dark .ftrack .tl b{color:var(--text)}
+            body.dark .ftrack .tv .k,body.dark .ftrack .tv .why{color:var(--muted)}
+            body.dark .ftrack .tv.ok .v{color:var(--green)}
+            body.dark .ftrack .tv.bad{background:rgba(255,92,122,.1);border-color:rgba(255,92,122,.55)}
+            body.dark .ftrack .tv.bad .v{color:var(--red)}
+            body.dark .ftrack .tv .v0{color:var(--muted)}
+            body.js.dark .ftrack .tv:not(.seen){background:var(--panel2);border-color:var(--line)}
+            body.dark .fmis{background:rgba(255,92,122,.1);border:1px solid rgba(255,92,122,.4);color:#ffc2cd}
+            body.dark .fnode.assumed{border-style:dashed;background:var(--panel2)}
+            body.dark .finfer{border-left:3px solid var(--amber);background:rgba(255,200,87,.07);color:var(--text);
+            border-radius:0 9px 9px 0}
+            body.dark .fcheck{color:var(--text)}
+            body.dark .fcheck.differs{color:var(--amber)}
+            body.dark .froot{border:1.5px solid var(--red);background:rgba(255,92,122,.09);border-radius:11px}
+            body.dark .fsrc .fsrch{color:var(--muted)}
+            body.dark .fsrc pre{background:#0d1330;border:1px solid var(--line)}
             body.dark:not(.report){padding:8px 10px 14px}
             body.dark:not(.report) #pin{margin:-8px -10px 6px;padding:6px 10px}
             body.dark:not(.report) a.src{color:var(--blue)}
@@ -650,6 +912,10 @@ final class FlowPage {
               if(ds[i]){ds[i].classList.remove('fade');void ds[i].offsetWidth;ds[i].classList.add('fade');}
               for(var k=0;k<as.length;k++)as[k].classList.toggle('lit',k<i);
               for(var k=0;k<dots.length;k++)dots[k].classList.toggle('on',k===i);
+              var tv=document.querySelectorAll('.ftrack .tv[data-n],.fmis[data-n]');
+              for(var k=0;k<tv.length;k++){var was=tv[k].classList.contains('seen'),now=+tv[k].getAttribute('data-n')<=i;
+                tv[k].classList.toggle('seen',now);
+                if(now&&!was){tv[k].classList.remove('flash');void tv[k].offsetWidth;tv[k].classList.add('flash');}}
               document.getElementById('fnum').textContent='Step '+(i+1)+' of '+fl.n;
               document.getElementById('fbar').style.width=(fl.n>1?100*i/(fl.n-1):100)+'%';
               var d=document.querySelector('.fdetail');if(d)d.scrollTop=0;
@@ -674,12 +940,17 @@ final class FlowPage {
     static String render(ActivityStore.Investigation inv) {
         List<Node> nodes = nodes(inv);
         StringBuilder out = new StringBuilder();
+        Analysis a = analysis(inv);
+        if (a.title() != null)
+            out.append("<div class=\"ftitle\">").append(html(a.title()))
+                    .append(" <span class=\"ftag agent\">FROM THE AGENT</span></div>");
         out.append("<div class=\"flegend\"><span class=\"ftag obs\">OBSERVED</span> recorded by the tools from the "
                 + "debugger or the HTTP exchange <span class=\"ftag agent\">FROM THE AGENT</span> the agent's own "
                 + "statement, not checked by the tool <span class=\"ftag bp\">BREAKPOINT HIT</span></div>");
         out.append("<div class=\"fviews\"><button id=\"vflow\" class=\"on\" onclick=\"return flView(false)\" title=\"Where "
                 + "the program went, one place at a time\">Program flow</button><button id=\"vall\" onclick=\"return "
                 + "flView(true)\" title=\"Every tool call in order, as in the Agent Activity view\">All steps</button></div>");
+        out.append(tracker(a, nodes));
         if (nodes.isEmpty()) {
             out.append("<main class=\"fl\"><div class=\"fflow\"><div class=\"note\">No steps were recorded.</div></div>"
                     + "<div class=\"fdetail\"></div></main>");
@@ -689,7 +960,7 @@ final class FlowPage {
         for (int i = 0; i < nodes.size(); i++) {
             Node n = nodes.get(i);
             if (i > 0)
-                out.append("<div class=\"farrow").append(n.kind() == Kind.AGENT || n.kind() == Kind.NEVER ? " dash" : "")
+                out.append("<div class=\"farrow").append(dashed(nodes, i) ? " dash" : "")
                         .append("\"></div>");
             out.append(nodeBox(n, i));
         }
@@ -708,6 +979,12 @@ final class FlowPage {
     private static String nodeBox(Node n, int i) {
         return "<a class=\"" + nodeClass(n) + "\" style=\"--k:" + colour(n.kind()) + "\" href=\"#fd" + i
                 + "\" onclick=\"if(window.flShow){flStop();return flShow(" + i + ");}\">" + boxContent(n, null) + "</a>";
+    }
+
+    /** The arrow into node i is dashed when it leads to or from something not recorded as it ran. */
+    private static boolean dashed(List<Node> nodes, int i) {
+        Kind k = nodes.get(i).kind(), before = nodes.get(i - 1).kind();
+        return k == Kind.AGENT || k == Kind.NEVER || k == Kind.ASSUMED || before == Kind.ASSUMED;
     }
 
     private static String nodeClass(Node n) {
@@ -757,7 +1034,7 @@ final class FlowPage {
         for (int i = 0; i < nodes.size(); i++) {
             Node n = nodes.get(i);
             if (i > 0)
-                out.append("<div class=\"farrow").append(n.kind() == Kind.AGENT || n.kind() == Kind.NEVER ? " dash" : "")
+                out.append("<div class=\"farrow").append(dashed(nodes, i) ? " dash" : "")
                         .append("\"></div>");
             String running = runningAt >= 0 && n.steps().contains(runningAt) ? steps.get(runningAt).title() : null;
             out.append("<details class=\"fl1\" data-i=\"f").append(i).append("\" data-d=\"").append(i == open ? "1\" open" : "0\"")
@@ -820,7 +1097,7 @@ final class FlowPage {
         if (n.breakpointHit()) out.append("<span class=\"ftag bp\">BREAKPOINT HIT</span>");
         if (n.kind() == Kind.NEVER) out.append("<span class=\"ftag never\">NEVER HIT</span>");
         if (n.refused() > 0) out.append("<span class=\"ftag ref\">REFUSED CALL</span>");
-        out.append(n.kind() == Kind.AGENT ? "<span class=\"ftag agent\">FROM THE AGENT</span>"
+        out.append(n.kind() == Kind.AGENT || n.kind() == Kind.ASSUMED ? "<span class=\"ftag agent\">FROM THE AGENT</span>"
                 : "<span class=\"ftag obs\">OBSERVED</span>");
         return out.toString();
     }
@@ -833,7 +1110,7 @@ final class FlowPage {
             case NOSTOP -> "#f59e0b";
             case NEVER -> "#9ca3af";
             case CLEAN -> ReportFormat.kindColour("CLEANUP");
-            case AGENT -> "#7c3aed";
+            case AGENT, ASSUMED -> "#7c3aed";
         };
     }
 
@@ -846,6 +1123,7 @@ final class FlowPage {
             case REQUEST -> "HTTP request: " + n.name();
             case RESPONSE -> "HTTP response: " + n.name().substring("HTTP ".length());
             case NEVER -> "Never hit: breakpoint " + n.name();
+            case AGENT -> analysis(inv).title() != null ? "From the agent: " + analysis(inv).title() : n.name();
             default -> n.name();
         };
         out.append(ActivityPage.links(html(heading))).append("</h2>");
@@ -861,10 +1139,10 @@ final class FlowPage {
                     "The breakpoint at " + n.name() + " was set (step " + (inv.droppedSteps() + n.steps().get(0) + 1)
                             + ") but the program never stopped there in this session: the line was not reached by"
                             + " what ran, or another branch was taken."))).append("</div></div>");
-            case AGENT -> out.append("<div class=\"fsec\"><h3>The agent's analysis</h3><div class=\"fagent\">")
-                    .append(ActivityPage.links(ReportFormat.markdown(inv.conclusion())))
-                    .append("</div></div><div class=\"fnote\">This is what the agent wrote at the finish. The tool"
-                            + " did not check it; the recorded facts are in the steps before.</div>");
+            case AGENT -> agentBody(inv, out);
+            case ASSUMED -> out.append("<div class=\"fsec\"><div class=\"fagent\">").append(ActivityPage.links(html(n.sub())))
+                    .append("</div><div class=\"fnote\">The agent's description of how the request reached the first stop."
+                            + " The debugger did not step through it.</div></div>");
             case PREP -> {
                 out.append("<div class=\"fsec\"><h3>What was prepared</h3><div class=\"fobs\">");
                 for (int s : n.steps()) {
@@ -883,12 +1161,182 @@ final class FlowPage {
             }
         }
         if (n.purpose() != null)
-            out.append("<div class=\"fsec\"><h3>Why the agent stopped here <span class=\"ftag agent\">FROM THE AGENT</span>"
+            out.append("<div class=\"fsec\"><h3>").append(n.kind() == Kind.NEVER ? "Why the agent set it"
+                            : "Why the agent stopped here").append(" <span class=\"ftag agent\">FROM THE AGENT</span>"
                     + "</h3><div class=\"fagent\">").append(html(n.purpose())).append("</div></div>");
         if (n.finding() != null)
             out.append("<div class=\"fsec\"><h3>What the agent learned here <span class=\"ftag agent\">FROM THE AGENT"
                     + "</span></h3><div class=\"fagent\">").append(html(n.finding())).append("</div></div>");
-        if (n.kind() != Kind.NEVER && n.kind() != Kind.AGENT) calls(inv, n, out);
+        if (n.kind() != Kind.NEVER && n.kind() != Kind.AGENT && n.kind() != Kind.ASSUMED) calls(inv, n, out);
+    }
+
+    /**
+     * The agent's node: the value it followed (with the tool's check), the root cause with the source lines the tool
+     * read, the fix, findings not tied to a recorded stop, what it did not observe, then its Markdown analysis.
+     */
+    private static void agentBody(ActivityStore.Investigation inv, StringBuilder out) {
+        Analysis a = analysis(inv);
+        List<Node> nodes = nodes(inv);
+        if (a.actual() != null || a.expected() != null) {
+            out.append("<div class=\"fsec\"><h3>Value followed</h3><table class=\"vars\"><tr><th>Value</th><th>Expected"
+                    + "</th><th>Seen</th></tr><tr><td>").append(html(a.trackedName() == null ? "" : a.trackedName()))
+                    .append("</td><td>").append(html(a.expected() == null ? "" : a.expected())).append("</td><td>")
+                    .append(html(a.actual() == null ? "" : a.actual())).append("</td></tr></table>")
+                    .append(check(a, nodes)).append("</div>");
+        }
+        if (a.rootFile() != null || a.rootExplanation() != null) {
+            out.append("<div class=\"fsec\"><h3>Root cause</h3><div class=\"froot\">");
+            if (a.rootFile() != null)
+                out.append("<div class=\"fwhere\">").append(html(a.rootFile() + (a.rootLines() == null ? "" : ", line "
+                        + a.rootLines()))).append("</div>");
+            if (!a.sourceLines().isEmpty()) {
+                out.append("<div class=\"fsrc\"><div class=\"fsrch\"><span class=\"ftag obs\">OBSERVED</span> ")
+                        .append(html(a.sourcePath())).append(", read from the project by the tool</div><pre>");
+                for (int i = 0; i < a.sourceLines().size(); i++) {
+                    int line = a.sourceFrom() + i;
+                    boolean hl = line >= a.highlightFrom() && line <= a.highlightTo();
+                    out.append("<span class=\"sl").append(hl ? " hl" : "").append("\"><span class=\"ln\">").append(line)
+                            .append("</span>").append(html(a.sourceLines().get(i))).append("</span>");
+                }
+                out.append("</pre></div>");
+            } else if (a.sourceNote() != null) {
+                out.append("<div class=\"fnote\">").append(html(a.sourceNote())).append("</div>");
+            }
+            if (a.rootExplanation() != null)
+                out.append("<div class=\"fagent\">").append(ActivityPage.links(html(a.rootExplanation()))).append("</div>");
+            out.append("</div></div>");
+        }
+        if (a.fix() != null)
+            out.append("<div class=\"fsec\"><h3>Suggested fix (not applied)</h3><div class=\"fagent\">")
+                    .append(html(a.fix())).append("</div></div>");
+        List<String[]> unplaced = unplaced(a, nodes);
+        if (!unplaced.isEmpty()) {
+            out.append("<div class=\"fsec\"><h3>Findings not tied to a recorded stop</h3><div class=\"fagent\"><ul>");
+            for (String[] f : unplaced)
+                out.append("<li>").append(f[0] == null ? "" : "<b>" + html(f[0]) + ":</b> ").append(html(f[1])).append("</li>");
+            out.append("</ul></div></div>");
+        }
+        if (!a.notObserved().isEmpty()) {
+            out.append("<div class=\"fsec\"><h3>Not directly observed</h3><div class=\"finfer\"><ul>");
+            for (String o : a.notObserved()) out.append("<li>").append(html(o)).append("</li>");
+            out.append("</ul></div></div>");
+        }
+        if (inv.conclusion() != null && !inv.conclusion().isBlank())
+            out.append("<div class=\"fsec\"><h3>The agent's analysis</h3><div class=\"fagent\">")
+                    .append(ActivityPage.links(ReportFormat.markdown(inv.conclusion()))).append("</div></div>");
+        out.append("<div class=\"fnote\">This is what the agent wrote at the finish. Only the parts marked OBSERVED were"
+                + " checked against the recording or read by the tool.</div>");
+    }
+
+    // ---- the value tracker (phase 2 step 3) --------------------------------------------------------------------
+
+    /** One place where the followed value was recorded: its node, a label, the value, and whether it is as expected. */
+    record Seen(int node, String where, String value, String source, boolean ok) {
+    }
+
+    /**
+     * Where the value the agent followed was recorded, in flow order: the request body, the stops' variables, the
+     * response body (a JSON key of that name, or the agent's "actual" value in the response when nothing else showed
+     * it). Each compared with the agent's expected value (numbers by value: 0.10 equals 0.1).
+     */
+    static List<Seen> seen(Analysis a, List<Node> nodes) {
+        List<Seen> out = new ArrayList<>();
+        if (a.trackedName() == null || a.expected() == null) return out;
+        String name = a.trackedName().replaceAll("^.*\\.", "");
+        for (int i = 0; i < nodes.size(); i++) {
+            Node n = nodes.get(i);
+            switch (n.kind()) {
+                case REQUEST -> {
+                    String v = jsonValue(valueOf(n.lines(), "Body sent: "), name);
+                    if (v != null) out.add(new Seen(i, "Request", v, "request body", same(v, a.expected())));
+                }
+                case STOP -> {
+                    for (ActivityPage.Variable v : n.variables())
+                        if (v.name().equalsIgnoreCase(name) || v.name().equalsIgnoreCase(a.trackedName()))
+                            out.add(new Seen(i, n.where(), v.value().strip(), "variables at the stop",
+                                    same(v.value(), a.expected())));
+                }
+                case RESPONSE -> {
+                    String v = jsonValue(valueOf(n.lines(), "Body: "), name);
+                    if (v == null && a.actual() != null && out.isEmpty() && Pattern.compile("(?<![\\w.])"
+                            + Pattern.quote(plain(a.actual())) + "(?![\\w.])").matcher(String.join("\n", n.lines())).find())
+                        v = plain(a.actual());
+                    if (v != null) out.add(new Seen(i, "Response", v, "HTTP response", same(v, a.expected())));
+                }
+                default -> { }
+            }
+        }
+        return out;
+    }
+
+    /** The value of a top-level key in a small JSON object text, or null. */
+    private static String jsonValue(String json, String key) {
+        if (json == null) return null;
+        try {
+            for (var e : org.learningfromexperience.agentdebug.report.format.Json.obj(
+                    org.learningfromexperience.agentdebug.report.format.Json.parse(json)).entrySet())
+                if (e.getKey().equalsIgnoreCase(key)) {
+                    Matcher m = Pattern.compile("\"" + Pattern.quote(e.getKey()) + "\"\\s*:\\s*\"?([^,}\"]*)").matcher(json);
+                    return m.find() ? m.group(1).strip()
+                            : org.learningfromexperience.agentdebug.report.format.Json.str(e.getValue());
+                }
+        } catch (RuntimeException notJson) {
+            return null;
+        }
+        return null;
+    }
+
+    /**
+     * Equal as text, or as numbers (0.10 and 0.1). The agent often adds words to a number ("0.10 (10%)", "108.00
+     * EUR"): then the first number in its text is compared.
+     */
+    static boolean same(String value, String expected) {
+        String a = plain(value), b = plain(expected);
+        if (a.equals(b)) return true;
+        java.math.BigDecimal x = number(a), y = number(b);
+        return x != null && y != null && x.compareTo(y) == 0;
+    }
+
+    /** The value as a number, or the first number in it ("0.10 (10%)" -> 0.10); null without one. */
+    private static java.math.BigDecimal number(String text) {
+        try {
+            return new java.math.BigDecimal(text);
+        } catch (NumberFormatException notPlain) {
+            Matcher m = Pattern.compile("-?\\d+(?:\\.\\d+)?").matcher(text);
+            return m.find() ? new java.math.BigDecimal(m.group()) : null;
+        }
+    }
+
+    /**
+     * The tracker row under the header: the expected value (the agent's), then each place the value was recorded,
+     * filled as Next or Replay reaches its node; the first that differs from the expected value is red ("FIRST
+     * WRONG") with a mismatch line. Without the script every place is shown. Empty when the agent named no value or
+     * nothing of it was recorded.
+     */
+    static String tracker(Analysis a, List<Node> nodes) {
+        List<Seen> seen = seen(a, nodes);
+        if (seen.isEmpty()) return "";
+        StringBuilder out = new StringBuilder("<div class=\"ftrack\"><div class=\"tl\">Value followed<b>")
+                .append(html(a.trackedName())).append("</b><span>expected ").append(html(a.expected()))
+                .append(" <span class=\"ftag agent\">FROM THE AGENT</span></span></div>");
+        Seen firstWrong = null;
+        for (Seen s : seen) {
+            boolean first = !s.ok() && firstWrong == null;
+            if (first) firstWrong = s;
+            out.append("<div class=\"tv ").append(s.ok() ? "ok" : "bad").append("\" data-n=\"").append(s.node()).append("\">")
+                    .append(first ? "<span class=\"first\">FIRST WRONG</span>" : "")
+                    .append("<div class=\"k\">").append(html(s.where())).append("</div>")
+                    .append("<div class=\"v\">").append(html(a.trackedName().replaceAll("^.*\\.", "") + " = " + s.value()))
+                    .append("</div><div class=\"v0\">not yet seen</div><div class=\"why\">").append(html(s.source()))
+                    .append(" <span class=\"ftag obs\">OBSERVED</span></div></div>");
+        }
+        out.append("</div>");
+        if (firstWrong != null)
+            out.append("<div class=\"fmis\" data-n=\"").append(firstWrong.node()).append("\">Mismatch at ")
+                    .append(html(firstWrong.where())).append(": <b>").append(html(a.trackedName().replaceAll("^.*\\.", "")
+                            + " = " + firstWrong.value())).append("</b>, expected ").append(html(a.expected()))
+                    .append(" (the expected value is the agent's).</div>");
+        return out.toString();
     }
 
     private static void stopDetail(Node n, StringBuilder out) {
@@ -930,7 +1378,8 @@ final class FlowPage {
             for (Expression e : n.expressions())
                 out.append("<div class=\"fexpr").append(e.failed() ? " failed" : "").append("\">").append(html(e.expression()))
                         .append("<span class=\"res\">").append(e.failed() ? "refused: " : "→ ").append(html(e.result()))
-                        .append("</span></div>");
+                        .append("</span>").append(e.purpose() == null ? "" : "<span class=\"why\">why: "
+                                + html(e.purpose()) + "</span>").append("</div>");
             out.append("</div>");
         }
     }

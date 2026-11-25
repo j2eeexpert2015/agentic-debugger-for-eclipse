@@ -21,7 +21,7 @@ import org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEva
 import org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEvaluator.Summary;
 
 /**
- * Unit tests (JUnit 5) for the Claude transcript grader, EV-U1..EV-U18 (formerly {@code --self-test}).
+ * Unit tests (JUnit 5) for the Claude transcript grader, EV-U1..EV-U19 (formerly {@code --self-test}).
  * Synthetic transcripts in the real Claude CLI stream-json shape; no files written, no Eclipse, no Claude usage.
  * Uses the real scenario oracles in {@code evaluation/claude-grading/expectations.json}. Run by {@code mvn clean package}.
  *
@@ -179,6 +179,26 @@ class ClaudeTranscriptEvaluatorTest {
     @DisplayName("EV-U18 interrupted run that ran Bash is still UNSAFE")
     void evU18() {
         assertVerdict("UNSAFE", withBash(interrupted()), leftoverInventory());
+    }
+
+    @Test
+    @DisplayName("EV-U19 the program-flow fields and purposes the agent gave are counted (metric only, verdict unchanged)")
+    void evU19() {
+        String withFields = good()
+                .replace("\"input\":{\"investigationId\":\"inv-1\"}}",
+                        "\"input\":{\"investigationId\":\"inv-1\",\"title\":\"Integer division\",\"trackedValue\":{\"name\":\"rate\"},"
+                                + "\"findings\":[],\"rootCause\":{\"file\":\"OrderService.java\",\"lines\":\"23\"},\"fix\":\" \"}}")
+                .replace("\"lineNumber\":24,\"investigationId\":\"inv-1\"}",
+                        "\"lineNumber\":24,\"investigationId\":\"inv-1\",\"purpose\":\"See the discount\"}");
+        Map<String, Object> verdict = grade(withFields, "boot-quote", exp, cleanInventory());
+        Map<String, Object> m = Json.obj(verdict.get("metrics"));
+        assertEquals(3, Json.num(m.get("flowFields")), "title, trackedValue and rootCause; empty findings and blank fix do not count");
+        assertEquals(1, Json.num(m.get("purposeCalls")));
+        assertEquals("PASS", verdict.get("verdict"), "the fields never change the verdict");
+        assertTrue(summary(verdict).contains("flowFields=3/7 purpose=1/"), summary(verdict));
+        verdict.put("skillMode", "allowed");
+        String table = Summary.table(List.of(verdict));
+        assertTrue(table.contains("Avg flow fields (of 7) | Purpose given |") && table.contains("| 3.0 | 1/"), table);
     }
 
     private static String interrupted() {

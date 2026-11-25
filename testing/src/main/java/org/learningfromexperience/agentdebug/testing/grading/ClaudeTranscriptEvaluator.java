@@ -641,6 +641,21 @@ public final class ClaudeTranscriptEvaluator {
 
     // ------------------------------------------------------------------ metrics and helpers
 
+    /** The optional structured fields of finish_debug_investigation shown in the report's program flow. */
+    static final List<String> FLOW_FIELDS = List.of("title", "trackedValue", "findings", "rootCause", "fix",
+            "notObserved", "assumedPath");
+    /** Tools that take the optional {@code purpose} argument. */
+    static final Set<String> PURPOSE_TOOLS = Set.of("set_breakpoint", "set_conditional_breakpoint",
+            "evaluate_expression", "control_debug_session");
+
+    private static boolean filled(Object value) {
+        if (value == null) return false;
+        if (value instanceof String s) return !s.isBlank();
+        if (value instanceof Map<?, ?> m) return !m.isEmpty();
+        if (value instanceof List<?> l) return !l.isEmpty();
+        return true;
+    }
+
     static Map<String, Object> metrics(Transcript t) {
         Map<String, Object> m = new LinkedHashMap<>();
         Map<String, Integer> perTool = new TreeMap<>();
@@ -674,6 +689,23 @@ public final class ClaudeTranscriptEvaluator {
         m.put("turns", t.result == null ? null : t.result.get("num_turns"));
         m.put("durationMs", t.result == null ? null : t.result.get("duration_ms"));
         m.put("costUsd", t.result == null ? null : t.result.get("total_cost_usd"));
+        // OPEN-30 R4 phase 2: how much of the report's program flow the agent filled with its own statements.
+        int flowFields = 0;
+        for (ToolCall c : t.calls) {
+            if (!c.eclipse() || !c.name.equals("finish_debug_investigation")) continue;
+            int filled = 0;
+            for (String field : FLOW_FIELDS) if (filled(c.input.get(field))) filled++;
+            flowFields = Math.max(flowFields, filled);
+        }
+        int purposeCalls = 0, purposeOptions = 0;
+        for (ToolCall c : t.calls) {
+            if (!c.eclipse() || !PURPOSE_TOOLS.contains(c.name)) continue;
+            purposeOptions++;
+            if (filled(c.input.get("purpose"))) purposeCalls++;
+        }
+        m.put("flowFields", flowFields);
+        m.put("purposeCalls", purposeCalls);
+        m.put("purposeOptions", purposeOptions);
         m.put("deniedTools", t.deniedTools);
         m.put("unreadableLines", t.unreadableLines);
         m.put("perTool", perTool);
@@ -720,9 +752,10 @@ public final class ClaudeTranscriptEvaluator {
             if ("FAIL".equals(check.get("status"))) failed.append(failed.length() == 0 ? "" : ", ").append(check.get("id"));
         }
         Map<String, Object> m = Json.obj(verdict.get("metrics"));
-        return String.format("%-8s %-11s tools=%s waits=%s turns=%s%s", verdict.get("verdict"), verdict.get("scenario"),
-                Json.str(m.get("eclipseToolCalls")), Json.str(m.get("waitCalls")), Json.str(m.get("turns")),
-                failed.length() == 0 ? "" : "  failed: " + failed);
+        return String.format("%-8s %-11s tools=%s waits=%s turns=%s flowFields=%s/7 purpose=%s/%s%s", verdict.get("verdict"),
+                verdict.get("scenario"), Json.str(m.get("eclipseToolCalls")), Json.str(m.get("waitCalls")),
+                Json.str(m.get("turns")), Json.str(m.get("flowFields")), Json.str(m.get("purposeCalls")),
+                Json.str(m.get("purposeOptions")), failed.length() == 0 ? "" : "  failed: " + failed);
     }
 
     // ------------------------------------------------------------------ summary across runs
@@ -763,14 +796,14 @@ public final class ClaudeTranscriptEvaluator {
             }
             if (groups.size() > 1) groups.put("TOTAL | all", verdicts);
             StringBuilder b = new StringBuilder(
-                    "| Scenario | Skill mode | Runs | PASS | PARTIAL | FAIL | BLOCKED | UNSAFE | Pass rate | Skill used | wait_for_stop used | Cleanup verified | Avg debugger calls | Avg turns | Avg time (s) | Total cost (USD) |\n"
-                    + "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
+                    "| Scenario | Skill mode | Runs | PASS | PARTIAL | FAIL | BLOCKED | UNSAFE | Pass rate | Skill used | wait_for_stop used | Cleanup verified | Avg debugger calls | Avg turns | Avg time (s) | Total cost (USD) | Avg flow fields (of 7) | Purpose given |\n"
+                    + "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
             for (var e : groups.entrySet()) {
                 List<Map<String, Object>> runs = e.getValue();
                 Map<String, Integer> counts = new LinkedHashMap<>();
                 for (String verdict : List.of("PASS", "PARTIAL", "FAIL", "BLOCKED", "UNSAFE")) counts.put(verdict, 0);
                 int skillUsed = 0, waitUsed = 0, cleanup = 0;
-                double calls = 0, turns = 0, seconds = 0, cost = 0;
+                double calls = 0, turns = 0, seconds = 0, cost = 0, flow = 0, purposes = 0, purposeOptions = 0;
                 for (Map<String, Object> v : runs) {
                     counts.merge(Json.str(v.get("verdict")), 1, Integer::sum);
                     Map<String, Object> m = Json.obj(v.get("metrics"));
@@ -783,6 +816,9 @@ public final class ClaudeTranscriptEvaluator {
                     turns += dbl(m.get("turns"));
                     seconds += dbl(m.get("durationMs")) / 1000.0;
                     cost += dbl(m.get("costUsd"));
+                    flow += dbl(m.get("flowFields"));
+                    purposes += dbl(m.get("purposeCalls"));
+                    purposeOptions += dbl(m.get("purposeOptions"));
                 }
                 int n = runs.size();
                 String[] key = e.getKey().split(" \\| ");
@@ -792,7 +828,8 @@ public final class ClaudeTranscriptEvaluator {
                         .append(" | ").append(pct(skillUsed, n))
                         .append(" | ").append(pct(waitUsed, n))
                         .append(" | ").append(cleanup).append("/").append(n)
-                        .append(String.format(Locale.ROOT, " | %.1f | %.1f | %.0f | %.2f |%n", calls / n, turns / n, seconds / n, cost));
+                        .append(String.format(Locale.ROOT, " | %.1f | %.1f | %.0f | %.2f | %.1f | %.0f/%.0f |%n", calls / n,
+                                turns / n, seconds / n, cost, flow / n, purposes, purposeOptions));
             }
             return b.toString().stripTrailing();
         }

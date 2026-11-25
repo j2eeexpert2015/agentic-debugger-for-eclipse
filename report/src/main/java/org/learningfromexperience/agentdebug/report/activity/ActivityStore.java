@@ -58,12 +58,13 @@ public final class ActivityStore {
      * One investigation as the view shows it; an immutable copy. {@code program} is what Eclipse saw of the agent's
      * launch ({@link #PROGRAM_RUNNING}, {@link #PROGRAM_PAUSED}, {@link #PROGRAM_ENDED}, or null before the launch),
      * {@code programWhere} where it is paused ("OrderService.quote:24"); {@code lastActivity} when the last event of
-     * this investigation arrived (receive time, ISO-8601).
+     * this investigation arrived (receive time, ISO-8601); {@code analysis} the agent's structured findings at the
+     * finish as a JSON object (see {@code ReportEvent.InvestigationFinished}), or null.
      */
     public record Investigation(String id, String mode, String client, String request, boolean requestExact,
                                 String startedAt, List<Step> steps, int droppedSteps, String outcome,
                                 String conclusion, List<String> cleanup, String reportFile, String finishedAt,
-                                String program, String programWhere, String lastActivity) {
+                                String program, String programWhere, String lastActivity, String analysis) {
         public boolean finished() {
             return outcome != null;
         }
@@ -205,6 +206,7 @@ public final class ActivityStore {
                 inv.conclusion = Json.str(e.get("conclusion"));
                 inv.cleanup = strings(e.get("cleanup"));
                 inv.reportFile = Json.str(e.get("reportFile"));
+                inv.analysis = Json.str(e.get("analysis"));
                 inv.finishedAt = at;
                 inv.endRunning("FINISHED".equals(inv.outcome));
             }
@@ -273,7 +275,7 @@ public final class ActivityStore {
     /** The store's own, changeable form of an investigation. */
     private static final class Mutable {
         final String id;
-        String mode, client, request, startedAt, outcome, conclusion, reportFile, finishedAt;
+        String mode, client, request, startedAt, outcome, conclusion, reportFile, finishedAt, analysis;
         String program, programWhere, lastActivity;
         boolean requestExact;
         List<String> cleanup = List.of();
@@ -339,7 +341,7 @@ public final class ActivityStore {
         Investigation snapshot() {
             return new Investigation(id, mode, client, request, requestExact, startedAt, List.copyOf(steps),
                     droppedSteps, outcome, conclusion, cleanup, reportFile, finishedAt, program, programWhere,
-                    lastActivity);
+                    lastActivity, analysis);
         }
     }
 }

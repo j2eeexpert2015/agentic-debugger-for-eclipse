@@ -47,15 +47,21 @@ public final class ActivityEvents {
 
     public static String json(ReportEvent.InvestigationFinished e) {
         return finished(e.investigationId(), e.at().toString(), e.outcome().name(), e.conclusion(), e.cleanup(),
-                e.reportFile() == null ? null : e.reportFile().toString());
+                e.reportFile() == null ? null : e.reportFile().toString(), e.analysis());
+    }
+
+    /** An end without the agent's structured findings. */
+    public static String finished(String investigationId, String at, String outcome, String conclusion,
+                                  List<String> cleanup, String reportFile) {
+        return finished(investigationId, at, outcome, conclusion, cleanup, reportFile, null);
     }
 
     /** An end of an investigation, also for one the report closes itself (the session ended before the finish). */
     public static String finished(String investigationId, String at, String outcome, String conclusion,
-                                  List<String> cleanup, String reportFile) {
+                                  List<String> cleanup, String reportFile, String analysis) {
         return new Writer("investigationFinished").field("investigationId", investigationId).field("at", at)
                 .field("outcome", outcome).field("conclusion", conclusion).list("cleanup", cleanup)
-                .field("reportFile", reportFile).toString();
+                .field("reportFile", reportFile).field("analysis", analysis).toString();
     }
 
     public static String dropped(long count) {

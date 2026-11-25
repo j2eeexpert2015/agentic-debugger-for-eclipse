@@ -15,6 +15,7 @@ import java.nio.file.Path;
 
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -90,7 +91,8 @@ public class DebugMcpServer {
                         "typeName", Map.of("type", "string", "description",
                                 "Fully qualified Java class name"),
                         "lineNumber", Map.of("type", "integer", "minimum", 1),
-                        "investigationId", Map.of("type", "string", "description", "Optional ID from begin_debug_investigation")
+                        "investigationId", Map.of("type", "string", "description", "Optional ID from begin_debug_investigation"),
+                        "purpose", PURPOSE
                 ),
                 "required", List.of("typeName", "lineNumber"),
                 "additionalProperties", false
@@ -268,12 +270,11 @@ public class DebugMcpServer {
                         + "Pass summary: your complete analysis in Markdown, the same findings you will give the user "
                         + "(reproduced symptom, runtime evidence with frames and values, root cause or what remains "
                         + "uncertain, fix suggestion not applied); it is shown in full at the top of the debugging session "
-                        + "report. Then call get_investigation_report.",
-                Map.of("investigationId", str(),
-                        // Only for the session report (OPEN-30); never sent to Eclipse.
-                        "summary", Map.of("type", "string", "description",
-                                "Your complete analysis in Markdown (headings, lists, tables and code are rendered): "
-                                        + "symptom, runtime evidence, root cause, fix suggestion")),
+                        + "report. Optionally also pass the structured fields (title, trackedValue, findings, "
+                        + "rootCause, fix, notObserved, assumedPath): the report places them in the program flow, "
+                        + "marked as your statements, and shows the source lines of rootCause read from the project. "
+                        + "Then call get_investigation_report.",
+                finishProperties(),
                 List.of("investigationId"),
                 a -> "FINISH_INVESTIGATION " + enc(arg(a,"investigationId"))));
         // OPEN-30: where the debugging session report of an investigation is (answered by the MCP server itself).
@@ -296,7 +297,8 @@ public class DebugMcpServer {
         allTools.add(bridgeTool("set_conditional_breakpoint",
                 "Set a new Java conditional line breakpoint. Eclipse suspends only when the Java condition is true. "
                 + "Existing user/agent breakpoints at that line are never modified. Prefer for record-specific defects.",
-                Map.of("typeName",str(), "lineNumber",integer(), "condition",str(), "investigationId",str()),
+                Map.of("typeName",str(), "lineNumber",integer(), "condition",str(), "investigationId",str(),
+                        "purpose", PURPOSE),
                 List.of("typeName", "lineNumber", "condition"),
                 a -> "SET_CONDITIONAL_BREAKPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")
                         + " " + enc(arg(a,"condition")) + ownedId(a)));
@@ -409,7 +411,7 @@ public class DebugMcpServer {
                         + " " + intArg(a,"frameIndex")));
         allTools.add(bridgeTool("evaluate_expression", "Evaluate a Java expression. May invoke methods and change state: require explicit user consent and allowSideEffects=true.",
                 Map.of("launchName",str(),"threadIndex",integer(),"frameIndex",integer(),
-                        "expression",str(),"allowSideEffects",Map.of("type","boolean")),
+                        "expression",str(),"allowSideEffects",Map.of("type","boolean"),"purpose",PURPOSE),
                 List.of("launchName","threadIndex","frameIndex","expression","allowSideEffects"),
                 a -> {
                     if (!Boolean.TRUE.equals(a.get("allowSideEffects")))
@@ -422,7 +424,7 @@ public class DebugMcpServer {
                         + "do not STOP or resume unrelated/user-owned sessions.",
                 Map.of("launchName",str(),"threadIndex",integer(),"action",Map.of("type","string",
                         "enum",List.of("PAUSE","RESUME","STEP_INTO","STEP_OVER","STEP_RETURN","STOP")),
-                        "investigationId",str()),
+                        "investigationId",str(),"purpose",PURPOSE),
                 List.of("launchName","threadIndex","action"),
                 a -> "CONTROL_DEBUG " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
                         + " " + enc(arg(a,"action")) + optionalId(a)));
@@ -581,6 +583,13 @@ public class DebugMcpServer {
     }
 
     private static Map<String,Object> str() { return Map.of("type","string"); }
+
+    /**
+     * Optional argument of the breakpoint, evaluation and step tools, only for the session report (OPEN-30 R4 phase 2):
+     * why the call helps; shown at the node as the agent's statement. Never sent to Eclipse.
+     */
+    static final Map<String, Object> PURPOSE = Map.of("type", "string", "description",
+            "Optional. One short sentence: why this helps the investigation (shown in the debugging session report)");
     private static Map<String,Object> bool() { return Map.of("type","boolean"); }
     private static String boolArg(Map<String,Object> args, String key) {
         if (!(args.get(key) instanceof Boolean value)) throw new IllegalArgumentException("Invalid " + key);
@@ -592,6 +601,38 @@ public class DebugMcpServer {
     }
 
     private static Map<String,Object> integer() { return Map.of("type","integer","minimum",0); }
+
+    /**
+     * Arguments of finish_debug_investigation: the investigation, and only for the session report (OPEN-30, never sent
+     * to Eclipse) the Markdown summary and the optional structured findings of the program flow (R4 phase 2).
+     */
+    static Map<String, Object> finishProperties() {
+        Map<String, Object> text = Map.of("type", "string");
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("investigationId", str());
+        p.put("summary", Map.of("type", "string", "description",
+                "Your complete analysis in Markdown (headings, lists, tables and code are rendered): "
+                        + "symptom, runtime evidence, root cause, fix suggestion"));
+        p.put("title", Map.of("type", "string", "description",
+                "Optional. One line naming the bug, e.g. \"Discount lost by integer division\""));
+        p.put("trackedValue", Map.of("type", "object", "description",
+                "Optional. The value you followed: its variable name, the value it should have and the value seen",
+                "properties", Map.of("name", text, "expected", text, "actual", text)));
+        p.put("findings", Map.of("type", "array", "description",
+                "Optional. What you learned at each stop: at = the stop's location as Class.method:line, text = one "
+                        + "or two sentences",
+                "items", Map.of("type", "object", "properties", Map.of("at", text, "text", text))));
+        p.put("rootCause", Map.of("type", "object", "description",
+                "Optional. Where the bug is: file (e.g. OrderService.java), lines (e.g. \"23\" or \"22-25\") and a "
+                        + "short explanation; the tool reads those lines from the project and shows them",
+                "properties", Map.of("file", text, "lines", text, "explanation", text)));
+        p.put("fix", Map.of("type", "string", "description", "Optional. The suggested fix (not applied)"));
+        p.put("notObserved", Map.of("type", "array", "items", text, "description",
+                "Optional. What your conclusion relies on that you did not see in the debugger"));
+        p.put("assumedPath", Map.of("type", "string", "description",
+                "Optional. The call path between the request and the first stop as you understand it, not stepped"));
+        return p;
+    }
 
     private static Map<String,Object> schema(Map<String,Object> properties, List<String> required) {
         return Map.of("type","object","properties",properties,

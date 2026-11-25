@@ -9,7 +9,7 @@ Two phases:
 | Phase | What | Source of the data | State |
 |---|---|---|---|
 | 1 | Program flow in the HTML report: nodes, details per node, Previous / Next / Replay, the old step list as "All steps" | Only what the tools recorded (the steps the MCP server already writes) | Delivered 25 Nov, waiting for check |
-| 2 | The agent's reasoning at the nodes, a value tracker, a root-cause box with the source lines | New optional tool arguments and structured fields at the finish, cross-checked by the tool | Designed below, not started |
+| 2 | The agent's reasoning at the nodes, a value tracker, a root-cause box with the source lines | New optional tool arguments and structured fields at the finish, cross-checked by the tool | Step 1 (finish fields, root-cause source, checks, skill) done 25 Nov, checked in the 11:58 trial; steps 2 to 4 done 25 Nov (two trials: 7 of 7 fields, every purpose given) |
 | 1 (live) | The same flow in the live Agent Activity window: one column, a click opens a node, the newest node open, the running call pulsing in its node; Flow and Steps | Phase 1 data | Delivered 25 Nov, waiting for check |
 
 ## Phase 1 (implemented)
@@ -64,7 +64,42 @@ only once the investigation is over (while it runs a breakpoint may still be hit
 Steps (the earlier step list with the current stop and the analysis; Expand All and Collapse All show only there);
 Follow works in both. Both looks here too: a Dark / Light button in the toolbar switches in place; Eclipse keeps the choice (preference `activityTheme`, light by default) for the window and the docked view.
 
-## Phase 2 (designed, not started)
+## Phase 2 step 1 (implemented)
+
+- **MCP server:** `finish_debug_investigation` takes the optional fields of section 2 below (schema in
+  `DebugMcpServer.finishProperties`). `FinishAnalysis` keeps them (bounded lengths, also when the agent passes an object
+  as JSON text) and reads the root cause's lines from the project the investigation launched: the path as given, else
+  the first file of that name (folders such as `target` and `.git` skipped), never outside the project, two lines of
+  context, at most 30 lines; or a note why not. Sent as one JSON object with the finish event (`analysis`), to the
+  report and the live window alike.
+- **Report and window (`FlowPage`):** findings at the stop whose class and line match `at` ("What the agent learned
+  here"), the others with the agent's node; `assumedPath` as a dashed node between the request and the first stop; the
+  agent's node (also without a Markdown summary): title, value followed with the tool's check (OBSERVED when a recorded
+  variable of that name, or the HTTP response, shows the value; DIFFERS when the recorded variable shows another value;
+  NOT RECORDED otherwise), the root-cause box with the source lines (OBSERVED, read by the tool) and the explanation,
+  the fix, "Not directly observed", then the Markdown analysis. The title also appears under the report's heading.
+- **Skill:** asks for the fields, short, never instead of `summary`.
+- Tests FA-U1..U4 (mcp-server), FP-U7 (report).
+
+## Phase 2 steps 2 to 4 (implemented)
+
+- **Step 2, `purpose`:** optional argument of `set_breakpoint`, `set_conditional_breakpoint`, `evaluate_expression`
+  and `control_debug_session` (schema `DebugMcpServer.PURPOSE`); recorded like any argument ("purpose: ..." in the
+  call's details, never sent to Eclipse). Shown as "Why the agent stopped here" at a stop (the purpose of the
+  breakpoint with the same class and line, or of the step that led there), "why: ..." under an expression, "Why the
+  agent set it" on a never-hit breakpoint. Always the agent's statement.
+- **Step 3, value tracker:** `FlowPage.seen` and `tracker`: under the header, the followed value (trackedValue.name) at
+  the request body, each stop's variables and the response body (a key of that name, or the agent's actual value in the
+  response when nothing else showed it), compared with the agent's expected value (numbers by value); filled as Next or
+  Replay reaches each place (all shown without the script); the first place that differs is red ("FIRST WRONG") with a
+  mismatch line. No tracker when the agent named no value or nothing of it was recorded.
+- **Step 4, grader metric:** `ClaudeTranscriptEvaluator.metrics`: `flowFields` (how many of the 7 fields the agent
+  passed to finish_debug_investigation, non-empty), `purposeCalls` of `purposeOptions` (calls that could take a
+  purpose); shown on the VERDICT line (`flowFields=7/7 purpose=2/3`) and as two columns of the trial summary. A metric
+  only; the verdict is unchanged.
+- Tests FP-U8 (report), EV-U19 (testing).
+
+## Phase 2 (design)
 
 Goal: the parts of the IntelliJ page that need the agent (why it stopped somewhere, what it learned, the value it
 followed, the root cause), **always tagged FROM THE AGENT**, and cross-checked by the tool where the recording allows.

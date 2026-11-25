@@ -107,9 +107,12 @@ public sealed interface ReportEvent {
      * @param cleanup    what cleanup removed or verified, one line per item
      * @param reportFile where the writer must write this investigation's report (decided by the recorder, see
      *                   {@link ReportFiles}); null lets the writer choose
+     * @param analysis   the agent's structured findings as a JSON object (title, trackedValue, findings, rootCause with
+     *                   the source lines read by the MCP server, fix, notObserved, assumedPath; OPEN-30 R4 phase 2),
+     *                   or null; shown in the program flow, always as the agent's statements
      */
     record InvestigationFinished(String investigationId, Instant at, Outcome outcome, String conclusion,
-                                 List<String> cleanup, Path reportFile) implements ReportEvent {
+                                 List<String> cleanup, Path reportFile, String analysis) implements ReportEvent {
         public InvestigationFinished {
             Objects.requireNonNull(investigationId, "investigationId");
             Objects.requireNonNull(at, "at");
@@ -117,10 +120,16 @@ public sealed interface ReportEvent {
             cleanup = cleanup == null ? List.of() : List.copyOf(cleanup);
         }
 
+        /** Without structured findings. */
+        public InvestigationFinished(String investigationId, Instant at, Outcome outcome, String conclusion,
+                                     List<String> cleanup, Path reportFile) {
+            this(investigationId, at, outcome, conclusion, cleanup, reportFile, null);
+        }
+
         /** Without a chosen report file. */
         public InvestigationFinished(String investigationId, Instant at, Outcome outcome, String conclusion,
                                      List<String> cleanup) {
-            this(investigationId, at, outcome, conclusion, cleanup, null);
+            this(investigationId, at, outcome, conclusion, cleanup, null, null);
         }
     }
 }
