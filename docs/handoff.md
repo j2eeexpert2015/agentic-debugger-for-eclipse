@@ -24,7 +24,13 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 18:10): an agent that left without finishing, shown and tested properly, waiting for check
+## Last delivery (25 Nov, 18:10): an agent that left without finishing, shown and tested properly, checked 18:28
+
+Result: build with all unit tests (report 51/51), deploy of 1.5.0.202611251238, `agentDisconnectCleansUp` PASS in
+6.3 s (it now waits for the stop). Agent Activity screenshot: banner "Ended without the agent finishing it: agent closed
+the MCP connection, so the MCP server finished it"; "Stops not checked" and "StepFilterApplication:9" tagged NOT CHECKED
+only; "Preparation" and "Cleaned up automatically" OBSERVED.
+
 
 Checked 17:42 (`report-not-checked.zip`): the window showed "Stops not checked" and NOT CHECKED, the replayed report
 differed from the original only by the new style lines, REPORT CHECK PASS. The owner then pointed at what was still
