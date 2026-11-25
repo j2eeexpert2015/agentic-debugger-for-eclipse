@@ -623,7 +623,13 @@ final class FlowPage {
             body.js .farrow.lit{border-left-color:#2563eb}
             .fdetail{background:#fff;border:1.5px solid #cbd5e1;border-radius:10px;padding:12px 18px;
             box-shadow:0 1px 3px rgba(15,23,42,.08)}
-            body.js .fdetail{position:sticky;top:100px;max-height:calc(100vh - 160px);overflow:auto}
+            body.js .fdetail{position:sticky;top:calc(var(--pinh,100px) + 8px);max-height:calc(100vh - var(--pinh,100px) - 76px);
+            overflow:auto}
+            #pin .ftw .ftrack{margin-top:6px}
+            #pin .ftw .ftrack .tl,#pin .ftw .ftrack .tv{padding:4px 10px}
+            #pin .ftw .ftrack .tv .v{font-size:14.5px}
+            #pin .ftw .fmis{margin-top:6px;padding:5px 12px}
+            body.js.fall #pin .ftw{display:none}
             .fd{padding:2px 0 10px}
             body:not(.js) .fd+.fd{border-top:2px solid #cbd5e1;padding-top:10px}
             body.js .fd{display:none}
@@ -895,7 +901,11 @@ final class FlowPage {
               document.body.classList.toggle('dark',dark);var b=document.getElementById('ftheme');
               if(b)b.textContent=dark?'Light theme':'Dark theme';
               try{localStorage.setItem('adReportTheme',dark?'dark':'light');}catch(x){}return false;}
+            // The pinned bar's height, so the detail pane and scrolling keep clear of it (it grows with the tracker).
+            function flPin(){var p=document.getElementById('pin');if(p)document.body.style.setProperty('--pinh',p.offsetHeight+'px');}
             function flInit(){document.body.classList.add('js');
+              var tw=document.querySelector('.ftw'),pin=document.getElementById('pin');if(tw&&pin)pin.appendChild(tw);
+              window.addEventListener('resize',flPin);
               try{var t=localStorage.getItem('adReportTheme');if(t)flTheme(t==='dark');}catch(x){}fl.n=document.querySelectorAll('.fd').length;
               if(fl.n>0)flShow(0);
               document.addEventListener('keydown',function(e){if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName))return;
@@ -916,11 +926,12 @@ final class FlowPage {
               for(var k=0;k<tv.length;k++){var was=tv[k].classList.contains('seen'),now=+tv[k].getAttribute('data-n')<=i;
                 tv[k].classList.toggle('seen',now);
                 if(now&&!was){tv[k].classList.remove('flash');void tv[k].offsetWidth;tv[k].classList.add('flash');}}
-              document.getElementById('fnum').textContent='Step '+(i+1)+' of '+fl.n;
+              document.getElementById('fnum').textContent='Step '+(i+1)+' of '+fl.n;flPin();
               document.getElementById('fbar').style.width=(fl.n>1?100*i/(fl.n-1):100)+'%';
               var d=document.querySelector('.fdetail');if(d)d.scrollTop=0;
               if(ns[i]&&ns[i].scrollIntoView){var r=ns[i].getBoundingClientRect();
-                if(r.top<90||r.bottom>window.innerHeight-60)ns[i].scrollIntoView({block:'center',behavior:'smooth'});}
+                var top=(document.getElementById('pin')||{offsetHeight:90}).offsetHeight;
+                if(r.top<top||r.bottom>window.innerHeight-60)ns[i].scrollIntoView({block:'center',behavior:'smooth'});}
               return false;}
             function flStop(){if(fl.timer){clearInterval(fl.timer);fl.timer=null;}
               var b=document.getElementById('freplay');if(b)b.textContent='\\u27F2 Replay';}
@@ -1316,7 +1327,7 @@ final class FlowPage {
     static String tracker(Analysis a, List<Node> nodes) {
         List<Seen> seen = seen(a, nodes);
         if (seen.isEmpty()) return "";
-        StringBuilder out = new StringBuilder("<div class=\"ftrack\"><div class=\"tl\">Value followed<b>")
+        StringBuilder out = new StringBuilder("<div class=\"ftw\"><div class=\"ftrack\"><div class=\"tl\">Value followed<b>")
                 .append(html(a.trackedName())).append("</b><span>expected ").append(html(a.expected()))
                 .append(" <span class=\"ftag agent\">FROM THE AGENT</span></span></div>");
         Seen firstWrong = null;
@@ -1336,7 +1347,7 @@ final class FlowPage {
                     .append(html(firstWrong.where())).append(": <b>").append(html(a.trackedName().replaceAll("^.*\\.", "")
                             + " = " + firstWrong.value())).append("</b>, expected ").append(html(a.expected()))
                     .append(" (the expected value is the agent's).</div>");
-        return out.toString();
+        return out.append("</div>").toString();
     }
 
     private static void stopDetail(Node n, StringBuilder out) {

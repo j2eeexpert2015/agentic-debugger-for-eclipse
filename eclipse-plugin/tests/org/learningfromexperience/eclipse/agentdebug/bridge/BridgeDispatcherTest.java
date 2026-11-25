@@ -266,7 +266,9 @@ public final class BridgeDispatcherTest {
         try (BridgeDispatcher d = dispatcher(cmd -> {
             if (cmd.startsWith("START_DEBUG")) { started.countDown(); sleep(2_000); }
             return ok(cmd);
-        }, new BridgeLog(file), 3_000, 400, false)) {
+        // The next command waits for the watchdog (400 ms) inside its own deadline; 1.2 s leaves room for a busy
+        // build machine (25 Nov 12:37 it failed once with 500 ms: the release came, but after the deadline).
+        }, new BridgeLog(file), 3_000, 400, false, 1_200)) {
             ExecutorService pool = pool(1);
             Future<String> stuck = pool.submit(() -> d.dispatch("START_DEBUG x"));
             require(started.await(2, TimeUnit.SECONDS), "stuck command started");
@@ -322,9 +324,15 @@ public final class BridgeDispatcherTest {
     /** Deadlines: reads 2 s, launches (START_*) 5 s, other state changes 500 ms. */
     private static BridgeDispatcher dispatcher(Function<String, String> delegate, BridgeLog log,
                                                long busyWait, long abandon, boolean hooks) {
+        return dispatcher(delegate, log, busyWait, abandon, hooks, 500);
+    }
+
+    /** {@code otherDeadline}: deadline of state-changing commands other than START_*, lane waiting included. */
+    private static BridgeDispatcher dispatcher(Function<String, String> delegate, BridgeLog log,
+                                               long busyWait, long abandon, boolean hooks, long otherDeadline) {
         var config = new BridgeDispatcher.Config(busyWait, 8, 300, abandon, hooks, name ->
                 BridgeCommands.lane(name) == BridgeCommands.Lane.READ ? 2_000
-                        : name.startsWith("START_") ? 5_000 : 500);
+                        : name.startsWith("START_") ? 5_000 : otherDeadline);
         return new BridgeDispatcher(delegate, log == null ? new BridgeLog(null) : log, config);
     }
 

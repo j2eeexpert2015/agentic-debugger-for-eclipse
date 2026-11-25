@@ -48,6 +48,13 @@ here" in those reports; in the Agent Activity window, Flow filling node by node 
 trial.
 Fix after the owner's screenshot 12:33 (`tracker-number.zip`): Claude wrote the expected value as "0.10 (10%)"; the
 tracker now compares the first number in such a text, so a correct 0.1 would show green (FP-U8 extended).
+Then (screenshot 12:36: scrolled down, the tracker was out of sight and the mismatch line half under the pinned bar):
+the tracker row and the mismatch line now sit in the pinned bar at the top, so they stay in view while the flow
+scrolls; the detail pane keeps clear of the bar at any height (`tracker-pinned.zip`, contains the number fix too).
+The build after it (12:37) failed once in the plugin test BR-U11 (stuck command releases its lane): a timing margin of
+100 ms in the test itself (watchdog 400 ms, the next command's deadline 500 ms) was too small for a busy machine; the
+plugin code was not changed. The test now gives that command 1.2 s (`build-fix-1240.zip`, contains everything since
+`handoff-1229.zip`).
 
 ### Phase 2 step 1, checked 11:58
 
