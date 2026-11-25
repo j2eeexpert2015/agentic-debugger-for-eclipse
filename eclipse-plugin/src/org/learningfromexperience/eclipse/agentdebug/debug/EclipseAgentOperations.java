@@ -275,20 +275,30 @@ public final class EclipseAgentOperations {
      */
     private Cleanup cleanUp(DebugInvestigationPolicy.Investigation investigation) throws CoreException {
         String id = investigation.id();
+        int removed = 0;
         for (var bp : investigation.breakpoints()) {
-            breakpoints.removeInvestigationBreakpoint(bp.typeName(), bp.lineNumber(), id);
+            if (breakpoints.removeInvestigationBreakpoint(bp.typeName(), bp.lineNumber(), id)) removed++;
         }
         for (var exception : investigation.exceptions()) {
-            breakpoints.removeInvestigationException(exception, id);
+            if (breakpoints.removeInvestigationException(exception, id)) removed++;
         }
         restoreRecurrencePolicyIfUnused();
+        // OPEN-39: the reply confirms the cleanup, so the agent needs no list_breakpoints / list_debug_sessions call.
+        int left = breakpoints.countInvestigationBreakpoints(id);
+        String counts = ",\"breakpointsRemoved\":" + removed + ",\"ownBreakpointsLeft\":" + left;
         if (investigation.ownedLaunch() instanceof ILaunch launch) {
             List<String> steps = new ArrayList<>();
             boolean ended = terminateAndVerify(launch, steps);
-            return new Cleanup(",\"processesEnded\":" + ended + ",\"terminationSteps\":["
-                    + String.join(",", steps.stream().map(EclipseAgentOperations::q).toList()) + "]", ended);
+            return new Cleanup(counts + ",\"processesEnded\":" + ended + ",\"terminationSteps\":["
+                    + String.join(",", steps.stream().map(EclipseAgentOperations::q).toList()) + "]"
+                    + cleanupNote(left, ended, true), ended);
         }
-        return new Cleanup("", true);
+        return new Cleanup(counts + cleanupNote(left, true, false), true);
+    }
+
+    private static String cleanupNote(int ownBreakpointsLeft, boolean ended, boolean ownLaunch) {
+        String note = DebugInvestigationPolicy.cleanupNote(ownBreakpointsLeft, ended, ownLaunch);
+        return note == null ? "" : ",\"cleanup\":" + q(note);
     }
 
     /** Cleanup path 1: finalizes only work belonging to the explicitly identified investigation
@@ -648,14 +658,16 @@ public final class EclipseAgentOperations {
         }
         IValue value = current.getValue();
         if (value == null) return ok(",\"path\":" + q(path) + ",\"children\":[],\"total\":0");
-        IVariable[] children = value.getVariables();
+        // An object's own fields first, its static constants after them (a BigDecimal has 30 constants before its
+        // value, trial 25 Nov 12:29).
+        IVariable[] children = ownFieldsFirst(value.getVariables());
         List<String> items = new ArrayList<>();
         for (int i = offset; i < Math.min(children.length, offset + limit); i++) {
             IVariable child = children[i];
             IValue item = child.getValue();
             items.add("{\"name\":" + q(child.getName()) + ",\"type\":"
                     + q(child.getReferenceTypeName()) + ",\"value\":"
-                    + q(item == null ? null : clipped(item.getValueString(), 200))
+                    + q(item == null ? null : clipped(valueText(item), 200))
                     + ",\"hasChildren\":" + (item != null && item.hasVariables()) + "}");
         }
         return ok(",\"path\":" + q(path) + ",\"total\":" + children.length
@@ -929,11 +941,12 @@ public final class EclipseAgentOperations {
                 } else {
                     int count = 0;
                     for (IVariable v : frames[0].getVariables()) {
+                        if (NO_RETURN_VALUE.equals(v.getName())) continue;
                         if (++count > 50) break;
                         String value;
                         try {
                             IValue raw = v.getValue();
-                            value = raw == null ? null : clipped(raw.getValueString(), 300);
+                            value = raw == null ? null : clipped(valueText(raw), 300);
                         } catch (org.eclipse.debug.core.DebugException unreadable) {
                             value = "<unreadable: " + unreadable.getMessage() + ">";
                         }
@@ -1018,12 +1031,60 @@ public final class EclipseAgentOperations {
         List<String> items = new ArrayList<>();
         int count = 0;
         for (IVariable v : f.getVariables()) {
+            if (NO_RETURN_VALUE.equals(v.getName())) continue;
             if (++count > 100) break;
             IValue value = v.getValue();
             items.add("{\"name\":" + q(v.getName()) + ",\"type\":" + q(v.getReferenceTypeName())
-                    + ",\"value\":" + q(value == null ? null : clipped(value.getValueString(), 500)) + "}");
+                    + ",\"value\":" + q(value == null ? null : clipped(valueText(value), 500)) + "}");
         }
         return ok(",\"variables\":[" + String.join(",", items) + "]");
+    }
+
+    /** Eclipse's placeholder entry when no method has returned yet; tells the agent nothing. */
+    private static final String NO_RETURN_VALUE = "no method return value";
+
+    /**
+     * The value text for the agent: for common JDK value objects (BigDecimal, number wrappers, dates and times, UUID)
+     * the value itself, read from their fields without running code in the program ({@link ValueText}); otherwise what
+     * Eclipse shows, such as {@code (id=74)} for other objects.
+     */
+    static String valueText(IValue value) throws org.eclipse.debug.core.DebugException {
+        if (value == null) return null;
+        String shown = value.getValueString();
+        if (value instanceof org.eclipse.jdt.debug.core.IJavaValue java && !java.isNull()) {
+            String type = value.getReferenceTypeName();
+            if (ValueText.TYPES.contains(type)) {
+                String readable = ValueText.format(type, ownFields(value, 1));
+                if (readable != null) return readable;
+            }
+        }
+        return shown;
+    }
+
+    /** An object's own (not static) fields: name to value text; nested value objects read once more ({@code depth}). */
+    private static java.util.Map<String, String> ownFields(IValue value, int depth) throws org.eclipse.debug.core.DebugException {
+        java.util.Map<String, String> out = new java.util.HashMap<>();
+        for (IVariable v : value.getVariables()) {
+            if (v instanceof org.eclipse.jdt.debug.core.IJavaFieldVariable field && field.isStatic()) continue;
+            IValue child = v.getValue();
+            String text = child == null ? "null" : child.getValueString();
+            if (depth > 0 && child instanceof org.eclipse.jdt.debug.core.IJavaValue java && !java.isNull()
+                    && ValueText.TYPES.contains(child.getReferenceTypeName())) {
+                String nested = ValueText.format(child.getReferenceTypeName(), ownFields(child, depth - 1));
+                if (nested != null) text = nested;
+            }
+            out.put(v.getName(), text);
+        }
+        return out;
+    }
+
+    /** The same variables, an object's own fields before its static ones (order kept within each). */
+    private static IVariable[] ownFieldsFirst(IVariable[] variables) throws org.eclipse.debug.core.DebugException {
+        List<IVariable> own = new ArrayList<>(), statics = new ArrayList<>();
+        for (IVariable v : variables)
+            (v instanceof org.eclipse.jdt.debug.core.IJavaFieldVariable field && field.isStatic() ? statics : own).add(v);
+        own.addAll(statics);
+        return own.toArray(new IVariable[0]);
     }
 
     private static String clipped(String value, int length) {
@@ -1063,7 +1124,7 @@ public final class EclipseAgentOperations {
                 return error(result == null ? "No result" : String.join("; ", result.getErrorMessages()));
             }
             return ok(",\"expression\":" + q(expression) + ",\"value\":"
-                    + q(result.getValue() == null ? null : clipped(result.getValue().getValueString(), 1000)));
+                    + q(result.getValue() == null ? null : clipped(valueText(result.getValue()), 1000)));
         } finally {
             engine.dispose();
         }

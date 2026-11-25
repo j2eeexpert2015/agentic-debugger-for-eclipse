@@ -757,6 +757,32 @@ public class DevE2E {
         String message = failure.getMessage();
         return message == null || message.isBlank() ? failure.getClass().getSimpleName() : message;
     }
+    /**
+     * Rebuilds a Claude trial's report from the events it recorded (EVENTS.jsonl next to the report, written since the
+     * trials set AGENTDEBUG_REPORT_EVENTS=1) with the report module just built, and runs the REPORT CHECK. No Claude
+     * usage, no Eclipse: for changes that only touch the report page. Without a path: the newest recorded trial.
+     */
+    private static void reportReplay(Path root, Path events) throws Exception {
+        Path jar = root.resolve("report/target/agentic-debugger-report-1.0.0-SNAPSHOT.jar");
+        if (!Files.isRegularFile(jar)) throw new SetupProblem("Run 'mvn clean package' first: " + jar + " is missing.");
+        if (events == null) {
+            Path trials = root.resolve("evaluation/reports/claude-trials");
+            if (Files.isDirectory(trials)) try (var walk = Files.walk(trials, 2)) {
+                events = walk.filter(p -> p.getFileName().toString().endsWith(".events.jsonl"))
+                        .max(Comparator.comparing(p -> p.toFile().lastModified())).orElse(null);
+            }
+            if (events == null) throw new SetupProblem("No recorded trial events yet. Run one Claude trial with --report"
+                    + " (since this update it keeps its events), then report-replay works without Claude.");
+        }
+        String name = events.getFileName().toString().replace(".events.jsonl", "");
+        Path out = events.toAbsolutePath().resolveSibling(name + ".replayed.html");
+        System.out.println("Events: " + events.toAbsolutePath());
+        String java = Path.of(System.getProperty("java.home"), "bin", windows() ? "java.exe" : "java").toString();
+        Process p = new ProcessBuilder(java, "-cp", jar.toString(), "org.learningfromexperience.agentdebug.report.ReportReplay",
+                events.toAbsolutePath().toString(), out.toString()).inheritIO().start();
+        if (p.waitFor() != 0) throw new SetupProblem("Report replay failed (see above).");
+    }
+
     private static void run(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
             System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|build|all|deploy|test] [selector] [--approve-fixture-post]");
@@ -771,7 +797,14 @@ public class DevE2E {
             System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
             System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
             System.out.println("'config' only checks this machine's settings (dev-e2e/e2e.properties) and prints them.");
+            System.out.println("'report-replay [EVENTS.jsonl]' rebuilds the newest trial report from its recorded events (no Claude, no Eclipse)");
+            System.out.println("  and runs the REPORT CHECK: for changes to the report page only. Needs 'mvn clean package' first.");
             System.out.println("Add --trace to any command to see the Java details of a failure.");
+            return;
+        }
+        if (args[0].equals("report-replay")) {
+            reportReplay(Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize(),
+                    args.length > 1 && !args[1].startsWith("--") ? Path.of(args[1]) : null);
             return;
         }
         if (!Set.of("config","build","all","deploy","test","list").contains(args[0]))

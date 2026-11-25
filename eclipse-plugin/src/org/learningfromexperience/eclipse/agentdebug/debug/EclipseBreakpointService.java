@@ -187,6 +187,21 @@ public class EclipseBreakpointService {
         return removed;
     }
 
+    /**
+     * OPEN-39: the line and exception breakpoints the agent created for this investigation that still exist; 0 after
+     * a successful cleanup, so the finish reply can confirm it and the agent needs no list_breakpoints call.
+     */
+    public int countInvestigationBreakpoints(String investigationId) throws CoreException {
+        int count = 0;
+        for (IBreakpoint bp : DebugPlugin.getDefault().getBreakpointManager().getBreakpoints()) {
+            var marker = bp.getMarker();
+            if (marker == null || !marker.exists()) continue;
+            if ("agent".equals(marker.getAttribute(OWNER_ATTRIBUTE, "user"))
+                    && investigationId.equals(marker.getAttribute(INVESTIGATION_ATTRIBUTE, ""))) count++;
+        }
+        return count;
+    }
+
     /** Deletes only the marker created for this exact investigation. */
     public boolean removeInvestigationBreakpoint(String typeName, int lineNumber,
                                                  String investigationId) throws CoreException {

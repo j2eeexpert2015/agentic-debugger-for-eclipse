@@ -169,4 +169,34 @@ class HtmlReportWriterTest {
         for (StepKind kind : StepKind.values())
             assertTrue(ReportFormat.kindColour(kind.name()).startsWith("#"), "no colour for " + kind);
     }
+
+    @Test
+    @DisplayName("HW-U6 with events kept, the report is built again from them without Claude, identical (report-replay)")
+    void hwU6() throws Exception {
+        HtmlReportWriter w = new HtmlReportWriter(new ReportSettings("html", folder, "Agentic Debugger for Eclipse"),
+                ZONE, true);
+        bootQuote(w, "inv-7f3a");
+        w.stepStarted(new ReportEvent.StepStarted("inv-7f3a", at(9), StepKind.CLEANUP, "Finishing the investigation"));
+        Path chosen = folder.resolve("OrdersApplication_2026-11-25_10-30-00.html");
+        w.investigationFinished(new ReportEvent.InvestigationFinished("inv-7f3a", at(10), Outcome.FINISHED,
+                "## Root cause\nInteger division.", List.of("JVM ended: true"), chosen,
+                "{\"title\":\"Integer division\",\"trackedValue\":{\"name\":\"rate\",\"expected\":\"0.1\",\"actual\":\"0\"}}"));
+        w.close();
+        Path events = folder.resolve("OrdersApplication_2026-11-25_10-30-00.events.jsonl");
+        assertTrue(Files.isRegularFile(events), "the events next to the report");
+        String replayed = ReportReplay.replay(Files.readAllLines(events, StandardCharsets.UTF_8), ZONE);
+        assertEquals(Files.readString(chosen, StandardCharsets.UTF_8), replayed, "the same page, rebuilt");
+        assertEquals("REPORT CHECK PASS", ReportReplay.check(replayed));
+        assertTrue(ReportReplay.check("<html></html>").startsWith("REPORT CHECK FAIL  missing: request"));
+
+        Path plain = folder.resolve("plain");
+        HtmlReportWriter normal = new HtmlReportWriter(new ReportSettings("html", plain, "Agentic Debugger for Eclipse"), ZONE);
+        bootQuote(normal, "inv-2");
+        normal.investigationFinished(new ReportEvent.InvestigationFinished("inv-2", at(10), Outcome.FINISHED, "x",
+                List.of(), plain.resolve("r.html")));
+        try (var files = Files.list(plain)) {
+            assertEquals(List.of("r.html"), files.map(p -> p.getFileName().toString()).toList(),
+                    "without the setting (real users): no events file");
+        }
+    }
 }

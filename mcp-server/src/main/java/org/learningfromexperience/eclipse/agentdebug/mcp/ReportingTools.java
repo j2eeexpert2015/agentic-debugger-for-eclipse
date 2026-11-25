@@ -50,8 +50,30 @@ final class ReportingTools {
             } catch (Throwable ignored) {
                 // The tool result is returned whatever happens to the report.
             }
+            if (FINISH.equals(name)) result = withReportFile(result, report, request);
             return result;
         });
+    }
+
+    private static final String FINISH = "finish_debug_investigation";
+
+    /**
+     * OPEN-39 (token use): the finish reply also names the report file, so the agent needs no further
+     * get_investigation_report call. Only a successful single-text reply is extended; any problem returns it unchanged.
+     */
+    static McpSchema.CallToolResult withReportFile(McpSchema.CallToolResult result, SessionReport report,
+                                                   McpSchema.CallToolRequest request) {
+        try {
+            if (result == null || Boolean.TRUE.equals(result.isError()) || request == null || request.arguments() == null
+                    || result.content() == null || result.content().size() != 1
+                    || !(result.content().get(0) instanceof McpSchema.TextContent t)) return result;
+            Object id = request.arguments().get("investigationId");
+            String extended = report.withReportFile(id == null ? null : id.toString(), t.text());
+            if (extended == null || extended.equals(t.text())) return result;
+            return McpSchema.CallToolResult.builder().content(List.of(new McpSchema.TextContent(extended))).build();
+        } catch (Throwable ignored) {
+            return result;
+        }
     }
 
     private static String client(McpSyncServerExchange exchange) {

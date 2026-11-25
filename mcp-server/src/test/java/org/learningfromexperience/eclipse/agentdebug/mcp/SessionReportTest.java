@@ -391,4 +391,28 @@ class SessionReportTest {
         assertEquals("OrderService", SessionReport.simple("org.example.OrderService"));
         assertEquals("List<java.lang.String>", SessionReport.simple("java.util.List<java.lang.String>"));
     }
+
+    @Test
+    @DisplayName("SR-U15 the finish reply names the report file, so no get_investigation_report call is needed (OPEN-39)")
+    void srU15(@org.junit.jupiter.api.io.TempDir java.nio.file.Path folder) {
+        Captured events = new Captured();
+        SessionReport session = new SessionReport(events, folder, null, new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+        String reply = "{\"status\":\"success\",\"action\":\"CLEANUP\",\"completed\":true}";
+        session.toolCalled("claude-code", "begin_debug_investigation", Map.of("request", "Why 120?"), false, BEGIN, 5);
+        assertEquals(reply, session.withReportFile("inv-1", reply), "no report chosen yet: unchanged");
+        session.toolCalled("claude-code", "finish_debug_investigation", Map.of("investigationId", "inv-1", "summary", "s"),
+                false, reply, 3);
+        var finished = (ReportEvent.InvestigationFinished) events.events.get(events.events.size() - 1);
+        String extended = session.withReportFile("inv-1", reply);
+        var json = org.learningfromexperience.agentdebug.report.format.Json.obj(
+                org.learningfromexperience.agentdebug.report.format.Json.parse(extended));
+        assertEquals("CLEANUP", json.get("action"), "the original reply is kept");
+        assertEquals(true, json.get("completed"));
+        assertEquals(finished.reportFile().toString(), json.get("reportFile"));
+        assertTrue(String.valueOf(json.get("reportMessage")).contains("No further call is needed"), extended);
+        assertEquals(extended, session.withReportFile("inv-1", extended), "added once only");
+        assertEquals("not json", session.withReportFile("inv-1", "not json"));
+        assertEquals(reply, session.withReportFile("inv-2", reply), "another investigation: unchanged");
+        assertEquals(reply, new SessionReport(ReportRecorder.off()).withReportFile("inv-1", reply), "reports off: unchanged");
+    }
 }

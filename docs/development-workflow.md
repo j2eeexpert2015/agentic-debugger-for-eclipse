@@ -103,6 +103,18 @@ java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --appro
 java dev-e2e/DevE2E.java test --tests claude:validation --approve-claude --approve-fixture-post
 ```
 
+**Trial needed? (OPEN-39, token use).** A Claude trial costs Claude usage (about $0.19 for one boot-quote run on
+Sonnet, 25 Nov 2026), so every delivery says *Trial needed: yes* or *no* with the reason:
+
+- **Yes** when anything the agent reads or does changes: the skill (`skills/eclipse-debugger/`), tool names,
+  descriptions or arguments (`DebugMcpServer`), tool replies (the plugin's JSON, `SessionReport`, `ReportingTools`),
+  value text, the trial prompt or the grader's rules. One `claude:boot-quote` run is enough for routine changes;
+  `--repeat 3` or the other scenarios only for changes to the skill's method or a new scenario.
+- **No** for the report's look or layout (`FlowPage`, `ActivityPage`, CSS), the Agent Activity window, docs, the
+  build, and direct-test or unit-test changes. Check the report with the last trial's recorded events instead:
+  `java dev-e2e/DevE2E.java report-replay` writes `<report>.replayed.html` from the newest `*.events.jsonl` (kept by
+  every `--report` trial) and runs the same REPORT CHECK, without Eclipse and without Claude.
+
 The trial uses a test-scoped MCP configuration, dedicated bridge, restricted tools and an explicit approved fixture POST mechanism—not arbitrary Bash or global Claude registration edits. Read `dev-e2e/ClaudeSymptomTrial.java` for the exact *current* implementation; this page is procedural, not a guarantee the runner has every desired grader feature.
 
 Review the actual `.claude.jsonl` tool events plus manifest and prompt (when present), verifying: selected launch/JUnit method; begun `NORMAL` investigation; relevant breakpoints and stop on **correct target/thread**; inspected application frames and values; exact response and request ID if applicable; source-vs-runtime distinction; resume; successful `finish_debug_investigation` response; and ideally post-cleanup session/breakpoint inventory. A tool response of `completed=true` does **not** independently prove empty resource inventories. Capture permission denials, timeouts and costs if supplied. **Do not equate `exitCode=0` or `REVIEW_REQUIRED` with pass.** Classify `PASS`, `PARTIAL`, `FAIL`, `UNSAFE`, `BLOCKED`, or `NOT RUN` with the evidence limitation.

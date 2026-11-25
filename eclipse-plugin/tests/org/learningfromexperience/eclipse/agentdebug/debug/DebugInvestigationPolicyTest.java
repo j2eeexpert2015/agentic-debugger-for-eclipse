@@ -85,4 +85,15 @@ class DebugInvestigationPolicyTest {
         assertSame(controlled, registry.require(controlled.id()));
         registry.finish(controlled.id());
     }
+
+    @Test
+    @DisplayName("PO-U7 the finish reply confirms a verified cleanup only (OPEN-39)")
+    void poU7() {
+        String note = DebugInvestigationPolicy.cleanupNote(0, true, true);
+        assertTrue(note.startsWith("Verified: no own breakpoints left, own JVM ended"), note);
+        assertTrue(note.contains("No list_breakpoints or list_debug_sessions call"), note);
+        assertTrue(DebugInvestigationPolicy.cleanupNote(0, true, false).startsWith("Verified: no own breakpoints left, user"));
+        assertNull(DebugInvestigationPolicy.cleanupNote(1, true, true), "an own breakpoint left: no confirmation");
+        assertNull(DebugInvestigationPolicy.cleanupNote(0, false, true), "the JVM still running: no confirmation");
+    }
 }

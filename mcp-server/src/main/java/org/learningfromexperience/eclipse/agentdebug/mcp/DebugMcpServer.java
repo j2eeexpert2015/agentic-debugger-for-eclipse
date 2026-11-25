@@ -273,7 +273,8 @@ public class DebugMcpServer {
                         + "report. Optionally also pass the structured fields (title, trackedValue, findings, "
                         + "rootCause, fix, notObserved, assumedPath): the report places them in the program flow, "
                         + "marked as your statements, and shows the source lines of rootCause read from the project. "
-                        + "Then call get_investigation_report.",
+                        + "The reply confirms a verified cleanup (cleanup, ownBreakpointsLeft) and, when reports are on, "
+                        + "names the report file (reportFile): no further call is needed to check either.",
                 finishProperties(),
                 List.of("investigationId"),
                 a -> "FINISH_INVESTIGATION " + enc(arg(a,"investigationId"))));
@@ -282,8 +283,8 @@ public class DebugMcpServer {
                 .tool(Tool.builder("get_investigation_report", schema(Map.of("investigationId", Map.of("type", "string",
                                 "description", "Optional; default is the most recently finished investigation")), List.of()))
                         .description("Returns the full path of the HTML debugging session report of a finished "
-                                + "investigation, or says that reports are off. Call it after finish_debug_investigation "
-                                + "and give the user the full path.")
+                                + "investigation, or says that reports are off. Only needed when the finish reply has no reportFile; "
+                                + "the reply of finish_debug_investigation already names it.")
                         .build())
                 .callHandler((exchange, request) -> {
                     Object id = request == null || request.arguments() == null ? null : request.arguments().get("investigationId");

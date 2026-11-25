@@ -249,4 +249,16 @@ public final class DebugInvestigationPolicy {
         result.markComplete();
         investigations.remove(id, result);
     }
+
+    /**
+     * OPEN-39: the sentence the NORMAL finish reply adds when its cleanup is verified (no own breakpoint left, own JVM
+     * ended), so the agent does not check it again with list_breakpoints or list_debug_sessions; null when something
+     * was left, then the counts and the warning in the reply say what.
+     */
+    public static String cleanupNote(int ownBreakpointsLeft, boolean ended, boolean ownLaunch) {
+        if (ownBreakpointsLeft != 0 || !ended) return null;
+        return "Verified: no own breakpoints left" + (ownLaunch ? ", own JVM ended" : "")
+                + ", user sessions and breakpoints untouched. No list_breakpoints or list_debug_sessions call "
+                + "is needed to confirm it.";
+    }
 }

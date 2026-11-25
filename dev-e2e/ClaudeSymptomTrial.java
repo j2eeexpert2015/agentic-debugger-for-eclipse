@@ -144,7 +144,7 @@ public final class ClaudeSymptomTrial {
                 + ", \"AGENTDEBUG_E2E_POST_APPROVED\": " + json(approvedPost ? "1" : "0")
                 // Reports are on by default in the MCP server; trials without --report switch them off, so nothing is
                 // written into the fixture projects and earlier trial results stay comparable.
-                + (reportFolder == null ? ", \"AGENTDEBUG_REPORT\": \"off\"" : ", \"AGENTDEBUG_REPORT\": \"html\", \"AGENTDEBUG_REPORT_DIR\": "
+                + (reportFolder == null ? ", \"AGENTDEBUG_REPORT\": \"off\"" : ", \"AGENTDEBUG_REPORT\": \"html\", \"AGENTDEBUG_REPORT_EVENTS\": \"1\", \"AGENTDEBUG_REPORT_DIR\": "
                         + json(reportFolder.toString()) + ", \"AGENTDEBUG_REPORT_PROMPT\": " + json(prompt))
                 + "}\n"
                 + "    }\n  }\n}\n";

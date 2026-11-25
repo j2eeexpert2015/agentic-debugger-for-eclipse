@@ -1,4 +1,4 @@
-# Handoff for a new chat (25 Nov 2026, 11:30)
+# Handoff for a new chat (25 Nov 2026, 15:15)
 
 Read this first, then the README section **Status and tracking**, which is the single tracking list. This file only
 says where the work stands and how we work; details live in the README and the documents it links.
@@ -24,7 +24,32 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov): phase 2 steps 2 to 4, checked 12:20 to 12:29
+## Last delivery (25 Nov, 15:15): OPEN-39 token use, items 1 and 2, waiting for check
+
+The owner asked (14:24) whether the tool and the tests spend tokens they need not. Analysis of the trial transcript
+`boot-quote-20261125-065851-157.claude.jsonl` (Sonnet, $0.19, 25 turns, 20 API calls, cache read 676k, output 5.5k):
+about 30k tokens of the first call are Claude Code's own context (the owner's skills, plugins and tools), our 18 tools
+load on demand through ToolSearch (about 5k). Waste we cause: the agent expanded `BigDecimal unitPrice` twice (statics
+listed first, the value hidden in `intCompact`), and after the finish it called `list_debug_sessions`,
+`list_breakpoints` and `get_investigation_report` to check what the finish had done. Delivered in `token-use-1.zip`:
+
+- **Testing:** every delivery says *Trial needed: yes/no* (rule in `docs/development-workflow.md` §6). A `--report` trial
+  keeps the report's events (`<report>.events.jsonl`, `AGENTDEBUG_REPORT_EVENTS=1` set only by the trial);
+  `java dev-e2e/DevE2E.java report-replay` rebuilds `<report>.replayed.html` from the newest one and runs the REPORT
+  CHECK, so report and window changes need no trial (`ReportReplay`, HW-U6).
+- **Product A, values:** `ValueText` shows BigDecimal, number wrappers, LocalDate/Time/DateTime, Instant and UUID as
+  their value (read from the fields, no code run in the program; anything uncertain keeps Eclipse's text);
+  `expandVariable` lists own fields before static ones; the "no method return value" line is dropped (VT-U1..U3).
+- **Product B, finish reply:** NORMAL finish adds `breakpointsRemoved`, `ownBreakpointsLeft` and, when verified, a
+  `cleanup` sentence (PO-U7); with reports on, the MCP server adds `reportFile` and `reportMessage` to the same JSON
+  (`SessionReport.withReportFile`, `ReportingTools`, SR-U15). Skill and tool descriptions say no re-check is needed.
+- Trial needed: **yes** (tool replies and the skill changed). Expected: no second expansion of `unitPrice`, no
+  `list_*`/`get_investigation_report` calls after the finish, fewer turns than 25.
+
+Later in OPEN-39: Haiku against Sonnet (3 runs each), a smaller Claude configuration for trials, shorter tool
+descriptions, `wait_for_debug_pause` removed, possible duplicate regression scenarios compared before any removal.
+
+## Earlier delivery (25 Nov): phase 2 steps 2 to 4, checked 12:20 to 12:29
 
 `flow-phase2-steps2-4.zip` (on top of the repository with `flow-phase2-step1.zip` and `handoff-1158.zip` applied):
 `report/.../activity/FlowPage.java`, `FlowPageTest.java`; `mcp-server/.../DebugMcpServer.java` (purpose argument);
@@ -87,7 +112,7 @@ cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse ^
  && java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post --report
 ```
 
-Expected now: BUILD SUCCESS with unit tests `report` 49, `mcp-server` 30, `testing` 19, `eclipse-plugin` 52;
+Expected now: BUILD SUCCESS with unit tests `report` 50, `mcp-server` 31, `testing` 19, `eclipse-plugin` 56;
 regression 23/23; the trial `VERDICT PASS` and `REPORT CHECK PASS`.
 
 ## Where things stand
@@ -141,7 +166,7 @@ investigation page:
 - Phase 2 steps 2 to 4 done 25 Nov (two trials 12:27 and 12:29: flowFields=7/7, purpose=2/2): `purpose` on breakpoints, evaluations and
   steps shown at the stops; value tracker row with FIRST WRONG and the mismatch line; grader metric (`flowFields`,
   `purposeCalls`) on the VERDICT line and in the trial summary (FP-U8, EV-U19).
-- OPEN-32 (skill) delivered 25 Nov afternoon, waiting for check (`open32-skill.zip`): the plugin packs the skill
+- OPEN-32 (skill) delivered 25 Nov afternoon, checked by the owner ("fixed and working", `open32-skill.zip` + `open32-fix.zip`): the plugin packs the skill
   (`eclipse-plugin/lib/skill/`, copied by the build from `skills/eclipse-debugger`) and keeps
   `%USERPROFILE%\.claude\skills\eclipse-debugger` current on a normal start (`SkillInstaller`, SI-U1..U4); `DevE2E test`
   copies the repository's skill before Claude trials (`syncSkill`). No manual `copy` of SKILL.md any more.

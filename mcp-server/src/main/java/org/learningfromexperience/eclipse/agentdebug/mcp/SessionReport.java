@@ -305,6 +305,27 @@ final class SessionReport {
         }
     }
 
+    /**
+     * OPEN-39 (token use): the reply of finish_debug_investigation with the report file added
+     * ({@code reportFile}, {@code reportMessage}), so the agent can tell the user the path without another call.
+     * Returns the reply unchanged when reports are off, no report was chosen for the investigation, or the reply is
+     * not one JSON object. Never throws.
+     */
+    synchronized String withReportFile(String investigationId, String reply) {
+        try {
+            if (!recorder.active() || investigationId == null || reply == null) return reply;
+            Path file = reports.get(investigationId);
+            String text = reply.strip();
+            if (file == null || text.length() < 3 || !text.startsWith("{") || !text.endsWith("}") || text.contains("\"reportFile\""))
+                return reply;
+            return text.substring(0, text.length() - 1) + ",\"reportFile\":" + quote(file.toString())
+                    + ",\"reportMessage\":" + quote("Tell the user the full path of the report: " + file
+                    + ". No further call is needed for it.") + "}";
+        } catch (Throwable ignored) {
+            return reply;
+        }
+    }
+
     /** The report file of an ending investigation; printed on stderr so it appears in the MCP server's log. */
     private Path chooseReport(String id) {
         if (!recorder.active()) return null;
