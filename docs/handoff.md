@@ -24,7 +24,11 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 18:50): grader counts breakpoints the MCP server attached, waiting for check
+## Last delivery (25 Nov, 18:50): grader counts breakpoints the MCP server attached, checked 18:57
+
+Result: grader tests 21/21; re-grade of the 18:43 Haiku transcript: PASS (tools=13, waits=3, turns=20, flowFields=6/7,
+purpose=3/3). So the one Haiku check is a PASS at $0.014 and 20 turns.
+
 
 The one Haiku check ran at 18:43 (`ClaudeAgentEndToEndTests#junitWrongDiscount -Dclaude.model=haiku`): VERDICT
 PARTIAL, 20 turns, 47 s, $0.014, skill and `wait_for_stop` used, right values read (`percent` 10, `rate` 0), cause
