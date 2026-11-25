@@ -16,7 +16,7 @@ The debugger features are sufficient for demonstrations of Java and Spring Boot 
 6. **Demo sample applications** in a new `sample-applications/` folder: **one plain Java application and one Spring Boot application**, built from the scenarios that are easy to show visually, for videos and live demos (OPEN-22). The existing `examples/` projects stay **unchanged**: they are the test fixtures that all direct tests and Claude trials are written against.
 7. **GitHub Copilot integration** in Eclipse through the same MCP server (OPEN-23).
 
-**Update 26 Nov 2026:** steps 1 to 5 are done or nearly done; step 6 (OPEN-22) is parked. Next: JUnit test results back to the agent (OPEN-25), then GitHub Copilot (OPEN-23, step 7).
+**Update 26 Nov 2026:** steps 1 to 5 are done or nearly done; step 6 (OPEN-22) is parked. JUnit test results back to the agent (OPEN-25) done 26 Nov. Next: GitHub Copilot (OPEN-23, step 7).
 
 All other work follows these steps. Everything open is tracked in **one table: [Status and tracking](#status-and-tracking)**.
 
@@ -136,8 +136,8 @@ Use `package`, not `mvn test`: the plugin build copies the mcp-server jar, which
 
 | Module | Unit tests |
 |---|---|
-| `eclipse-plugin` | 58: BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U8 (PO-U8: who owns a launch, OPEN-40), CR-U1..U7 (CR-U7: Claude commands touch only the plugin's own MCP entry, OPEN-09), RJ-U1..U4, PP-U1..U7, SI-U1..U4 (skill installed by the plugin), VT-U1..U3 (readable JDK values) |
-| `mcp-server` | 33: TR-U1..U6 (TR-U6: session control joins the open investigation, OPEN-40), TO-U1..U3, SR-U1..U16 (session report recording; SR-U15 report file in the finish reply; SR-U16 the skill the agent names, OPEN-41), AF-U1..U4 (Agent Activity events), FA-U1..U4 (the agent's structured findings and the root cause's source lines) |
+| `eclipse-plugin` | 64: BR-U1..U13, OUT-U1..U5, LE-U1..U7, PO-U1..U10 (PO-U8: who owns a launch, OPEN-40; PO-U9: a test run without the debugger does not take the debug session, OPEN-25; PO-U10: an own debug run that ended no longer blocks the next one, OPEN-25), CR-U1..U7 (CR-U7: Claude commands touch only the plugin's own MCP entry, OPEN-09), RJ-U1..U4, PP-U1..U7, SI-U1..U4 (skill installed by the plugin), VT-U1..U3 (readable JDK values), JF-U1..U4 (a failed test: location, expected and actual, message, OPEN-25) |
+| `mcp-server` | 34: TR-U1..U6 (TR-U6: session control joins the open investigation, OPEN-40), TO-U1..U3, SR-U1..U16 (session report recording; SR-U15 report file in the finish reply; SR-U16 the skill the agent names, OPEN-41; SR-U17 JUnit run and result titles, OPEN-25), AF-U1..U4 (Agent Activity events), FA-U1..U4 (the agent's structured findings and the root cause's source lines) |
 | `testing` (Claude transcript grader; the integration tests in it are compiled only, they run with the `integration-tests` profile) | 23: EV-U1..U23 (EV-U22, EV-U23: read-only shell commands listed, not UNSAFE, OPEN-05) |
 | `report` (session report and Agent Activity: events, isolation, file names, several consumers, escaping, Markdown, colours, the one JSON reader, the Agent Activity store and page, the HTML report writer and its program flow; used by the MCP server and embedded in the plugin) | 52: RM-U1..U13, RF-U1..U5, AS-U1..U6, AS-U8, AS-U9 (Agent Activity store), AP-U1..U11 (Agent Activity page; AP-U11 the "Agent details" block, OPEN-41), HW-U1..U6 (HTML report; HW-U6 events kept and replayed), FP-U1..U9 (program flow of the report and the live view, the agent's findings, purposes and the value tracker in it; FP-U9 breakpoints "not checked" when the agent never asked) |
 
@@ -156,7 +156,7 @@ java dev-e2e/DevE2E.java start
 :: 2. Run the tests: the regression suite (default, 21 tests); -Dfixture.post.approved=true allows the HTTP tests
 mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 
-:: Another suite (FullSuite 40, ExtendedSuite 19), one class, or one test
+:: Another suite (FullSuite 43, ExtendedSuite 22), one class, or one test
 mvn -pl testing verify -Pintegration-tests -Dit.test=FullSuite -Dfixture.post.approved=true
 mvn -pl testing verify -Pintegration-tests -Dit.test=BreakpointTests
 mvn -pl testing verify -Pintegration-tests -Dit.test=BreakpointTests#conditionalStopsOnlyOnMatch
@@ -232,7 +232,6 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 | OPEN-12 | P1 | **Execution-control negatives:** operations on ended, stale or invalid threads fail safely; stepping in Spring Boot and JUnit contexts | Partly done | Direct negative tests; Step Into/Out already pass for plain Java | CORE-05-06 |
 | OPEN-08 | P2 | **Other MCP clients** (Codex and other compatible clients; GitHub Copilot is OPEN-23) | Not started | Each client verified before support is claimed | — |
 | OPEN-24 | P2 | **Exception breakpoint package filters:** stop only for exceptions thrown in the application's own packages, not in Spring or the JDK (Spring throws and catches an `IllegalArgumentException` on every startup) | Not started | Filtered exception breakpoint ignores framework throws in a direct test | JAVA-02 follow-up |
-| OPEN-25 | P2 | **JUnit test results:** pass/fail per test, assertion message, expected vs actual, failure location returned to the agent | Not started | Direct test with a failing assertion returns the structured result | JAVA-03 follow-up |
 | OPEN-26 | P2 | **Launch settings:** program and VM arguments, environment variables, Spring profile, in a temporary launch configuration owned by the investigation (the user's configurations never change) | Not started | Direct test: app sees the arguments, environment and active profile; user configuration unchanged | BOOT-02 |
 | OPEN-27 | P2 | **Safe local HTTP request tool for real applications:** localhost only, the user approves the application and URL, asynchronous like the test tool (today the request tool is test-only) | Not started | Safety design reviewed; direct and negative tests (non-localhost, unapproved app rejected) | BOOT-04 follow-up |
 | OPEN-28 | P2 | **Spring step-filter preset:** skip proxies, CGLIB, reflection and AOP frames when stepping | Not started | Stepping through a Spring call stays in application classes in a direct test | JAVA-07 follow-up |
@@ -249,6 +248,7 @@ Status values: **Not started** · **Partly done** (some of it works and is teste
 
 | Item | Date | Evidence |
 |---|---|---|
+| **JUnit test results back to the agent (OPEN-25):** new tool `get_junit_results` (per test PASSED/FAILED/ERROR/SKIPPED, message, expected, actual, location such as `OrderServiceTest.calculatesDiscount:19`, counts; Eclipse's JUnit API, optional bundle); `start_junit_test` `mode=run` (no debugger) for when the failing test is not known; `wait_for_stop` TERMINATED of a JUnit run carries `testResult`; a run without the debugger and an own debug run that ended no longer block the next debug run in the same investigation (PO-U9, PO-U10; JUnit debug launches end "disconnected", not terminated); skill v0.1.4 (debug the named test directly, "Before you conclude" check, third-person description). Claude trial setup: Claude runs in the Eclipse workspace folder with `--add-dir` for the skill (before: in this repository, which describes the bug, and without access to the source); sym-vague and sym-wrong-total name the Spring Boot project. Haiku batches: 5/9, 6/9, 4/9 (v0.1.3), 4/9 (v0.1.4) before the fixes, then 7/9 + 2 PARTIAL and 8/9 + 1 PARTIAL | 26 Nov 2026 | Build: report 52, MCP 34 (SR-U17, TO-U3), grader 23, plugin 64 (JF-U1..U4, PO-U9, PO-U10); `JUnitResultsTests` 3/3 (04:06); batch `open25-haiku-6` (04:21, $0.11): **8/9 PASS + 1 PARTIAL, 0 FAIL**, 11.4 debugger calls; sym-test-fails 3/3, sym-vague 3/3, sym-wrong-total 2/3 + 1 PARTIAL (debugged the similar bug in phase-one-debugging's `OrderCalculatorTest` although the prompt names Spring Boot). New baseline for later skill changes. Not measured: v0.1.4 against v0.1.1 on the new setup |
 | **An agent that left without finishing (OPEN-37 follow-up):** the Agent Activity banner says why the investigation ended ("...: agent closed the MCP connection, so the MCP server finished it"); "not checked" nodes carry only NOT CHECKED; `agentDisconnectCleansUp` proves the program was stopped at the breakpoint before the connection closed, then that the breakpoint is gone and the JVM ended | 25 Nov 2026 | Run 18:08–18:12: report tests 51/51, `agentDisconnectCleansUp` PASS (6.3 s); screenshot 18:28 shows the banner and the tags as described |
 | **Codebase reduction (OPEN-38):** about 189 files to 125, 13 Maven modules to 7, in six checked steps ([analysis](docs/codebase-reduction-analysis.md)) | 25 Nov 2026 | Build, regression and Claude trials after each step (details in the analysis) |
 | **Setup utility `uninstall` and the plugin's registration (OPEN-29):** closed, the setup utility was removed (OPEN-38 step 5) | 25 Nov 2026 | — |

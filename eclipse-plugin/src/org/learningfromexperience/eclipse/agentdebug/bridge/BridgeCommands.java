@@ -40,6 +40,8 @@ public final class BridgeCommands {
             "TEST_USER_STATE",
             // Waits up to 60 s for a debugger stop but changes nothing (see WAITING below).
             "WAIT_FOR_STOP",
+            // OPEN-25: reads a JUnit run's results; may wait up to 60 s for the run to finish (see WAITING below).
+            "GET_JUNIT_RESULTS",
             // Bridge-level commands answered by the dispatcher itself.
             "GET_OPERATION",
             "GET_BRIDGE_DIAGNOSTICS");
@@ -92,7 +94,7 @@ public final class BridgeCommands {
      * Read-only commands that deliberately wait (up to 60 s). They run in the READ lane but get a
      * longer deadline. The MCP server's socket timeout for them must stay longer than this.
      */
-    static final Set<String> WAITING = Set.of("WAIT_FOR_STOP");
+    static final Set<String> WAITING = Set.of("WAIT_FOR_STOP", "GET_JUNIT_RESULTS");
 
     static final long READ_DEADLINE_MS = 15_000;
     static final long WAIT_DEADLINE_MS = 70_000;

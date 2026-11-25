@@ -159,6 +159,11 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
      * Waits for the next unreported stop of {@code launch}. Returns immediately if one is already
      * pending. Returns {@link Outcome#TERMINATED} once the launch has ended and no stop is pending.
      */
+    /** OPEN-25: whether a TERMINATE event was seen for this launch's process or debug target. */
+    public synchronized boolean ended(ILaunch launch) {
+        return Boolean.TRUE.equals(terminated.get(launch));
+    }
+
     public Outcome waitForStop(ILaunch launch, long timeoutMillis) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
         while (true) {

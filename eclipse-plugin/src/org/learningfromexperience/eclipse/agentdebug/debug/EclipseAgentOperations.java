@@ -114,6 +114,7 @@ public final class EclipseAgentOperations {
                 case "REMOVE_EXCEPTION_BREAKPOINT" -> removeExceptionBreakpoint(p);
                 case "LIST_JUNIT_TESTS" -> listJUnitTests();
                 case "START_JUNIT_TEST" -> startJUnitTest(p);
+                case "GET_JUNIT_RESULTS" -> getJUnitResults(p);
                 case "EXPAND_VARIABLE" -> expandVariable(p);
                 case "RESTART_DEBUG" -> restartDebug(p);
                 case "SET_STEP_FILTERS" -> setStepFilters(p);
@@ -298,6 +299,12 @@ public final class EclipseAgentOperations {
         // OPEN-39: the reply confirms the cleanup, so the agent needs no list_breakpoints / list_debug_sessions call.
         int left = breakpoints.countInvestigationBreakpoints(id);
         String counts = ",\"breakpointsRemoved\":" + removed + ",\"ownBreakpointsLeft\":" + left;
+        // OPEN-25: test runs without the debugger normally ended long ago; one still running is ended here.
+        for (Object run : investigation.runs()) {
+            if (run instanceof ILaunch launch && !launch.isTerminated()) {
+                try { launch.terminate(); } catch (Exception ignored) { /* reported by the run's own state */ }
+            }
+        }
         if (investigation.ownedLaunch() instanceof ILaunch launch) {
             List<String> steps = new ArrayList<>();
             boolean ended = terminateAndVerify(launch, steps);
@@ -558,12 +565,20 @@ public final class EclipseAgentOperations {
         return ok(",\"tests\":[" + String.join(",", result) + "]");
     }
 
-    /** Use Eclipse's JUnit launch delegate, without coupling the plugin to JUnit internals. */
+    /**
+     * Use Eclipse's JUnit launch delegate, without coupling the plugin to JUnit internals. Arguments: project, test
+     * class, method (may be empty: the whole class), the investigation (may be empty) and, OPEN-25, the mode:
+     * {@code DEBUG} (default) or {@code RUN}, which runs the test without the debugger so its result
+     * ({@code GET_JUNIT_RESULTS}) is there in seconds; breakpoints do not stop a run.
+     */
     private String startJUnitTest(String[] p) throws CoreException {
         String projectName = require(p, 1);
         String typeName = require(p, 2);
         String methodName = p.length > 3 ? decoded(p[3]) : "";
         String id = optionalInvestigation(p, 4);
+        String mode = p.length > 5 && !p[5].isBlank() ? decoded(p[5]).toUpperCase(java.util.Locale.ROOT) : "DEBUG";
+        if (!mode.equals("DEBUG") && !mode.equals("RUN")) throw new IllegalArgumentException("mode must be debug or run");
+        boolean run = mode.equals("RUN");
         var investigation = id == null ? null : investigations.require(id);
         IProject project = ResourcesPlugin.getWorkspace().getRoot().getProject(projectName);
         if (!project.isOpen() || !project.hasNature(JavaCore.NATURE_ID)) {
@@ -591,16 +606,182 @@ public final class EclipseAgentOperations {
                 testSource.contains("org.junit.jupiter")
                         ? "org.eclipse.jdt.junit.loader.junit5"
                         : "org.eclipse.jdt.junit.loader.junit4");
-        if (investigation != null) investigation.verifyNewLaunch(workingCopy.getName());
+        // OPEN-25: a run without the debugger does not take the investigation's one debug session (the debug
+        // launch that follows in the same investigation must still be allowed, trial 26 Nov 02:25).
+        if (investigation != null) {
+            if (run) investigation.ensureActive();
+            else {
+                // OPEN-25: the investigation's own earlier debug run has ended: the new debug run replaces it.
+                investigation.releaseEndedLaunch(
+                        investigation.ownedLaunch() instanceof ILaunch previous && launchEnded(previous));
+                investigation.verifyNewLaunch(workingCopy.getName());
+            }
+        }
+        // OPEN-25: listen before the launch, so this run's results are captured from its start.
+        boolean results = listenToJUnit();
         var config = workingCopy.doSave();
         ILaunch launched;
-        try { launched = config.launch(ILaunchManager.DEBUG_MODE, null); }
+        try { launched = config.launch(run ? ILaunchManager.RUN_MODE : ILaunchManager.DEBUG_MODE, null); }
         catch (CoreException failure) { config.delete(); throw failure; }
-        if (investigation != null) investigation.recordLaunch(config.getName(), launched, true);
-        ui.follow(launched);
+        if (investigation != null) {
+            if (run) investigation.recordRun(launched);
+            else investigation.recordLaunch(config.getName(), launched, true);
+        }
+        if (!run) ui.follow(launched);
         return ok(",\"launchName\":" + q(config.getName())
                 + ",\"projectName\":" + q(projectName) + projectLocation(config)
-                + ",\"typeName\":" + q(typeName) + ",\"methodName\":" + q(methodName));
+                + ",\"typeName\":" + q(typeName) + ",\"methodName\":" + q(methodName)
+                + ",\"mode\":" + q(mode.toLowerCase(java.util.Locale.ROOT))
+                + ",\"resultsAvailable\":" + results);
+    }
+
+    /**
+     * OPEN-25: the launch's JVM has ended. A JUnit debug launch whose test JVM ended is left "disconnected", not
+     * terminated, so {@link ILaunch#isTerminated()} alone stays false (check 26 Nov 03:58): the TERMINATE event seen by
+     * the stop tracker, or all processes ended, count as well.
+     */
+    private boolean launchEnded(ILaunch launch) {
+        if (launch.isTerminated() || stops.ended(launch)) return true;
+        var processes = launch.getProcesses();
+        if (processes.length == 0) return false;
+        for (var process : processes) if (!process.isTerminated()) return false;
+        return true;
+    }
+
+    /** OPEN-25: registers the JUnit result listener; false when Eclipse's JUnit support is not installed. */
+    private static boolean listenToJUnit() {
+        try {
+            JUnitResults.listen();
+            return true;
+        } catch (LinkageError | RuntimeException unavailable) {
+            return false;
+        }
+    }
+
+    /** Tests listed in a result reply; failed and erroring tests come first. */
+    static final int MAX_LISTED_TESTS = 50;
+
+    /**
+     * OPEN-25: the result of a JUnit run started by {@code START_JUNIT_TEST}: per test method its result (PASSED,
+     * FAILED, ERROR, SKIPPED), time, and for a failure the message, expected and actual, the failure location (first
+     * frame outside the test framework and the JDK) and a short trace; counts and the run's overall result. Waits up
+     * to the given milliseconds (0-60000) for the run to finish. Read-only.
+     */
+    private String getJUnitResults(String[] p) throws InterruptedException {
+        String name = require(p, 1);
+        int waitMillis = p.length > 2 && !p[2].isBlank() ? number(p, 2) : 0;
+        if (waitMillis < 0 || waitMillis > 60_000) throw new IllegalArgumentException("waitMillis must be 0-60000");
+        if (!listenToJUnit()) return error("JUnit results are not available: Eclipse's JUnit support is not installed");
+        long deadline = System.currentTimeMillis() + waitMillis;
+        long endedSince = 0;
+        JUnitResults.Run run;
+        boolean ended;
+        while (true) {
+            run = JUnitResults.run(name);
+            ended = !anyLaunchRunning(name);
+            if (run != null && run.finished) break;
+            long now = System.currentTimeMillis();
+            // The JVM has ended: give Eclipse's JUnit model 2 s to report the end of the run.
+            if (ended && endedSince == 0) endedSince = now;
+            if (ended && now - endedSince > 2_000) break;
+            if (now >= deadline) break;
+            Thread.sleep(200);
+        }
+        if (run == null) {
+            return ok(",\"launchName\":" + q(name) + ",\"finished\":false,\"result\":\"UNKNOWN\",\"tests\":[]"
+                    + ",\"note\":" + q(ended
+                    ? "No JUnit results were captured for this launch: it is not a JUnit launch started by the agent,"
+                            + " or it ended before the test run reported."
+                    : "The test run has not reported yet; call again with waitSeconds."));
+        }
+        List<JUnitResults.TestCase> tests = new ArrayList<>(run.tests);
+        tests.sort(java.util.Comparator.comparingInt(t -> t.result().equals("FAILED") || t.result().equals("ERROR") ? 0 : 1));
+        int passed = 0, failed = 0, errors = 0, skipped = 0;
+        for (var t : tests) {
+            switch (t.result()) {
+                case "PASSED" -> passed++;
+                case "FAILED" -> failed++;
+                case "ERROR" -> errors++;
+                case "SKIPPED" -> skipped++;
+                default -> { }
+            }
+        }
+        List<String> items = new ArrayList<>();
+        for (var t : tests.subList(0, Math.min(tests.size(), MAX_LISTED_TESTS))) items.add(testJson(t));
+        String note = run.finished ? null : ended
+                ? "The JVM ended before the test run finished (for example it was terminated); the results so far are listed."
+                : "The test run is still in progress (in debug mode it may be paused at a breakpoint); the results so far"
+                        + " are listed. Call again with waitSeconds, or resume the program.";
+        return ok(",\"launchName\":" + q(name) + ",\"finished\":" + run.finished
+                + ",\"result\":" + q(run.finished ? run.result : "RUNNING")
+                + ",\"total\":" + tests.size() + ",\"passed\":" + passed + ",\"failed\":" + failed
+                + ",\"errors\":" + errors + ",\"skipped\":" + skipped
+                + ",\"tests\":[" + String.join(",", items) + "]"
+                + (tests.size() > MAX_LISTED_TESTS ? ",\"testsListed\":" + MAX_LISTED_TESTS : "")
+                + (note == null ? "" : ",\"note\":" + q(note)));
+    }
+
+    private static String testJson(JUnitResults.TestCase t) {
+        StringBuilder out = new StringBuilder("{\"className\":").append(q(t.className()))
+                .append(",\"methodName\":").append(q(t.methodName()))
+                .append(",\"result\":").append(q(t.result()));
+        if (!Double.isNaN(t.seconds()) && t.seconds() >= 0)
+            out.append(",\"seconds\":").append(String.format(java.util.Locale.ROOT, "%.3f", t.seconds()));
+        if (t.trace() != null) {
+            String[] values = JUnitFailure.expectedActual(t.trace(), t.expected(), t.actual());
+            out.append(",\"message\":").append(q(JUnitFailure.message(t.trace())));
+            if (values[0] != null) out.append(",\"expected\":").append(q(values[0]));
+            if (values[1] != null) out.append(",\"actual\":").append(q(values[1]));
+            var where = JUnitFailure.location(t.trace());
+            if (where != null) out.append(",\"location\":").append(q(where.label()))
+                    .append(",\"locationClass\":").append(q(where.className()))
+                    .append(",\"locationLine\":").append(where.line());
+            out.append(",\"trace\":").append(q(JUnitFailure.shortTrace(t.trace(), 8)));
+        }
+        return out.append('}').toString();
+    }
+
+    /**
+     * OPEN-25: when a JUnit run ends, the reply the agent already gets ({@code wait_for_stop} TERMINATED) carries the
+     * test result: overall result, counts and the first failed test with expected, actual and location. No extra call
+     * and no extra JVM. Empty for a launch that is not a JUnit run of the agent; waits up to 2 s for Eclipse's JUnit
+     * model to report the end of the run.
+     */
+    private static String testResultOnEnd(String name) {
+        try {
+            JUnitResults.Run run = JUnitResults.run(name);
+            for (int i = 0; run != null && !run.finished && i < 10; i++) {
+                Thread.sleep(200);
+                run = JUnitResults.run(name);
+            }
+            if (run == null) return "";
+            int passed = 0, failed = 0;
+            JUnitResults.TestCase first = null;
+            for (var t : run.tests) {
+                if (t.result().equals("PASSED")) passed++;
+                if (t.result().equals("FAILED") || t.result().equals("ERROR")) {
+                    failed++;
+                    if (first == null) first = t;
+                }
+            }
+            return ",\"testResult\":{\"result\":" + q(run.finished ? run.result : "UNKNOWN")
+                    + ",\"total\":" + run.tests.size() + ",\"passed\":" + passed + ",\"failed\":" + failed
+                    + (first == null ? "" : ",\"firstFailure\":" + testJson(first)) + "}";
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return "";
+        } catch (LinkageError | RuntimeException unavailable) {
+            return "";
+        }
+    }
+
+    /** True while a launch of this configuration (any mode) is still running. */
+    private static boolean anyLaunchRunning(String name) {
+        for (var current : manager().getLaunches()) {
+            var c = current.getLaunchConfiguration();
+            if (c != null && c.getName().equals(name) && !current.isTerminated()) return true;
+        }
+        return false;
     }
 
     /** Restart only a session created and still owned by this investigation. */
@@ -926,7 +1107,7 @@ public final class EclipseAgentOperations {
         DebugStopTracker.Outcome outcome = stops.waitForStop(launch, timeout);
         if (outcome.stop() == null) {
             return ok(",\"stopped\":false,\"reason\":" + q(outcome.terminated() ? "TERMINATED" : "TIMEOUT")
-                    + ",\"launchName\":" + q(name));
+                    + ",\"launchName\":" + q(name) + (outcome.terminated() ? testResultOnEnd(name) : ""));
         }
         DebugStopTracker.Stop stop = outcome.stop();
         IThread thread = stop.thread();

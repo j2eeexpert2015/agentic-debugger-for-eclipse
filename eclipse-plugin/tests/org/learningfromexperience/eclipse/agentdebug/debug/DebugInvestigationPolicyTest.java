@@ -1,6 +1,7 @@
 package org.learningfromexperience.eclipse.agentdebug.debug;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -112,5 +113,46 @@ class DebugInvestigationPolicyTest {
         assertTrue(DebugInvestigationPolicy.cleanupNote(0, true, false).startsWith("Verified: no own breakpoints left, user"));
         assertNull(DebugInvestigationPolicy.cleanupNote(1, true, true), "an own breakpoint left: no confirmation");
         assertNull(DebugInvestigationPolicy.cleanupNote(0, false, true), "the JVM still running: no confirmation");
+    }
+
+    @Test
+    @DisplayName("PO-U9 a test run without the debugger is owned but does not take the one debug session (OPEN-25)")
+    void poU9() {
+        var normal = registry.begin(null);
+        Object run = new Object();
+        normal.recordRun(run);
+        assertEquals(java.util.List.of(run), normal.runs(), "the run is owned, for cleanup");
+        assertNull(normal.ownedLaunch(), "a run is not the investigation's debug session");
+        normal.verifyNewLaunch("Agentic JUnit - fixture - OrderServiceTest.calculatesDiscount"); // still allowed
+        Object debug = new Object();
+        normal.recordLaunch("Agentic JUnit - fixture - OrderServiceTest.calculatesDiscount", debug, true);
+        assertSame(debug, normal.ownedLaunch(), "the debug launch after the run is the session");
+        registry.finish(normal.id());
+        assertThrows(IllegalStateException.class, () -> normal.recordRun(new Object()), "no run after the finish");
+    }
+
+    @Test
+    @DisplayName("PO-U10 an own debug launch that ended is released, so the next debug run is allowed (OPEN-25)")
+    void poU10() {
+        var normal = registry.begin(null);
+        Object first = new Object();
+        normal.recordLaunch("Agentic JUnit - fixture - OrderServiceTest.calculatesDiscount", first, true);
+        assertThrows(IllegalStateException.class,
+                () -> normal.verifyNewLaunch("Agentic JUnit - fixture - OrderServiceTest.calculatesDiscount (2)"),
+                "still running: a second debug run is refused");
+        assertFalse(normal.releaseEndedLaunch(false), "not released while it runs");
+        assertTrue(normal.releaseEndedLaunch(true), "released once it has ended");
+        assertNull(normal.ownedLaunch());
+        assertEquals(java.util.List.of(first), normal.runs(), "the ended launch stays owned, for cleanup");
+        normal.verifyNewLaunch("Agentic JUnit - fixture - OrderServiceTest.calculatesDiscount (2)");
+        Object second = new Object();
+        normal.recordLaunch("Agentic JUnit - fixture - OrderServiceTest.calculatesDiscount (2)", second, true);
+        assertSame(second, normal.ownedLaunch());
+
+        var borrowed = registry.begin(null);
+        borrowed.recordLaunch("User app", new Object(), false);
+        assertFalse(borrowed.releaseEndedLaunch(true), "a borrowed session is never released this way");
+        registry.finish(normal.id());
+        assertThrows(IllegalStateException.class, () -> normal.releaseEndedLaunch(true), "not after the finish");
     }
 }

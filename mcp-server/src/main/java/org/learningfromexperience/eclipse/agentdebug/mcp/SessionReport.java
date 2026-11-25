@@ -78,7 +78,7 @@ final class SessionReport {
     private static final Set<String> STOP = Set.of("wait_for_stop", "wait_for_debug_pause");
     private static final Set<String> INSPECT = Set.of("get_frame_variables", "expand_frame_variable",
             "get_stack_frames", "get_debug_threads", "get_debug_status", "evaluate_expression",
-            "show_debug_location", "get_process_output");
+            "show_debug_location", "get_process_output", "get_junit_results");
     /** Arguments already shown in the title or not useful to a reader. */
     private static final Set<String> HIDDEN_ARGUMENTS = Set.of("investigationId");
     /** Launch configurations the plugin creates are named "Agentic Debugger - project - MainClass". */
@@ -204,7 +204,9 @@ final class SessionReport {
         return switch (tool) {
             case "wait_for_stop", "wait_for_debug_pause" -> "Waiting for the program to stop";
             case "start_java_application" -> "Starting application in debug mode: " + simple(Json.str(args.get("mainType")));
-            case "start_junit_test" -> "Starting JUnit test in debug mode: " + simple(Json.str(args.get("typeName")));
+            case "start_junit_test" -> (runMode(args) ? "Running JUnit test (no debugger): " : "Starting JUnit test in debug mode: ")
+                    + simple(Json.str(args.get("typeName")));
+            case "get_junit_results" -> "Waiting for the test result";
             case "start_fixture_http_request" -> "Sending HTTP request (" + Json.str(args.get("scenario")) + " scenario)";
             case "finish_debug_investigation" -> "Finishing the investigation and cleaning up";
             default -> title(tool, args, Map.of());
@@ -430,8 +432,9 @@ final class SessionReport {
         String launch = launchLabel(Json.str(a.get("launchName")));
         return switch (tool) {
             case "start_java_application" -> "Started application in debug mode: " + simple(Json.str(a.get("mainType")));
-            case "start_junit_test" -> "Started JUnit test in debug mode: " + type
+            case "start_junit_test" -> (runMode(a) ? "Ran JUnit test (no debugger): " : "Started JUnit test in debug mode: ") + type
                     + (blank(Json.str(a.get("methodName"))) ? "" : "." + Json.str(a.get("methodName")));
+            case "get_junit_results" -> junitTitle(reply);
             case "start_debug_session" -> "Started debug session: " + launch;
             case "restart_debug_session" -> "Restarted debug session: " + launch;
             case "set_breakpoint" -> "Set breakpoint: " + type + ", line " + line;
@@ -565,6 +568,7 @@ final class SessionReport {
                 }
             }
             case "get_process_output" -> processOutput(reply, lines);
+            case "get_junit_results" -> junitDetails(reply, lines);
             case "start_fixture_http_request" -> {
                 lines.add("");
                 lines.add(Text.firstNonNull(Json.str(reply.get("method")), "POST") + " " + Json.str(reply.get("url")));
@@ -624,7 +628,9 @@ final class SessionReport {
                     : Boolean.TRUE.equals(reply.get("createdConfiguration"))
                     ? "Started a new JVM in debug mode with a new launch configuration."
                     : "Started a new JVM in debug mode with the existing launch configuration.");
-            case "start_junit_test" -> List.of("Started the test in a new JVM in debug mode.");
+            case "start_junit_test" -> List.of(runMode(reply) || "run".equals(Json.str(reply.get("mode")))
+                    ? "Ran the test in a new JVM without the debugger, to read its result."
+                    : "Started the test in a new JVM in debug mode.");
             case "start_debug_session" -> List.of(Boolean.TRUE.equals(reply.get("reused"))
                     ? "The launch was already running in debug mode; the agent attached to it."
                     : "Started the saved launch configuration in debug mode.");
@@ -637,6 +643,9 @@ final class SessionReport {
         lines.add("");
         if (!Boolean.TRUE.equals(reply.get("stopped"))) {
             lines.add("No stop: " + Json.str(reply.get("reason")));
+            // OPEN-25: a JUnit run that ended brings its result along.
+            Map<String, Object> result = Json.obj(reply.get("testResult"));
+            if (!result.isEmpty()) lines.add(testResultLine(result));
             return;
         }
         lines.add("Thread: " + Json.str(reply.get("threadName")) + " (index " + Json.str(reply.get("threadIndex")) + ")");
@@ -776,6 +785,62 @@ final class SessionReport {
     }
 
     /** org.example.OrderService -> OrderService (inner classes and generics kept as they are). */
+    /** OPEN-25: start_junit_test with mode=run (the test ran without the debugger). */
+    static boolean runMode(Map<String, Object> args) {
+        return "run".equalsIgnoreCase(Json.str(args.get("mode")));
+    }
+
+    /**
+     * OPEN-25: the title of a test result: the first failing test with expected and actual ("Test result:
+     * calculatesDiscount FAILED: expected 108.00, was 120.00"), or how many passed, or that it is still running.
+     */
+    static String junitTitle(Map<String, Object> reply) {
+        for (Object item : Json.arr(reply.get("tests"))) {
+            Map<String, Object> test = Json.obj(item);
+            String result = Json.str(test.get("result"));
+            if (!"FAILED".equals(result) && !"ERROR".equals(result)) continue;
+            String expected = Json.str(test.get("expected")), actual = Json.str(test.get("actual"));
+            return "Test result: " + Json.str(test.get("methodName")) + " " + result
+                    + (expected != null && actual != null ? ": expected " + Redaction.shorten(expected) + ", was "
+                    + Redaction.shorten(actual) : "");
+        }
+        if (Boolean.TRUE.equals(reply.get("finished")))
+            return "Test result: " + Json.str(reply.get("passed")) + " of " + Json.str(reply.get("total")) + " passed";
+        return "Test result: not finished yet";
+    }
+
+    /**
+     * OPEN-25: the test result that comes with {@code wait_for_stop} TERMINATED: "Test result: calculatesDiscount
+     * FAILED: expected 108.00, was 120.00 (OrderServiceTest.calculatesDiscount:19)" or "Test result: 2 of 2 passed".
+     */
+    static String testResultLine(Map<String, Object> result) {
+        Map<String, Object> first = Json.obj(result.get("firstFailure"));
+        if (first.isEmpty())
+            return "Test result: " + Json.str(result.get("passed")) + " of " + Json.str(result.get("total")) + " passed";
+        String expected = Json.str(first.get("expected")), actual = Json.str(first.get("actual"));
+        return "Test result: " + Json.str(first.get("methodName")) + " " + Json.str(first.get("result"))
+                + (expected != null && actual != null ? ": expected " + Redaction.shorten(expected) + ", was "
+                + Redaction.shorten(actual) : "")
+                + (first.get("location") != null ? " (" + Json.str(first.get("location")) + ")" : "");
+    }
+
+    /** OPEN-25: one line per listed test, with the failure's location and message. */
+    private static void junitDetails(Map<String, Object> reply, List<String> lines) {
+        lines.add("");
+        for (Object item : Json.arr(reply.get("tests"))) {
+            Map<String, Object> test = Json.obj(item);
+            StringBuilder line = new StringBuilder("  ").append(Json.str(test.get("result"))).append("  ")
+                    .append(simple(Json.str(test.get("className")))).append('.').append(Json.str(test.get("methodName")));
+            if (test.get("location") != null) line.append(" at ").append(Json.str(test.get("location")));
+            lines.add(line.toString());
+            if (test.get("expected") != null || test.get("actual") != null)
+                lines.add("    expected " + Redaction.shorten(Json.str(test.get("expected"))) + ", was "
+                        + Redaction.shorten(Json.str(test.get("actual"))));
+            else if (test.get("message") != null) lines.add("    " + Redaction.shorten(Json.str(test.get("message"))));
+        }
+        if (reply.get("note") != null) lines.add(Json.str(reply.get("note")));
+    }
+
     static String simple(String className) {
         if (className == null) return null;
         int dot = className.lastIndexOf('.', className.indexOf('<') < 0 ? className.length() - 1 : className.indexOf('<'));

@@ -13,7 +13,7 @@
 | `list_java_applications` | none | Find Java mains (including Boot mains) |
 | `list_run_configurations` | none | Find saved debug-capable Eclipse configurations |
 | `list_junit_tests` | none | Discover source JUnit candidate methods |
-| `begin_debug_investigation` | `mode?` = `NORMAL` or `CONTROLLED`; `request?`; `skill?` (this skill: `eclipse-debugger 0.1.1`); `model` (always: your exact model ID as your instructions state it); `effort?` only if your instructions state it | Returns `investigationId`; defaults NORMAL. With one open investigation, breakpoints and launches without `investigationId` are attached to it; with several, pass it. If the session ends or stops calling for 10 minutes, it is finished automatically |
+| `begin_debug_investigation` | `mode?` = `NORMAL` or `CONTROLLED`; `request?`; `skill?` (this skill: `eclipse-debugger 0.1.4`); `model` (always: your exact model ID as your instructions state it); `effort?` only if your instructions state it | Returns `investigationId`; defaults NORMAL. With one open investigation, breakpoints and launches without `investigationId` are attached to it; with several, pass it. If the session ends or stops calling for 10 minutes, it is finished automatically |
 | `finish_debug_investigation` | `investigationId` | NORMAL scoped cleanup; CONTROLLED preserves debug state. The reply confirms the cleanup (`cleanup`, `breakpointsRemoved`, `ownBreakpointsLeft`) and names the report file (`reportFile`) when reports are on |
 
 ## Breakpoints and launches
@@ -29,7 +29,7 @@
 | `set_tracepoint` | `typeName`, `lineNumber`, `expression`, `allowSideEffects` | `investigationId` | **Requires explicit consent** and `allowSideEffects=true`; prints without normal suspension |
 | `start_java_application` | `projectName`, `mainType` | `investigationId` | Java/Boot main; returns `launchName`. Refused when the project has compile errors or is not built: report that to the user, do not retry |
 | `start_debug_session` | `launchName` | `investigationId` | Start saved configuration; retains its settings |
-| `start_junit_test` | `projectName`, `typeName`, `methodName` | `investigationId` | `methodName` can be empty for class launch; verify exact selection |
+| `start_junit_test` | `projectName`, `typeName`, `methodName` | `investigationId`, `mode` (`debug` default, `run`) | `methodName` can be empty for class launch; verify exact selection. `mode=run` runs without the debugger (breakpoints do not stop it): use it to read a failing test's result first |
 | `restart_debug_session` | `launchName`, `investigationId` | — | Only an investigation-owned launch; borrowed launches rejected |
 | `configure_step_filters` | `launchName`, `enabled`, `patterns` | — | String of target-specific patterns accepted by the installed MCP implementation; replaces target filters; not global |
 
@@ -44,6 +44,7 @@
 | `expand_frame_variable` | `launchName`, `threadIndex`, `frameIndex`, `path`, `offset`, `limit` | Bounded read-only expansion |
 | `wait_for_stop` | `launchName`, `timeoutSeconds` | **Preferred.** Wait 1–60 s for the next stop event of this launch. Returns `reason` (`BREAKPOINT`, `EXCEPTION`, `STEP_END`, `PAUSED`, `SUSPENDED`), `threadIndex`, `breakpoint` or `exceptionType`, `location`, top 5 `frames` and up to 50 `locals` (`localsNote` explains when locals are unavailable, e.g. a native method after a pause); or `stopped:false` with `TERMINATED` or `TIMEOUT`. Each stop is reported once; never resumes. |
 | `wait_for_debug_pause` | `launchName`, `timeoutSeconds` | Legacy polling wait; use `wait_for_stop` instead |
+| `get_junit_results` | `launchName`; `waitSeconds?` (0-60) | Result of a JUnit run: per test PASSED/FAILED/ERROR/SKIPPED; for a failure `message`, `expected`, `actual`, `location` (first non-framework line, e.g. `OrderServiceTest.calculatesDiscount:19`) and a short `trace`; counts. A debug run paused at a breakpoint is not finished until resumed. Read-only |
 | `get_process_output` | `launchName` | Captured stdout/stderr/console. Output over 8000 characters returns the first and last 4000 with an omission marker; `stdoutChars`/`stderrChars`/`consoleChars` give the full sizes. With the Eclipse Console open, output is usually only in `console`; read it first. Don't leak secrets |
 | `show_debug_location` | `launchName` | Navigate Eclipse to source; no execution control |
 | `control_debug_session` | `launchName`, `threadIndex`, `action` | `investigationId?`; actions `PAUSE`, `RESUME`, `STEP_INTO`, `STEP_OVER`, `STEP_RETURN`, `STOP`. `STEP_RETURN` means Step Out. Never STOP a borrowed/user-owned JVM. Without an investigation (none open, or the session not started by one) the call is refused: begin an investigation first. |

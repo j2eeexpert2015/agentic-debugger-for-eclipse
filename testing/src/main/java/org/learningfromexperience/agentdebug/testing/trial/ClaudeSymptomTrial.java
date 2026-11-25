@@ -22,8 +22,12 @@ public final class ClaudeSymptomTrial {
         // OPEN-05: symptom-only prompts, as a user would write them: no tool named, no rules given. Graded like
         // "junit" (same planted bug), but any route to the stop counts (expectations.json: no required call).
         PROMPTS.put("sym-test-fails", "OrderServiceTest.calculatesDiscount fails in the Spring Boot project I have open in Eclipse. Find out why.");
-        PROMPTS.put("sym-wrong-total", "In the Orders project open in my Eclipse, a 10% discount on 2 items at 60.00 comes out as 120.00 instead of 108.00. What is going wrong?");
-        PROMPTS.put("sym-vague", "The discount calculation in my Orders project in Eclipse seems broken. Can you look into it?");
+        // Names the Spring Boot project: phase-one-debugging has a discount bug too (batch open25-haiku-5: 2 of 3
+        // runs debugged OrderCalculatorTest there, graded PARTIAL).
+        PROMPTS.put("sym-wrong-total", "In the Spring Boot Orders project open in my Eclipse, a 10% discount on 2 items at 60.00 comes out as 120.00 instead of 108.00. What is going wrong?");
+        // Names the Spring Boot project: the test workspace also has phase-one-debugging with discount code, and
+        // "my Orders project" fits both (batches open25-haiku-3 and -4: Haiku asked which one, 6 of 6 runs).
+        PROMPTS.put("sym-vague", "The discount calculation in my Spring Boot Orders project in Eclipse seems broken. Can you look into it?");
         // The user calls the skill by name (Claude Code: /skill-name), so it is loaded for certain; same symptom as
         // sym-wrong-total.
         PROMPTS.put("sym-slash", "/eclipse-debugger In the Orders project open in my Eclipse, a 10% discount on 2 items at 60.00 comes out as 120.00 instead of 108.00. What is going wrong?");
@@ -388,6 +392,10 @@ public final class ClaudeSymptomTrial {
                 "--allowedTools","mcp__eclipse-debugger__*",
                 "--output-format","stream-json","--verbose","--max-turns","25"));
         if (noSkill) command.addAll(List.of("--disallowedTools","Skill"));
+        // OPEN-25 (26 Nov): the skill's reference files may be read, as on a user's machine (they were denied before:
+        // Claude runs in the workspace folder, below, and the skill folder is outside it).
+        Path skillFolder = Path.of(System.getProperty("user.home"), ".claude", "skills", "eclipse-debugger");
+        if (!noSkill && Files.isDirectory(skillFolder)) command.addAll(List.of("--add-dir", skillFolder.toString()));
         if (model != null) command.addAll(List.of("--model", model));
         // Start from a clean Eclipse: no fixture JVM left over from an earlier trial.
         List<String> leftoversStopped = clearLeftoverFixtures(port);
@@ -401,7 +409,10 @@ public final class ClaudeSymptomTrial {
             // Empty stdin: otherwise the CLI waits 3 s for piped input on every run.
             java.io.File noInput = new java.io.File(
                     System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "NUL" : "/dev/null");
-            p=new ProcessBuilder(command).directory(root.toFile()).redirectError(stderr.toFile())
+            // OPEN-25 (26 Nov): Claude starts in the Eclipse workspace folder, as a user's Claude starts in their
+            // project: it can read the projects' source, and not this repository, whose README and notes describe the
+            // planted bug (batches open25-haiku-3 and -4 read the source from examples/ and searched the notes).
+            p=new ProcessBuilder(command).directory(workspace.toFile()).redirectError(stderr.toFile())
                     .redirectInput(ProcessBuilder.Redirect.from(noInput))
                     .redirectOutput(transcript.toFile()).start();
             if(!p.waitFor(480,TimeUnit.SECONDS)) {

@@ -30,10 +30,11 @@ class ReadTimeoutTest {
             assertEquals(125_000, DebugMcpServer.readTimeoutMillis(command), command);
     }
 
-    @Test @DisplayName("TO-U3 WAIT_FOR_STOP waits 75 s: longer than the 60 s maximum wait and Eclipse's 70 s deadline")
+    @Test @DisplayName("TO-U3 WAIT_FOR_STOP and GET_JUNIT_RESULTS wait 75 s: longer than the 60 s maximum wait and Eclipse's 70 s deadline")
     void toU3() {
         int timeout = DebugMcpServer.readTimeoutMillis("WAIT_FOR_STOP abc 60000");
         assertEquals(75_000, timeout);
         assertTrue(timeout > 70_000);
+        assertEquals(75_000, DebugMcpServer.readTimeoutMillis("GET_JUNIT_RESULTS abc 60000"), "OPEN-25: same wait as WAIT_FOR_STOP");
     }
 }

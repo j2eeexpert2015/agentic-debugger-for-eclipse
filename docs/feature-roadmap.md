@@ -159,7 +159,7 @@ Sources that shaped the features and the skill (moved here from `research-source
 - **Source:** [skill](https://github.com/microsoft/DebugMCP/blob/main/skills/debug-live/SKILL.md) · [repository](https://github.com/microsoft/DebugMCP)
 - **What it is:** a separate agent skill providing procedural guidance for interactive VS Code debugging, distinct from the MCP debugger tools themselves.
 - **Value:** guide agents to collect runtime evidence, choose breakpoints, trace values, handle short-lived programs and minimize unproductive stepping.
-- **Our status:** **No equivalent installed skill yet**. Basic MCP breakpoints and inspection exist, but systematic guidance and measurable automatic selection do not.
+- **Our status (26 Nov 2026):** our skill `skills/eclipse-debugger` (v0.1.4) is installed by the plugin and measured (OPEN-05: with the skill 8 of 9 symptom-only runs pass, without 0 of 9). Compared 26 Nov: their description names symptoms and "instead of print statements" (taken over in v0.1.4); their root-cause checklist and "signs of stopping too early" (a short "Before you conclude" check in v0.1.4); tests are debugged directly, with no separate run first (our "run first" default scored 5/9 and was made optional, OPEN-25).
 - **Can we implement?** Independent original skill is plausible. Actual activation, effectiveness and license obligations for any reused text still require verification.
 - **Track:** SKILL-01/02/03; EV-01/02/07/09/10. **Important:** do not copy blanket “remove all breakpoints” guidance; only investigation-owned resources may be cleaned up.
 
@@ -168,7 +168,7 @@ Sources that shaped the features and the skill (moved here from `research-source
 - **Source:** [JetBrains agentic debugging documentation](https://www.jetbrains.com/help/idea/agentic-debugging.html) · [JetBrains agent skills overview](https://blog.jetbrains.com/idea/2026/08/agent-skills-in-intellij-idea/)
 - **What it is:** IDE-integrated MCP debugger access plus a bundled skill teaching agents how to operate it; JetBrains documentation describes agent-initiated debugger workflows and debugger tools.
 - **Value:** the agent can move beyond source-only reasoning to actual state inspection using its IDE.
-- **Our status:** core Java launch/breakpoint/step/inspect capability exists; **equivalent skill does not**. No verified feature parity for conditional/exception breakpoints, logpoints, JUnit or other advanced functions.
+- **Our status (26 Nov 2026):** equivalent skill exists and is measured (OPEN-05); conditional and exception breakpoints, tracepoints and single JUnit methods with results (OPEN-25) are implemented. Same cleanup rule as ours (only the agent's own breakpoints). They also offer run to line and changing variable values (our OPEN-06/07, P3) and a router mode that hides debugger tool descriptions until needed (Claude Code already loads our tools on demand).
 - **Can we implement?** General workflow is plausible; any individual capability requires an Eclipse API and MCP exposure assessment. Exact bundled skill contents and copying rights are not yet verified.
 - **Track:** SKILL-01/02; JAVA-01/02/05.
 
@@ -186,7 +186,7 @@ Sources that shaped the features and the skill (moved here from `research-source
 - **Source:** [Java Debug Agent guide](https://github.com/microsoft/vscode-java-debug/blob/main/bundled/agents/README.md) · [Java debugger repository](https://github.com/microsoft/vscode-java-debug)
 - **What it is:** Java-specific AI-assisted debugging guidance and functionality integrated with VS Code/Copilot; separate from the general DebugMCP skill.
 - **Value:** Java launch/test workflows, Java-specific debug operation patterns, and practical fixtures.
-- **Our status:** standalone Java `main()` debugging implemented. Agent-driven individual JUnit debugging, no-config advanced Java launch and attach are **not established** in our snapshot.
+- **Our status (26 Nov 2026):** Java `main()` and individual JUnit methods (debug and run, with results, OPEN-25) are implemented; no-config advanced launch and attach are not. Not re-read on 26 Nov (rate-limited).
 - **Can we implement?** Requires per-feature feasibility spikes, especially JUnit launch handling.
 - **Track:** JAVA-03; EV-03 and REG-15.
 
@@ -206,6 +206,12 @@ Sources that shaped the features and the skill (moved here from `research-source
 - **Value:** avoid equating “more debugger calls” with “better defect resolution”; compare accuracy, evidence, time and resource cost.
 - **Our status:** comparison framework still needs implementation.
 - **Track:** SKILL-04; EV-09 (avoid unnecessary debugging).
+
+### RS-08 — Anthropic skill authoring best practices
+
+- **Source:** [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+- **What it is:** Anthropic's guidance for writing skills.
+- **Taken over (26 Nov 2026):** description in third person with what and when (v0.1.4); a checklist before concluding; test against a no-skill baseline (OPEN-05) and with every model used (Haiku done; Sonnet and Opus still open). Already met: SKILL.md far under 500 lines, references one level deep and under 100 lines.
 
 ### RS-07 — Real-world tool and skill loading failures
 

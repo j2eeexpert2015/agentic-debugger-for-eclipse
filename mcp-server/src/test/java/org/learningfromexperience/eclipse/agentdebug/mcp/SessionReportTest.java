@@ -393,6 +393,36 @@ class SessionReportTest {
     }
 
     @Test
+    @DisplayName("SR-U17 a JUnit run without the debugger, its result, and the result that comes with the end of a run, as plain titles and lines (OPEN-25)")
+    void srU17() {
+        Map<String, Object> run = Map.of("typeName", "org.x.OrderServiceTest", "methodName", "calculatesDiscount", "mode", "run");
+        assertEquals("Ran JUnit test (no debugger): OrderServiceTest.calculatesDiscount", SessionReport.title("start_junit_test", run, Map.of()));
+        assertEquals("Running JUnit test (no debugger): OrderServiceTest", SessionReport.startedTitle("start_junit_test", run));
+        assertEquals("Started JUnit test in debug mode: OrderServiceTest.calculatesDiscount",
+                SessionReport.title("start_junit_test", Map.of("typeName", "org.x.OrderServiceTest", "methodName", "calculatesDiscount"), Map.of()));
+        Map<String, Object> failed = Json.obj(Json.parse("{\"status\":\"success\",\"finished\":true,\"result\":\"FAILED\",\"total\":2,"
+                + "\"passed\":1,\"failed\":1,\"tests\":[{\"className\":\"org.x.OrderServiceTest\",\"methodName\":\"calculatesDiscount\","
+                + "\"result\":\"FAILED\",\"expected\":\"108.00\",\"actual\":\"120.00\",\"location\":\"OrderServiceTest.calculatesDiscount:19\"},"
+                + "{\"className\":\"org.x.OrderServiceTest\",\"methodName\":\"quotesFullPrice\",\"result\":\"PASSED\"}]}"));
+        assertEquals("Test result: calculatesDiscount FAILED: expected 108.00, was 120.00", SessionReport.title("get_junit_results", Map.of(), failed));
+        String details = String.join("\n", SessionReport.details("get_junit_results", Map.of("launchName", "L"), failed, false, ""));
+        assertTrue(details.contains("FAILED  OrderServiceTest.calculatesDiscount at OrderServiceTest.calculatesDiscount:19"), details);
+        assertTrue(details.contains("expected 108.00, was 120.00") && details.contains("PASSED  OrderServiceTest.quotesFullPrice"), details);
+        assertEquals("Test result: 2 of 2 passed", SessionReport.title("get_junit_results", Map.of(),
+                Map.of("finished", true, "total", 2.0, "passed", 2.0, "tests", List.of())));
+        assertEquals("Test result: not finished yet", SessionReport.title("get_junit_results", Map.of(), Map.of("finished", false)));
+        assertEquals(StepKind.INSPECT, SessionReport.kind("get_junit_results"));
+        // The result that comes with wait_for_stop TERMINATED.
+        Map<String, Object> ended = Json.obj(Json.parse("{\"status\":\"success\",\"stopped\":false,\"reason\":\"TERMINATED\","
+                + "\"testResult\":{\"result\":\"FAILED\",\"total\":1,\"passed\":0,\"failed\":1,\"firstFailure\":{\"methodName\":"
+                + "\"calculatesDiscount\",\"result\":\"FAILED\",\"expected\":\"108.00\",\"actual\":\"120.00\","
+                + "\"location\":\"OrderServiceTest.calculatesDiscount:19\"}}}"));
+        String stopLines = String.join("\n", SessionReport.details("wait_for_stop", Map.of("launchName", "L"), ended, false, ""));
+        assertTrue(stopLines.contains("Test result: calculatesDiscount FAILED: expected 108.00, was 120.00 "
+                + "(OrderServiceTest.calculatesDiscount:19)"), stopLines);
+    }
+
+    @Test
     @DisplayName("SR-U8 the small JSON reader handles the bridge's replies and rejects invalid text")
     void srU8() {
         var stop = Json.obj(Json.parse(STOP));

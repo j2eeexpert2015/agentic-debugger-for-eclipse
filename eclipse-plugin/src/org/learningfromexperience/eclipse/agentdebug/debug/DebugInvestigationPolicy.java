@@ -66,6 +66,8 @@ public final class DebugInvestigationPolicy {
         private final Mode mode;
         private final Set<Breakpoint> ownedBreakpoints = new LinkedHashSet<>();
         private final Set<String> ownedExceptions = new LinkedHashSet<>();
+        /** OPEN-25: test runs without the debugger; owned (ended at cleanup) but not this investigation's session. */
+        private final java.util.List<Object> ownedRuns = new java.util.ArrayList<>();
         private Object associatedLaunch;
         private boolean ownsLaunch;
         private String launchName;
@@ -108,6 +110,30 @@ public final class DebugInvestigationPolicy {
         public synchronized Set<Breakpoint> breakpoints() { return Set.copyOf(ownedBreakpoints); }
         public synchronized Set<String> exceptions() { return Set.copyOf(ownedExceptions); }
         public synchronized void recordException(String name) { ensureActive(); ownedExceptions.add(name); }
+        /**
+         * OPEN-25: a JUnit run without the debugger, started to read its result. It does not bind the investigation
+         * to a session, so the debug launch that follows in the same investigation is still allowed; cleanup ends it.
+         */
+        public synchronized void recordRun(Object launch) { ensureActive(); ownedRuns.add(launch); }
+        public synchronized java.util.List<Object> runs() { return java.util.List.copyOf(ownedRuns); }
+        /**
+         * OPEN-25: this investigation's own debug launch has ended (a test run that terminated without stopping, for
+         * example after moving a breakpoint). It no longer binds the investigation, so the next debug launch in the
+         * same investigation is allowed; the ended launch stays owned and is still checked at cleanup. Before this,
+         * the agent had to finish and begin a new investigation for every new attempt (trials 26 Nov 03:00-03:44).
+         *
+         * @param ended whether the bound launch is terminated (decided by the caller, which knows Eclipse launches)
+         * @return true when the ended launch was released
+         */
+        public synchronized boolean releaseEndedLaunch(boolean ended) {
+            ensureActive();
+            if (!ended || !ownsLaunch || associatedLaunch == null) return false;
+            ownedRuns.add(associatedLaunch);
+            associatedLaunch = null;
+            launchName = null;
+            ownsLaunch = false;
+            return true;
+        }
         public synchronized boolean complete() { return complete; }
 
         public synchronized void recordBreakpoint(String type, int line) {

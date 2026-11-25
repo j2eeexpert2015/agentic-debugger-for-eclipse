@@ -341,13 +341,38 @@ public class DebugMcpServer {
                 + "in open Java projects. Method candidates are not proof that a JUnit runner is installed.",
                 Map.of(),List.of(), a -> "LIST_JUNIT_TESTS"));
         allTools.add(bridgeTool("start_junit_test",
-                "Launch an Eclipse JUnit test class or method in debug mode. "
+                "Launch an Eclipse JUnit test class or method, in debug mode (default) or with mode=run: run "
+                + "executes the test without the debugger (breakpoints do not stop it) and get_junit_results gives "
+                + "its outcome - use it only when the failing test or the failure is not known yet. In debug mode, "
+                + "wait_for_stop returns the test result when the run ends. "
                 + "Requires Eclipse JUnit launch integration; methodName may be empty for class launch. "
                 + "Returns launchName and does not overwrite user launch configurations.",
-                Map.of("projectName",str(), "typeName",str(),"methodName",str(),"investigationId",str()),
+                Map.of("projectName",str(), "typeName",str(),"methodName",str(),"investigationId",str(),
+                        "mode",Map.of("type","string","enum",List.of("debug","run"))),
                 List.of("projectName","typeName","methodName"),
-                a -> "START_JUNIT_TEST " + enc(arg(a,"projectName")) + " " + enc(arg(a,"typeName"))
-                        + " " + enc(stringAllowEmpty(a,"methodName")) + ownedId(a)));
+                a -> {
+                    // OPEN-25: the mode follows the (possibly empty) investigation ID, so old plugins see no change
+                    // for debug runs.
+                    String mode = a.get("mode") == null ? "debug" : stringAllowEmpty(a,"mode").strip().toLowerCase(java.util.Locale.ROOT);
+                    if (!mode.isEmpty() && !mode.equals("debug") && !mode.equals("run"))
+                        throw new IllegalArgumentException("mode must be debug or run");
+                    String id = ownedId(a);
+                    return "START_JUNIT_TEST " + enc(arg(a,"projectName")) + " " + enc(arg(a,"typeName"))
+                            + " " + enc(stringAllowEmpty(a,"methodName"))
+                            + (mode.equals("run") ? (id.isEmpty() ? " " : id) + " " + enc("RUN") : id);
+                }));
+        allTools.add(bridgeTool("get_junit_results",
+                "Read the result of a JUnit run started with start_junit_test (the same results as Eclipse's JUnit "
+                + "view): per test method PASSED, FAILED, ERROR or SKIPPED, and for a failure the message, "
+                + "expected and actual values and the failure location (the first line of non-framework code, "
+                + "e.g. OrderServiceTest.calculatesDiscount:19), plus counts. waitSeconds (0-60) waits for the run "
+                + "to finish; a debug run paused at a breakpoint does not finish until it is resumed. Read-only.",
+                Map.of("launchName",str(),"waitSeconds",integer()), List.of("launchName"),
+                a -> {
+                    int seconds = a.get("waitSeconds") == null ? 0 : intArg(a,"waitSeconds");
+                    if (seconds < 0 || seconds > 60) throw new IllegalArgumentException("waitSeconds must be 0-60");
+                    return "GET_JUNIT_RESULTS " + enc(arg(a,"launchName")) + " " + (seconds * 1000);
+                }));
         allTools.add(bridgeTool("expand_frame_variable",
                 "Read a selected local/field/array element and its immediate children with pagination. "
                 + "Read-only; requires suspended frame. path example: order.customer.address or items[0].",
@@ -443,7 +468,8 @@ public class DebugMcpServer {
                         + "native method after a pause). Event-based: reports the thread that actually stopped. "
                         + "Each stop is reported once, including a stop that happened just before this call, so call it "
                         + "right after start_*, RESUME or a step. Returns stopped=false with reason TIMEOUT or TERMINATED "
-                        + "otherwise. Does not resume or change anything. Prefer this over wait_for_debug_pause + "
+                        + "otherwise; when a JUnit run ended, TERMINATED also gives testResult (result, counts, first failure "
+                        + "with expected, actual and location). Does not resume or change anything. Prefer this over wait_for_debug_pause + "
                         + "get_debug_threads + get_stack_frames + get_frame_variables.",
                 Map.of("launchName",str(),"timeoutSeconds",integer()), List.of("launchName","timeoutSeconds"),
                 a -> {
@@ -731,7 +757,8 @@ public class DebugMcpServer {
     static int readTimeoutMillis(String command) {
         int space = command.indexOf(' ');
         String name = space < 0 ? command : command.substring(0, space);
-        if ("WAIT_FOR_STOP".equals(name)) return 75_000;   // Eclipse deadline 70 s (BridgeCommands.WAITING)
+        // Eclipse deadline 70 s (BridgeCommands.WAITING)
+        if ("WAIT_FOR_STOP".equals(name) || "GET_JUNIT_RESULTS".equals(name)) return 75_000;
         return LONG_RUNNING_COMMANDS.contains(name) ? 125_000 : 30_000;
     }
 

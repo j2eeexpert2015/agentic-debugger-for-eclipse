@@ -136,7 +136,7 @@ class ClaudeTranscriptEvaluatorTest {
         partial.put("skillMode", "allowed");
         String table = Summary.table(List.of(pass, partial));
         assertTrue(table.contains("| boot-quote | allowed | 2 | 1 | 1 | 0 | 0 | 0 | 1/2 (50%) |"), table);
-        assertTrue(table.contains("| Debugger used | Read the code |") && table.contains("| 2/2 (100%) | 0/2 (0%) |"),
+        assertTrue(table.contains("| Debugger used | Read the code | Test result read |") && table.contains("| 2/2 (100%) | 0/2 (0%) | 0/2 (0%) |"),
                 "OPEN-05 columns: both runs used the debugger, neither read files: " + table);
     }
 

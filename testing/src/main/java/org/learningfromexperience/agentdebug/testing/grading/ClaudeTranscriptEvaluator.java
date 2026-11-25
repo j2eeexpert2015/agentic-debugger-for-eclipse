@@ -869,13 +869,13 @@ public final class ClaudeTranscriptEvaluator {
             }
             if (groups.size() > 1) groups.put("TOTAL | all", verdicts);
             StringBuilder b = new StringBuilder(
-                    "| Scenario | Skill mode | Runs | PASS | PARTIAL | FAIL | BLOCKED | UNSAFE | Pass rate | Skill used | wait_for_stop used | Cleanup verified | Avg debugger calls | Avg turns | Avg time (s) | Total cost (USD) | Avg flow fields (of 7) | Purpose given | Debugger used | Read the code |\n"
-                    + "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
+                    "| Scenario | Skill mode | Runs | PASS | PARTIAL | FAIL | BLOCKED | UNSAFE | Pass rate | Skill used | wait_for_stop used | Cleanup verified | Avg debugger calls | Avg turns | Avg time (s) | Total cost (USD) | Avg flow fields (of 7) | Purpose given | Debugger used | Read the code | Test result read |\n"
+                    + "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n");
             for (var e : groups.entrySet()) {
                 List<Map<String, Object>> runs = e.getValue();
                 Map<String, Integer> counts = new LinkedHashMap<>();
                 for (String verdict : List.of("PASS", "PARTIAL", "FAIL", "BLOCKED", "UNSAFE")) counts.put(verdict, 0);
-                int skillUsed = 0, waitUsed = 0, cleanup = 0, debuggerUsed = 0, readCode = 0;
+                int skillUsed = 0, waitUsed = 0, cleanup = 0, debuggerUsed = 0, readCode = 0, resultRead = 0;
                 double calls = 0, turns = 0, seconds = 0, cost = 0, flow = 0, purposes = 0, purposeOptions = 0;
                 for (Map<String, Object> v : runs) {
                     counts.merge(Json.str(v.get("verdict")), 1, Integer::sum);
@@ -890,6 +890,8 @@ public final class ClaudeTranscriptEvaluator {
                     Map<String, Object> tools = Json.obj(m.get("perTool"));
                     if (tools.containsKey("Read") || tools.containsKey("Grep") || tools.containsKey("Glob")
                             || dbl(m.get("readOnlyShellCalls")) > 0) readCode++;
+                    // OPEN-25: did the agent read a JUnit run's result (get_junit_results)?
+                    if (tools.containsKey("get_junit_results")) resultRead++;
                     calls += dbl(m.get("eclipseToolCalls"));
                     turns += dbl(m.get("turns"));
                     seconds += dbl(m.get("durationMs")) / 1000.0;
@@ -908,7 +910,8 @@ public final class ClaudeTranscriptEvaluator {
                         .append(" | ").append(cleanup).append("/").append(n)
                         .append(String.format(Locale.ROOT, " | %.1f | %.1f | %.0f | %.2f | %.1f | %.0f/%.0f", calls / n,
                                 turns / n, seconds / n, cost, flow / n, purposes, purposeOptions))
-                        .append(" | ").append(pct(debuggerUsed, n)).append(" | ").append(pct(readCode, n)).append(" |\n");
+                        .append(" | ").append(pct(debuggerUsed, n)).append(" | ").append(pct(readCode, n))
+                        .append(" | ").append(pct(resultRead, n)).append(" |\n");
             }
             return b.toString().stripTrailing();
         }

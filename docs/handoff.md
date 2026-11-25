@@ -24,7 +24,130 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 02:10): OPEN-41 done (docs only)
+## OPEN-25 done (26 Nov, 04:25)
+
+Batch `open25-haiku-6` (04:16-04:21, v0.1.4, $0.11): 8/9 PASS + 1 PARTIAL, 0 FAIL, 11.4 debugger calls, 20.2 turns;
+sym-test-fails 3/3, sym-vague 3/3, sym-wrong-total 2/3 + 1 PARTIAL (one run still debugged phase-one-debugging's
+`OrderCalculatorTest`, which has a similar bug, although the prompt names Spring Boot). This is the baseline for later
+skill or tool changes. README: OPEN-25 moved to Done. Next: merge the OPEN-25 branch; OPEN-23 (Copilot) from `main`.
+
+## Delivery before (26 Nov, 04:20): OPEN-25 closing change, checked 04:21
+
+Step 4 checked 26 Nov 04:04-04:12: plugin 64, MCP 34, `JUnitResultsTests` 3/3 (second debug run in one investigation
+stops). Batch `open25-haiku-5` (v0.1.4, new trial setup, $0.11): 7/9 PASS + 2 PARTIAL, 0 FAIL, 10.6 debugger calls,
+19.4 turns; sym-test-fails 3/3 (was 1/3), sym-vague 3/3 (was 0/3), sym-wrong-total 1/3 + 2 PARTIAL: both PARTIAL runs
+debugged `OrderCalculatorTest.appliesTenPercentDiscount` in phase-one-debugging (a similar integer-division bug),
+because "the Orders project" fits both test projects.
+- `ClaudeSymptomTrial`: sym-wrong-total now says "In the Spring Boot Orders project open in my Eclipse, …".
+- README OPEN-25 row: step 4 result and the closing check.
+Not measured: v0.1.4 against v0.1.1 on the new setup; the gain came from the product fix and the trial setup.
+Check: batch `open25-haiku-6` (no plugin change: no deploy needed, the test Eclipse only has to run). Then OPEN-25 is
+done; merge its branch, start OPEN-23 from `main`. Trial needed: yes.
+
+## Delivery before (26 Nov, 04:10): OPEN-25 step 4 (with fix), checked 04:12, an ended debug run no longer blocks the next; trial runs in the workspace
+
+Step 3 checked 26 Nov 03:38 (re-sent as `open-25-step3b.zip`; the first zip had not been extracted, so batch
+`open25-haiku-3` at 03:04 still ran skill v0.1.3: 4/9 + 1 PARTIAL). Batch `open25-haiku-4` (03:38-03:44, v0.1.4, 9
+Haiku runs, $0.13): 4/9 (sym-test-fails 1/3, sym-wrong-total 3/3, sym-vague 0/3). `testResult` arrives at TERMINATED.
+Transcripts of both batches showed three causes outside the skill text:
+1. After an own debug run ended without stopping (breakpoint on a line that does not run), the next debug run in the
+   same investigation was refused: "Investigation already targets another debug session". Agents finished and began
+   again, up to three investigations, and ran out of the 25 turns (one found rate = 0 in its third investigation).
+2. The trial ran Claude in this repository: reads of the Eclipse workspace and of the skill's references were denied
+   (agents guessed breakpoint lines 17 and 18 of the test), and README, handoff and roadmap, which describe the planted
+   bug, were found by a search for "discount" (sym-vague, 42 files).
+3. "my Orders project": two test projects have discount code (spring-boot-debugging, phase-one-debugging); Haiku asked
+   which one in 6 of 6 sym-vague runs and wrote no report.
+Changes:
+- `DebugInvestigationPolicy.Investigation.releaseEndedLaunch(boolean ended)`: the investigation's own debug launch that
+  has ended is moved to the owned runs (still checked at cleanup) and no longer binds the investigation. Borrowed
+  sessions are never released this way. `EclipseAgentOperations.startJUnitTest` calls it before a debug launch. PO-U10
+  (plugin 64). `JUnitResultsTests.debugModeResultAfterResume` starts a second debug run in the same investigation after
+  the first ended and requires the stop.
+- Fix after the first check (26 Nov 03:58, `JUnitResultsTests` 2/3: the second debug run was still refused): a JUnit
+  debug launch whose JVM ended is left "disconnected", not terminated, so `ILaunch.isTerminated()` stayed false.
+  `EclipseAgentOperations.launchEnded` also counts the TERMINATE event seen by `DebugStopTracker` (new `ended(launch)`)
+  or all processes ended.
+- `ClaudeSymptomTrial`: Claude starts in the Eclipse workspace folder (from `dev-e2e/e2e.properties`), not the
+  repository; `--add-dir %USERPROFILE%\.claude\skills\eclipse-debugger` (not with `-Dclaude.skill=false`).
+  sym-vague: "my Spring Boot Orders project". Earlier batches ran in the repository: not a like-for-like baseline.
+Check: build, deploy, `JUnitResultsTests` 3/3, batch `open25-haiku-5`. Trial needed: yes.
+
+## Delivery before (26 Nov, 03:10): OPEN-25 step 3, the result comes with the end of the run; skill v0.1.4, checked 03:38
+
+Batch `open25-haiku-2` (26 Nov 02:43-02:50, v0.1.3, 9 Haiku runs, $0.14): 6 PASS, 1 PARTIAL, 2 FAIL. sym-test-fails
+1/3 (23.7 debugger calls, up to three investigations and reports per run, one cut off at 25 turns); sym-vague 3/3;
+sym-wrong-total 2/3. Compared 26 Nov with Microsoft's `debug-live` skill, JetBrains' `ij-debugger` and Anthropic's skill
+guidance (docs/feature-roadmap.md RS-01, RS-02, RS-08): neither competitor runs a test first. So:
+- Plugin: `wait_for_stop` TERMINATED of a JUnit run adds `testResult` (result, total, passed, failed, firstFailure
+  with expected, actual, location; waits up to 2 s for Eclipse's JUnit model). `EclipseAgentOperations.testResultOnEnd`.
+- MCP server: `wait_for_stop` description names `testResult`; `start_junit_test` says mode=run only when the failing
+  test or the failure is not known. Report: the end of a run shows "Test result: calculatesDiscount FAILED: expected
+  108.00, was 120.00 (OrderServiceTest.calculatesDiscount:19)" (SR-U17 extended).
+- Skill v0.1.4: description in third person, "null value", "crash", "unexpected output", "instead of guessing from the
+  source or adding print statements or logging"; new section "Before you conclude" (seen in the debugger, first wrong
+  place, chain to the symptom, finished); quick rules: named failing test = breakpoint and debug run directly, result
+  from `wait_for_stop`; new row "Failing test or failure not known yet" = mode=run and `get_junit_results`.
+  `junit-debugging.md` step 2 only for that case; step 4 names the result at TERMINATED.
+- `JUnitResultsTests.debugModeResultAfterResume`: WAIT_FOR_STOP after resuming returns TERMINATED with testResult.
+- docs/feature-roadmap.md: RS-01, RS-02, RS-04 status updated; new RS-08 (Anthropic guidance).
+Check: build, deploy, `JUnitResultsTests`, batch `open25-haiku-3`. Trial needed: yes.
+
+## Delivery before (26 Nov, 02:50): OPEN-25 fix, a run without the debugger no longer takes the investigation's session, checked 02:50
+
+Batch `open25-haiku-1` (26 Nov 02:25-02:33, skill v0.1.2, 9 Haiku runs, $0.14): 5/9 PASS (OPEN-05 batches 2+3: 8/9),
+14.9 debugger calls (about 11), 23.2 turns (about 20); "Test result read" 7/9; one run ended at the 25-turn limit.
+Call order of the 4 failed runs: in two, after `start_junit_test` (run) and `get_junit_results`, the debug
+`start_junit_test` in the same investigation was refused ("Investigation is already bound to a debug session"), so the
+agent finished and began again and ran out of turns or stopped early; one diagnosed from the result without a debug
+run; one (wrong total) never used JUnit. The first cause is a design error of step 1: `START_JUNIT_TEST` RUN called
+`verifyNewLaunch`/`recordLaunch` and took the investigation's one debug session. Fix:
+- `DebugInvestigationPolicy.Investigation.recordRun`/`runs`: a run is owned (ended at cleanup if still running) but does
+  not bind the investigation. `EclipseAgentOperations.startJUnitTest`: RUN uses `ensureActive` and `recordRun`;
+  `cleanUp` terminates own runs still running. PO-U9 (plugin 63).
+- `JUnitResultsTests.runModeReportsTheFailure`: after the result, the debug run in the same investigation starts and stops
+  at the breakpoint (would have caught it).
+- Skill v0.1.3: quick rule "... in debug mode, in the same investigation; the result shows where to look, the debugger
+  shows why"; `junit-debugging.md` step 2: no finish/begin between run and debug run, the result is not runtime
+  evidence; step 4: no `get_junit_results` while paused.
+Check: build, deploy, `JUnitResultsTests`, then batch `open25-haiku-2`. Trial needed: yes.
+
+## Delivery before (26 Nov, 02:30): OPEN-25 step 2, the skill uses the test result, checked 02:33 (5/9, see above)
+
+Step 1 checked 26 Nov 02:19: build (plugin 62, MCP 34), `JUnitResultsTests` 3/3 (run mode finishes past a
+breakpoint and gives expected 108, actual 120 and the assertion line; whole class 2/1/1; debug mode "in progress" while
+paused), `ProgramStartTests` 4/4. The test run name is the launch configuration name, as assumed.
+Step 2:
+- Skill v0.1.2: SKILL.md quick rule "One failing JUnit test": `start_junit_test` with `mode=run`, `get_junit_results`,
+  breakpoint where the wrong value is produced, then debug mode. `references/junit-debugging.md` core workflow: new
+  step 2 "Run it first" (skip when the user gave the failure), step 3 breakpoint where `actual` is produced, step 4
+  `wait_for_stop`, step 6 uses expected/actual from `get_junit_results`. `skill` value and tool reference: 0.1.2.
+- Grader summary: column "Test result read" (a `get_junit_results` call); EV-U13 checks it.
+Check: Haiku batch `open25-haiku-1` (sym-test-fails, sym-wrong-total, sym-vague, 3 each). Compare with OPEN-05 batches 2
+and 3 (same prompts, skill v0.1.1): 8 of 9 PASS, about 11 debugger calls, 20 turns, $0.013 per run. Trial needed: yes.
+
+## Delivery before (26 Nov, 02:40): JUnit test results back to the agent, step 1 (OPEN-25), checked 02:19
+
+Branch `feature/open-25-junit-results` (from `main`). Why: the agent learned nothing from a test run except a launch
+name; it guessed where to stop, or stopped on the AssertionError (Haiku FAIL 26 Nov 00:11).
+- Plugin: `JUnitResults` (Eclipse's public JUnit API: `JUnitCore.addTestRunListener`, `TestRunListener`; keyed by
+  the test run name = launch configuration name; last 30 runs; registered before the agent's first JUnit start).
+  `JUnitFailure` (plain Java): message, expected/actual (Eclipse's values, else read from a JUnit or AssertJ message),
+  location = first frame outside the test framework and the JDK, short trace. `EclipseAgentOperations`:
+  `START_JUNIT_TEST` 6th argument mode RUN/DEBUG (run: `ILaunchManager.RUN_MODE`, no editor follow; reply `mode`,
+  `resultsAvailable`); new `GET_JUNIT_RESULTS name waitMillis` (0-60000; waits for the end of the run, 2 s grace after
+  the JVM ends; failed tests first, at most 50). `BridgeCommands`: READ_ONLY and WAITING. MANIFEST: optional
+  `org.eclipse.jdt.junit.core`.
+- MCP server: `start_junit_test` `mode` (debug, run) with the advice "run first, then debug"; new tool
+  `get_junit_results(launchName, waitSeconds)` (19 tools); 75 s socket timeout like WAIT_FOR_STOP.
+- Report/Agent Activity: "Running/Ran JUnit test (no debugger)", "Test result: calculatesDiscount FAILED: expected
+  108.00, was 120.00", one line per test with location and expected/actual.
+- Tests: JF-U1..U4 (plugin 62), SR-U17 and TO-U3 (MCP 34), `JUnitResultsTests` 3 (extended 22, full 43).
+Not checked here: the plugin classes against the real JDT JUnit API (compiled only against my stand-ins); that the
+test run name equals the launch configuration name (JUnitResultsTests shows it).
+Check: build, deploy, `JUnitResultsTests`. Trial needed: no (step 2 adds the skill step and a Haiku batch).
+
+## Delivery before (26 Nov, 02:10): OPEN-41 done (docs only), checked 02:06
 
 Screenshots 26 Nov 02:01-02:04: the Agent Activity window shows the block folded to one line ("Agent details Claude
 Code · claude-haiku-5-5 · eclipse-debug... more"); the 00:25 HTML report shows it open, in light and in dark (that
