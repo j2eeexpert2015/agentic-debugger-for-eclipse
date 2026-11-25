@@ -21,7 +21,7 @@ import org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEva
 import org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEvaluator.Summary;
 
 /**
- * Unit tests (JUnit 5) for the Claude transcript grader, EV-U1..EV-U19 (formerly {@code --self-test}).
+ * Unit tests (JUnit 5) for the Claude transcript grader, EV-U1..EV-U21 (formerly {@code --self-test}).
  * Synthetic transcripts in the real Claude CLI stream-json shape; no files written, no Eclipse, no Claude usage.
  * Uses the real scenario oracles in {@code evaluation/claude-grading/expectations.json}. Run by {@code mvn clean package}.
  *
@@ -199,6 +199,38 @@ class ClaudeTranscriptEvaluatorTest {
         verdict.put("skillMode", "allowed");
         String table = Summary.table(List.of(verdict));
         assertTrue(table.contains("Avg flow fields (of 7) | Purpose given |") && table.contains("| 3.0 | 1/"), table);
+    }
+
+    /** The set_breakpoint step of {@link #good()} without its investigationId; {@code reply} replaces its result. */
+    private static String breakpointWithoutId(String reply) {
+        return good()
+                .replace("\"lineNumber\":24,\"investigationId\":\"inv-1\"}", "\"lineNumber\":24}")
+                .replace(Json.quote("{\"status\":\"success\",\"typeName\":\"org.learningfromexperience.bootfixture.orders.OrderService\","
+                        + "\"lineNumber\":24,\"created\":true,\"owner\":\"agent\"}"), Json.quote(reply));
+    }
+
+    @Test
+    @DisplayName("EV-U20 a breakpoint without ID that the MCP server attached to the open investigation counts as inside it")
+    void evU20() {
+        Map<String, Object> verdict = grade(breakpointWithoutId("{\"attachedToInvestigation\":\"inv-1\",\"status\":\"success\","
+                + "\"typeName\":\"org.learningfromexperience.bootfixture.orders.OrderService\",\"lineNumber\":24,\"created\":true,\"owner\":\"agent\"}"),
+                "boot-quote", exp, cleanInventory());
+        assertEquals("PASS", verdict.get("verdict"), () -> summary(verdict));
+        assertTrue(String.valueOf(verdict.get("checks")).contains("the model did not send it with [set_breakpoint], so the MCP server attached them to the open investigation"),
+                () -> String.valueOf(verdict.get("checks")));
+        assertTrue(String.valueOf(verdict.get("checks")).contains("the model sent investigationId with [start_java_application, "
+                + "start_fixture_http_request, control_debug_session]"), () -> String.valueOf(verdict.get("checks")));
+    }
+
+    @Test
+    @DisplayName("EV-U21 a breakpoint without ID and not attached by the MCP server is still outside the investigation (PARTIAL)")
+    void evU21() {
+        Map<String, Object> verdict = grade(breakpointWithoutId("{\"status\":\"success\","
+                + "\"typeName\":\"org.learningfromexperience.bootfixture.orders.OrderService\",\"lineNumber\":24,\"created\":true,\"owner\":\"agent\"}"),
+                "boot-quote", exp, cleanInventory());
+        assertEquals("PARTIAL", verdict.get("verdict"), () -> summary(verdict));
+        assertTrue(String.valueOf(verdict.get("checks")).contains("the model did not send investigationId with [set_breakpoint] and the MCP server did not attach them"),
+                () -> String.valueOf(verdict.get("checks")));
     }
 
     private static String interrupted() {

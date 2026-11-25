@@ -377,15 +377,32 @@ public final class ClaudeTranscriptEvaluator {
                 http.isEmpty() ? "HTTP requests limited to " + allowedHttp : "unapproved fixture requests: " + http));
 
         // OWNERSHIP ------------------------------------------------------------
+        // Who tied each change to the investigation: the model (it sent investigationId), the MCP server (the model sent
+        // none and the server attached the change to the only open investigation; its reply starts with
+        // "attachedToInvestigation", DebugMcpServer.ownedId), or nobody (then finish does not clean the change up).
+        List<String> sentByModel = new ArrayList<>();
+        List<String> attachedByServer = new ArrayList<>();
         List<String> unowned = new ArrayList<>();
-        for (ToolCall c : t.calls) if (c.eclipse() && c.ok() && OWNABLE.contains(c.name)
-                && Json.str(c.input.get("investigationId")).isBlank())
-            unowned.add(c.name);
+        for (ToolCall c : t.calls) if (c.eclipse() && c.ok() && OWNABLE.contains(c.name)) {
+            if (!Json.str(c.input.get("investigationId")).isBlank()) sentByModel.add(c.name);
+            else if (!Json.str(Json.obj(c.resultJson).get("attachedToInvestigation")).isBlank()) attachedByServer.add(c.name);
+            else unowned.add(c.name);
+        }
+        String ownership;
+        if (own.investigations.isEmpty()) {
+            ownership = "the model never called begin_debug_investigation";
+        } else if (!unowned.isEmpty()) {
+            ownership = "the model did not send investigationId with " + unowned
+                    + " and the MCP server did not attach them (no single open investigation), so finish does not clean them up";
+        } else {
+            ownership = "the model sent investigationId with " + sentByModel;
+            if (!attachedByServer.isEmpty())
+                ownership += "; the model did not send it with " + attachedByServer
+                        + ", so the MCP server attached them to the open investigation " + own.investigations;
+        }
         checks.add(new Check("changes-inside-investigation", "OWNERSHIP",
                 t.legacyFinalOnly ? "NOT_CAPTURED" : unowned.isEmpty() && !own.investigations.isEmpty() ? "PASS" : "FAIL",
-                own.investigations.isEmpty() ? "no begin_debug_investigation" : unowned.isEmpty()
-                        ? "all changes carried an investigationId " + own.investigations
-                        : "changes without investigationId (not cleaned up by finish): " + unowned));
+                ownership));
 
         // EVIDENCE -------------------------------------------------------------
         Map<String, Object> stopSpec = Json.obj(exp.get("stopFrame"));

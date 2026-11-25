@@ -24,7 +24,23 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 18:10): an agent that left without finishing, shown and tested properly, checked 18:28
+## Last delivery (25 Nov, 18:50): grader counts breakpoints the MCP server attached, waiting for check
+
+The one Haiku check ran at 18:43 (`ClaudeAgentEndToEndTests#junitWrongDiscount -Dclaude.model=haiku`): VERDICT
+PARTIAL, 20 turns, 47 s, $0.014, skill and `wait_for_stop` used, right values read (`percent` 10, `rate` 0), cause
+named, finish CLEANUP, inventory clean. The only failed check was `changes-inside-investigation`: Haiku called
+`set_breakpoint` without an `investigationId`. The MCP server already attaches such a change to the only open
+investigation (`DebugMcpServer.ownedId`, reply starts with `attachedToInvestigation`), and the inventory shows it was
+cleaned up, so the grader was stricter than the product. `ClaudeTranscriptEvaluator` now counts a change as inside
+the investigation when its reply carries `attachedToInvestigation`; a change with neither still fails (EV-U20, EV-U21;
+grader tests 21). The check's detail says who tied each change to the investigation: "the model sent investigationId
+with [...]; the model did not send it with [set_breakpoint], so the MCP server attached them to the open investigation
+[...]" (or, failing: "...and the MCP server did not attach them..., so finish does not clean them up"). Check: re-grade
+the 18:43 transcript (no Claude usage); expected PASS with that detail. Trial needed: no.
+
+(Before the run, `mcp-server\target` had no jar; `mvn -pl mcp-server -am clean package` rebuilt it. Cause unknown.)
+
+## Delivery before (25 Nov, 18:10): an agent that left without finishing, shown and tested properly, checked 18:28
 
 Result: build with all unit tests (report 51/51), deploy of 1.5.0.202611251238, `agentDisconnectCleansUp` PASS in
 6.3 s (it now waits for the stop). Agent Activity screenshot: banner "Ended without the agent finishing it: agent closed
