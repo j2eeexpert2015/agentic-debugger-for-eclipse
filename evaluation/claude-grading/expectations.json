@@ -38,5 +38,57 @@
       ["rate"],
       ["calculatesDiscount", "OrderServiceTest"]
     ]
+  },
+  "sym-test-fails": {
+    "description": "OPEN-05 symptom-only prompt naming the failing test; same planted bug as junit: percent / 100 is integer division, so rate = 0. Any route to the stop counts.",
+    "stopFrame": { "className": "org.learningfromexperience.bootfixture.orders.OrderService", "lines": [22, 23, 24, 25] },
+    "variables": [ { "name": "percent", "value": "10" }, { "name": "rate", "value": "0" } ],
+    "requiredCalls": [],
+    "resultContains": [],
+    "allowedHttpScenarios": [],
+    "diagnosis": [
+      ["percent / 100", "percent/100", "integer division", "integer arithmetic", "int division"],
+      ["rate"],
+      ["OrderService"]
+    ]
+  },
+  "sym-wrong-total": {
+    "description": "OPEN-05 symptom-only prompt with the wrong number only (no test, no tool named); same planted bug.",
+    "stopFrame": { "className": "org.learningfromexperience.bootfixture.orders.OrderService", "lines": [22, 23, 24, 25] },
+    "variables": [ { "name": "percent", "value": "10" }, { "name": "rate", "value": "0" } ],
+    "requiredCalls": [],
+    "resultContains": [],
+    "allowedHttpScenarios": [],
+    "diagnosis": [
+      ["percent / 100", "percent/100", "integer division", "integer arithmetic", "int division"],
+      ["rate"],
+      ["OrderService"]
+    ]
+  },
+  "sym-vague": {
+    "description": "OPEN-05 vague prompt ('seems broken'); same planted bug.",
+    "stopFrame": { "className": "org.learningfromexperience.bootfixture.orders.OrderService", "lines": [22, 23, 24, 25] },
+    "variables": [ { "name": "percent", "value": "10" }, { "name": "rate", "value": "0" } ],
+    "requiredCalls": [],
+    "resultContains": [],
+    "allowedHttpScenarios": [],
+    "diagnosis": [
+      ["percent / 100", "percent/100", "integer division", "integer arithmetic", "int division"],
+      ["rate"],
+      ["OrderService"]
+    ]
+  },
+  "sym-slash": {
+    "description": "OPEN-05: the sym-wrong-total symptom, but the user calls the skill by name (/eclipse-debugger ...); same planted bug.",
+    "stopFrame": { "className": "org.learningfromexperience.bootfixture.orders.OrderService", "lines": [22, 23, 24, 25] },
+    "variables": [ { "name": "percent", "value": "10" }, { "name": "rate", "value": "0" } ],
+    "requiredCalls": [],
+    "resultContains": [],
+    "allowedHttpScenarios": [],
+    "diagnosis": [
+      ["percent / 100", "percent/100", "integer division", "integer arithmetic", "int division"],
+      ["rate"],
+      ["OrderService"]
+    ]
   }
 }

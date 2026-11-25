@@ -19,8 +19,29 @@ public final class ClaudeSymptomTrial {
     static {
         PROMPTS.put("boot-quote", "The local disposable Orders Spring Boot quote endpoint returns 120.00 when I expect 108.00 for quantity=2, unitPrice=60, discountPercent=10. Use the Eclipse debugger MCP to reproduce this localhost fixture issue and identify the first incorrect runtime value. After starting your own NORMAL investigation and launching OrdersApplication, call start_fixture_http_request with the owned launchName, investigationId and scenario=discount. This starts a non-blocking POST; inspect the resulting breakpoint, resume the request thread, then call get_fixture_http_request with the returned requestId to read the actual HTTP response. Never use Bash, curl or PowerShell for HTTP reproduction. You are explicitly authorized to POST ONLY to the identified disposable localhost Orders fixture. Do not modify code, files, launch configurations, or unrelated sessions. Finish your own investigation and include exact observed breakpoint frames, inputs, HTTP response and cleanup evidence. If an Eclipse MCP tool is unavailable, say so instead of guessing.");
         PROMPTS.put("junit", "A discount calculation test is failing in my imported disposable Spring Boot fixture. Investigate the relevant single JUnit method using Eclipse debugger MCP, without running the entire suite or modifying source. Show observed application frames and values, explain the mismatch, and finish only your own investigation. Do not guess or claim test evidence you did not observe.");
+        // OPEN-05: symptom-only prompts, as a user would write them: no tool named, no rules given. Graded like
+        // "junit" (same planted bug), but any route to the stop counts (expectations.json: no required call).
+        PROMPTS.put("sym-test-fails", "OrderServiceTest.calculatesDiscount fails in the Spring Boot project I have open in Eclipse. Find out why.");
+        PROMPTS.put("sym-wrong-total", "In the Orders project open in my Eclipse, a 10% discount on 2 items at 60.00 comes out as 120.00 instead of 108.00. What is going wrong?");
+        PROMPTS.put("sym-vague", "The discount calculation in my Orders project in Eclipse seems broken. Can you look into it?");
+        // The user calls the skill by name (Claude Code: /skill-name), so it is loaded for certain; same symptom as
+        // sym-wrong-total.
+        PROMPTS.put("sym-slash", "/eclipse-debugger In the Orders project open in my Eclipse, a 10% discount on 2 items at 60.00 comes out as 120.00 instead of 108.00. What is going wrong?");
         PROMPTS.put("validation", "The disposable local Orders API returns HTTP 400 when quantity is invalid. Find the originating application-code path using Eclipse debugger MCP and show the actual status, body, and exception/handler evidence. After starting your own NORMAL investigation and launching OrdersApplication, use start_fixture_http_request with investigationId, owned launchName, scenario=invalid-quantity to POST asynchronously; inspect the exception/request thread, resume it, then get_fixture_http_request to read the response. Never use Bash, curl or PowerShell for HTTP reproduction. You are explicitly authorized to POST ONLY to the disposable localhost Orders fixture. Do not change source or other sessions. Finish your own investigation. Report exactly what is observed.");
     }
+    /** Scenarios that never send an HTTP request to the test application (no approval needed, no HTTP tools). */
+    private static final Set<String> NO_HTTP = Set.of("junit", "sym-test-fails", "sym-wrong-total", "sym-vague", "sym-slash");
+
+    /**
+     * The OPEN-05 symptom-only scenarios a batch runs by default, in this order. sym-slash is not among them: in the
+     * non-interactive trial ("claude -p") the "/eclipse-debugger" prefix did not load the skill (26 Nov, batch
+     * open05-haiku-3: no skill text in any of its transcripts); it runs only when named in -Dclaude.scenarios.
+     */
+    public static final List<String> SYMPTOM_SCENARIOS = List.of("sym-test-fails", "sym-wrong-total", "sym-vague");
+
+    /** Every symptom-only scenario a batch can be asked for by name (-Dclaude.scenarios). */
+    public static final List<String> ALL_SYMPTOM_SCENARIOS = List.of("sym-test-fails", "sym-wrong-total", "sym-vague", "sym-slash");
+
     private static void require(boolean ok,String message) {if(!ok) throw new IllegalArgumentException(message);}
     private static String json(String s) {return "\"" + s.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n").replace("\r","\\r") + "\"";}
     private static String jsonArray(List<String> values) {
@@ -306,7 +327,7 @@ public final class ClaudeSymptomTrial {
      * Runs one Claude trial and grades it. Returns the verdict (its "verdict" is PASS, PARTIAL, FAIL, BLOCKED or
      * UNSAFE), or null when Claude produced no transcript; throws when the Claude CLI run itself did not complete.
      *
-     * @param post          HTTP requests to the test application approved (needed by every scenario but junit)
+     * @param post          HTTP requests to the test application approved (needed by every scenario but junit and the sym-* ones)
      * @param noSkill       Claude may not use any skill (comparison run)
      * @param sessionReport the MCP server also writes the debugging session report next to the transcript
      * @param model         the Claude model (for example haiku); null for the Claude CLI's default
@@ -318,7 +339,7 @@ public final class ClaudeSymptomTrial {
         Path reports=reportFolderRoot.toAbsolutePath();
         require(PROMPTS.containsKey(scenario),"Unknown Claude scenario: " + scenario);
         require(model == null || model.matches("[a-z0-9][a-z0-9.-]{0,60}"), "Invalid model name: " + model);
-        require(post || scenario.equals("junit"),"This trial sends an HTTP request to the test application: approval needed (-Dfixture.post.approved=true)");
+        require(post || NO_HTTP.contains(scenario),"This trial sends an HTTP request to the test application: approval needed (-Dfixture.post.approved=true)");
         require(Files.isRegularFile(root.resolve("pom.xml")),"Not a repository checkout");
         int port = configuredPort(root);
         Properties e2eProperties = new Properties();
@@ -335,7 +356,7 @@ public final class ClaudeSymptomTrial {
         Path workspace = Path.of(rawWorkspace).toRealPath();
         require(Files.isRegularFile(workspace.resolve("spring-boot-debugging/.agentdebug-fixture")),
                 "Configured workspace does not contain the disposable Spring Boot fixture");
-        Path jar = mcpJar(root, !scenario.equals("junit"));
+        Path jar = mcpJar(root, !NO_HTTP.contains(scenario));
         // Do not spend Claude tokens when the dedicated test bridge is unreachable.
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress("127.0.0.1", port), 1500);

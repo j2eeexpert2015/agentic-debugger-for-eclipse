@@ -71,7 +71,8 @@
         <!--
           The integration tests against the running test Eclipse (java dev-e2e/DevE2E.java start or deploy first).
           Default: the regression suite. -Dit.test=NAME runs another suite, one class or one test (Class#method).
-          Options given with -D (fixture.post.approved, claude.approved, claude.model, claude.report, claude.skill) reach
+          Options given with -D (fixture.post.approved, claude.approved, claude.model, claude.report, claude.skill,
+          claude.batch, claude.repeat, claude.scenarios) reach
           the tests as system properties by themselves; unset means not approved / default.
         -->
         <profile>

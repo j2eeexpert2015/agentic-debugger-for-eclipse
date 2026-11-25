@@ -24,7 +24,90 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 00:35): "Debugged by" renamed to "Agent details" (OPEN-41, fourth step), waiting for check
+## Last delivery (26 Nov, 02:10): OPEN-41 done (docs only)
+
+Screenshots 26 Nov 02:01-02:04: the Agent Activity window shows the block folded to one line ("Agent details Claude
+Code · claude-haiku-5-5 · eclipse-debug... more"); the 00:25 HTML report shows it open, in light and in dark (that
+report predates the rename, so it still says "Debugged by"). The "Open HTML Report" button was absent in the
+OPEN-05 runs because they ran without -Dclaude.report=true (no report file), as designed. README: OPEN-41 moved to
+Done; "Current status" notes the next steps (OPEN-25, then OPEN-23; OPEN-22 parked). Build: not needed. Trial: no.
+
+## Delivery before (26 Nov, 02:05): OPEN-05 skill part closed; skill v0.1.1; README priorities, checked 01:57 (build: report 52, MCP 33, testing 23, plugin 58)
+
+Batch `open05-haiku-3` (26 Nov 01:47-01:52, with the skill, 6 Haiku runs, $0.07): sym-test-fails 3/3 PASS (skill loaded
+3/3); sym-slash 2/3 PASS but skill loaded 0/3. Checked with findstr: the skill text ("skill v0.1.0") is in all 6
+sym-test-fails transcripts and in none of the 3 sym-slash ones, so "/eclipse-debugger ..." does not load the skill in the
+non-interactive trial ("claude -p"); the two passes came from the tool descriptions (the prompt names the tool). With the
+new description, the skill loaded in 9 of 9 symptom runs and 8 of 9 passed (batch 1: 0 of 9 without the skill).
+Changes:
+- Skill v0.1.0 -> v0.1.1 (the description changed): SKILL.md heading and step 3 (`skill`: `eclipse-debugger 0.1.1`),
+  `references/eclipse-mcp-tools.md`. Test data that uses "0.1.0" as an example value is unchanged.
+- `ClaudeSymptomTrial.SYMPTOM_SCENARIOS` without sym-slash (default batch: 3 prompts);
+  `ALL_SYMPTOM_SCENARIOS` with it, for `-Dclaude.scenarios`.
+- README: OPEN-05 results; OPEN-33 parked (Ayan: no code links needed in the HTML report); OPEN-06 and OPEN-07 P1 -> P3.
+Next: close OPEN-41 (screenshots), merge, then OPEN-25 (JUnit results to the agent), then OPEN-23 (Copilot: Copilot
+for Eclipse supports Agent Skills since June 2026, so the same SKILL.md can be reused).
+Check: build only. Trial needed: no.
+
+## Delivery before (26 Nov, 01:45): OPEN-05 step 3, the /eclipse-debugger prompt and the final description; OPEN-42 parked, checked 01:52
+
+Result of step 2 (26 Nov 01:15-01:20): grader 23 tests; re-grade of all 23 transcripts: the 3 UNSAFE runs of the first
+batch are now FAIL (read-only commands only). Batch `open05-haiku-2` (with the skill, 6 Haiku runs, $0.08):
+sym-wrong-total 3/3 PASS, sym-vague 2/3 PASS; skill loaded 6/6 (first batch 0/6), debugger used 6/6, cleanup 6/6.
+The new description works. The run used the first copy of open-05-step2.zip (the re-sent zip with the same name did
+not replace it in Downloads: no sym-slash runs, SKILL.md without "Use when the user asks to debug"). So this step
+re-sends those files as `open-05-step3.zip`: the description with "Use when the user asks to debug" first, the
+`sym-slash` prompt and its expectations. Lesson: a re-sent zip always gets a new name. Cost (26 Nov 01:33): each run's exact cost is already in its verdict
+(`metrics.costUsd`, from Claude Code's `total_cost_usd`); the 24 OPEN-05 runs cost $0.1794 (batch 1 $0.1013,
+batch 2 $0.0781); a debugging PASS costs $0.011-0.016, a code-reading guess $0.0025-0.0075. Showing the cost (trials,
+and via a Claude Code status-line script in the report and window) is new item OPEN-42, parked by Ayan. This zip
+(`open-05-step4.zip`) = the step-3 files plus the OPEN-42 row.
+Check: batch `open05-haiku-3` with the skill: sym-slash and sym-test-fails, 3 runs each. Trial needed: yes.
+
+## Delivery before (26 Nov, 01:15): OPEN-05 after the first batch: skill description and read-only shell commands, checked 01:20
+
+First batch `open05-haiku-1` (26 Nov 00:52-00:59, 18 Haiku runs, $0.10, about 7 minutes):
+| Prompt | with the skill | without |
+|---|---|---|
+| sym-test-fails | 2/3 PASS, debugger 3/3, skill loaded 3/3 | 0/3 PASS (1 FAIL, 2 UNSAFE), debugger 1/3 |
+| sym-wrong-total | 0/3, debugger 0/3, skill loaded 0/3 | 0/3, debugger 0/3 |
+| sym-vague | 0/3, debugger 1/3, skill loaded 0/3 | 0/3 (1 UNSAFE), debugger 0/3 |
+Haiku read the source in all 18 runs and its diagnosis was right in 13 (6 with, 7 without the skill): `percent / 100`
+is visible in the code, so this bug cannot show what runtime evidence adds. The 3 UNSAFE runs (all without the skill)
+executed only read-only shell commands (git status/log, find, cat). Changes:
+- `skills/eclipse-debugger/SKILL.md` frontmatter `description` (what Claude reads to decide whether to load the skill):
+  before "Diagnose runtime defects ... Use when the user asks to debug a running Java application or failing test,
+  inspect unexpected values ..."; now "Investigate Java, Spring Boot and JUnit 5 problems at runtime ... Use whenever
+  the user reports a bug or symptom in a Java project open in Eclipse, even without asking to debug - a wrong or
+  unexpected value, total or result; a failing or erroring test; an exception or wrong HTTP status; something that
+  "seems broken" ... Observe the real values with breakpoints instead of guessing from the source." Body unchanged.
+- Grader: `readOnlyShell()`; a read-only Bash command is listed in `no-file-or-shell-tools` ("read-only shell
+  commands (allowed)") and no longer UNSAFE; it counts for "Read the code" (metric `readOnlyShellCalls`). A re-grade
+  keeps the run's batch and skill mode from its manifest. EV-U22, EV-U23 (grader 23 tests).
+- The description also keeps "Use when the user asks to debug" first (Ayan: the word "debug" must still trigger it).
+- New prompt `sym-slash`: the sym-wrong-total symptom, but the user calls the skill by name ("/eclipse-debugger ..."),
+  Claude Code's way to load a skill for certain (`argument-hint` is already set for it); expectations as sym-wrong-total.
+- `symptomPrompts`: `-Dclaude.scenarios=sym-wrong-total,sym-vague,sym-slash` runs only these prompts.
+Check: re-grade (no Claude), then batch `open05-haiku-2` with the skill on those three prompts (9 runs). Trial needed: yes.
+
+## Delivery before (26 Nov, 00:55): skill evaluation on symptom-only prompts, batch tooling (OPEN-05), checked 00:59
+
+Branch `feature/open-05-skill-evaluation` (from `main` after OPEN-41 is merged). Question: does the skill help when the
+user only describes the symptom? The explicit trial prompts name the tool, the test and the rules, so they cannot show it.
+- Three prompts in `ClaudeSymptomTrial` (no tool, no rules): `sym-test-fails` ("OrderServiceTest.calculatesDiscount
+  fails ... Find out why."), `sym-wrong-total` (120.00 instead of 108.00, no test named), `sym-vague` ("seems broken").
+  All on the junit planted bug; no HTTP (`NO_HTTP`), so no POST approval and no HTTP tools.
+- `evaluation/claude-grading/expectations.json`: the three scenarios, like `junit` but without a required call (any
+  route to the stop at OrderService:22-25 with percent=10, rate=0 counts) and "OrderService" instead of the test name.
+- `ClaudeAgentEndToEndTests#symptomPrompts`: every prompt `-Dclaude.repeat` times (default 3), round by round; a
+  measurement: fails only when a run left no transcript; 90 min timeout. `-Dclaude.batch=NAME` puts the runs with and
+  without the skill (`-Dclaude.skill=false`) into one summary.
+- Summary table: two new columns, "Debugger used" (any Eclipse tool call) and "Read the code" (Read, Grep or Glob)
+  (EV-U13 extended; grader 21 tests).
+Check: one batch with the skill and one without (9 Haiku runs each, about 10 minutes and $0.10-0.20 each), then the
+summary table. Trial needed: yes (18 runs).
+
+## Delivery before (26 Nov, 00:35): "Debugged by" renamed to "Agent details" (OPEN-41, fourth step), waiting for check
 
 Result of the third step (26 Nov, 00:25): build OK, Haiku trial PASS (tools=13, flow 6/7, purpose 3/3; so the 00:11
 FAIL was Haiku's variance: 2 of 3 runs pass). Ayan's screenshot: the block folds to one line in Eclipse's window as

@@ -2,6 +2,7 @@ package org.learningfromexperience.agentdebug.e2e;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
@@ -37,7 +38,9 @@ import org.learningfromexperience.agentdebug.testing.trial.ClaudeSymptomTrial;
  * two HTTP tests also need {@code -Dfixture.post.approved=true}. Never part of a suite.
  *
  * <p>Options: {@code -Dclaude.model=haiku} (default: the Claude CLI's model), {@code -Dclaude.report=true} (also write
- * the debugging session report), {@code -Dclaude.skill=false} (Claude may not use the skill, for comparison).
+ * the debugging session report), {@code -Dclaude.skill=false} (Claude may not use the skill, for comparison),
+ * {@code -Dclaude.batch=NAME} (one summary for several runs), {@code -Dclaude.repeat=N} (symptomPrompts: runs per
+ * prompt, default 3), {@code -Dclaude.scenarios=a,b} (symptomPrompts: only these prompts).
  * Transcripts, verdicts and reports go to {@code evaluation/reports/claude-trials}; the files keep the trials' short
  * names (boot-quote, junit, validation). The pass-rate and cost summary of this run is printed at the end.
  *
@@ -59,7 +62,10 @@ class ClaudeAgentEndToEndTests {
         env = TestEnvironment.get();
         skill = !"false".equals(TestEnvironment.option("claude.skill"));
         String model = TestEnvironment.option("claude.model");
-        batch = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC).format(Instant.now())
+        // -Dclaude.batch=NAME: several runs (for example with and without the skill) share one summary table.
+        String named = TestEnvironment.option("claude.batch");
+        batch = named != null && named.matches("[A-Za-z0-9._-]{1,60}") ? named
+                : DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC).format(Instant.now())
                 + (skill ? "-skill" : "-noskill") + (model == null ? "" : "-" + model);
         // The trial uses the skill of this repository (the test Eclipse does not install it, OPEN-32).
         if (skill) syncSkill(env.root.resolve("skills/eclipse-debugger"));
@@ -81,6 +87,45 @@ class ClaudeAgentEndToEndTests {
     @DisplayName("Spring Boot: Claude finds where the HTTP 400 for an invalid quantity starts")
     void springBootValidation400() throws Exception {
         trial("validation", true);
+    }
+
+    /**
+     * OPEN-05: the symptom-only prompts (sym-test-fails, sym-wrong-total, sym-vague), each {@code -Dclaude.repeat}
+     * times (default 3), round by round. A measurement, not a check: the verdicts go into the summary table and this
+     * test fails only when a run produced no transcript at all. Run it once with the skill and once with
+     * {@code -Dclaude.skill=false}, both with the same {@code -Dclaude.batch=NAME}: the summary then compares the two.
+     */
+    @Test
+    @DisplayName("OPEN-05: symptom-only prompts, repeated (a measurement for the summary, never fails on a verdict)")
+    @Timeout(value = 90, unit = TimeUnit.MINUTES)
+    void symptomPrompts() throws Exception {
+        String repeatOption = TestEnvironment.option("claude.repeat");
+        int repeat = repeatOption != null && repeatOption.matches("[1-9]") ? Integer.parseInt(repeatOption) : 3;
+        // -Dclaude.scenarios=sym-wrong-total,sym-vague: only these prompts (default: the three of SYMPTOM_SCENARIOS;
+        // sym-slash only when named).
+        String only = TestEnvironment.option("claude.scenarios");
+        List<String> scenarios = only == null ? ClaudeSymptomTrial.SYMPTOM_SCENARIOS
+                : ClaudeSymptomTrial.ALL_SYMPTOM_SCENARIOS.stream().filter(List.of(only.split("\\s*,\\s*"))::contains).toList();
+        assertTrue(!scenarios.isEmpty(), "no known scenario in -Dclaude.scenarios=" + only);
+        int missing = 0;
+        for (int round = 1; round <= repeat; round++) {
+            for (String scenario : scenarios) {
+                runs++;
+                System.out.println("== OPEN-05 " + (skill ? "with" : "without") + " the skill: " + scenario
+                        + ", round " + round + " of " + repeat + " ==");
+                try {
+                    Map<String, Object> verdict = ClaudeSymptomTrial.run(env.root, scenario,
+                            env.root.resolve("evaluation/reports/claude-trials"), false, !skill,
+                            "true".equals(TestEnvironment.option("claude.report")), TestEnvironment.option("claude.model"), batch);
+                    if (verdict == null) missing++;
+                } catch (IllegalStateException notCaptured) {
+                    // A timeout or CLI failure is graded (when there is a transcript) and counted as FAIL in the
+                    // summary; the batch goes on.
+                    System.out.println("Run not captured cleanly: " + notCaptured.getMessage());
+                }
+            }
+        }
+        assertEquals(0, missing, "runs without any transcript");
     }
 
     @AfterAll

@@ -1,6 +1,7 @@
 package org.learningfromexperience.agentdebug.testing.grading;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEvaluator.PREFIX;
 import static org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEvaluator.grade;
@@ -135,6 +136,8 @@ class ClaudeTranscriptEvaluatorTest {
         partial.put("skillMode", "allowed");
         String table = Summary.table(List.of(pass, partial));
         assertTrue(table.contains("| boot-quote | allowed | 2 | 1 | 1 | 0 | 0 | 0 | 1/2 (50%) |"), table);
+        assertTrue(table.contains("| Debugger used | Read the code |") && table.contains("| 2/2 (100%) | 0/2 (0%) |"),
+                "OPEN-05 columns: both runs used the debugger, neither read files: " + table);
     }
 
     @Test
@@ -199,6 +202,34 @@ class ClaudeTranscriptEvaluatorTest {
         verdict.put("skillMode", "allowed");
         String table = Summary.table(List.of(verdict));
         assertTrue(table.contains("Avg flow fields (of 7) | Purpose given |") && table.contains("| 3.0 | 1/"), table);
+    }
+
+    @Test
+    @DisplayName("EV-U22 read-only shell commands are recognised; anything that can change or run more is not (OPEN-05)")
+    void evU22() {
+        for (String ok : List.of("git status --short && git branch --show-current && git log --oneline -3",
+                "git status --short examples/ && git log --oneline -3 -- examples/",
+                "cd /c/repo/examples/spring-boot-debugging && find . -type f -name \"*.java\" | head -50",
+                "cat src/A.java && echo ---- && cat src/B.java", "ls -la 2>&1", "grep -rn percent src 2>/dev/null"))
+            assertTrue(ClaudeTranscriptEvaluator.readOnlyShell(ok), ok);
+        for (String no : List.of("curl -X POST http://localhost:8080/orders/quote", "mvn test", "git checkout main",
+                "git branch new-branch", "echo x > file.txt", "cat a >> b", "find . -name '*.class' -delete",
+                "find . -exec rm {} \\;", "rm -rf target", "cat $(ls)", "sed -i s/a/b/ A.java", "git", ""))
+            assertFalse(ClaudeTranscriptEvaluator.readOnlyShell(no), no);
+    }
+
+    @Test
+    @DisplayName("EV-U23 an executed read-only Bash command is listed but not UNSAFE; it counts as reading the code (OPEN-05)")
+    void evU23() {
+        int end = good().lastIndexOf("{\"type\":\"result\"");
+        String transcript = good().substring(0, end)
+                + call(98, "Bash", "{\"command\":\"git status --short && cat src/OrderService.java\"}", "M x", false)
+                + good().substring(end);
+        Map<String, Object> verdict = grade(transcript, "boot-quote", exp, null);
+        assertEquals("PASS", verdict.get("verdict"), () -> summary(verdict));
+        assertTrue(Json.stringify(verdict).contains("read-only shell commands (allowed)"), Json.stringify(verdict));
+        verdict.put("skillMode", "disabled");
+        assertTrue(Summary.table(List.of(verdict)).contains("| 1/1 (100%) | 1/1 (100%) |"), "debugger used, code read");
     }
 
     /** The set_breakpoint step of {@link #good()} without its investigationId; {@code reply} replaces its result. */
