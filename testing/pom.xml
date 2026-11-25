@@ -15,7 +15,8 @@
               mvn -pl testing verify -Pintegration-tests                         (regression suite)
               mvn -pl testing verify -Pintegration-tests -Dit.test=FullSuite     (or ExtendedSuite, BreakpointTests, ...)
           See docs/integration-tests.md;
-        - ownership-tests/: the 32-check ownership harness (OPEN-03), built and started by its own run.ps1.
+        - The former 32-check ownership harness (ownership-tests/, PowerShell) was deleted on 25 Nov 2026; its checks
+          run as the JUnit class UserResourceSafetyTests (OPEN-02/03).
     -->
     <groupId>org.learningfromexperience</groupId>
     <artifactId>agentic-debugger-testing</artifactId>

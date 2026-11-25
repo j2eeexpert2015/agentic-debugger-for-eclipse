@@ -123,13 +123,19 @@ public final class ActivityStore {
 
     /**
      * What Eclipse saw of the agent's launch (OPEN-36 B5): running, paused at a location, or ended. Applied to the
-     * open investigation shown in the view; ignored when none is open. Never throws.
+     * open investigation shown in the view. When none is open, only "ended" is applied, to the newest investigation:
+     * a cleanup ends the program, and Eclipse may report that after the finish event has arrived (seen 25 Nov 21:30
+     * on Eclipse 2025-12: the window said "paused" although the cleanup had ended the JVM). Never throws.
      */
     public void program(String state, String where) {
         String id = null;
         synchronized (this) {
-            Mutable open = null;
-            for (Mutable m : investigations.values()) if (m.outcome == null) open = m;
+            Mutable open = null, newest = null;
+            for (Mutable m : investigations.values()) {
+                if (m.outcome == null) open = m;
+                newest = m;
+            }
+            if (open == null && PROGRAM_ENDED.equals(state)) open = newest;
             if (open != null && !(java.util.Objects.equals(open.program, state) && java.util.Objects.equals(open.programWhere, where))) {
                 open.program = state;
                 open.programWhere = PROGRAM_PAUSED.equals(state) ? where : null;

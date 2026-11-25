@@ -161,7 +161,7 @@ class ActivityStoreTest {
         assertTrue(notified.contains("open"), "listeners are notified, a broken one does not stop the others");
     }
 
-    @Test @DisplayName("AS-U9 program state goes to the open investigation only; last activity and revision follow every change")
+    @Test @DisplayName("AS-U9 program state goes to the open investigation; after the finish only 'ended'; last activity and revision follow every change")
     void asU9() {
         ActivityStore store = new ActivityStore();
         List<String> notified = new ArrayList<>();
@@ -179,7 +179,10 @@ class ActivityStoreTest {
         store.program(ActivityStore.PROGRAM_RUNNING, "ignored");
         assertNull(store.current().programWhere(), "a location only while paused");
         store.accept(finished("inv-1"));
+        store.program(ActivityStore.PROGRAM_PAUSED, "Elsewhere.main:3");
+        assertEquals(ActivityStore.PROGRAM_RUNNING, store.current().program(), "after the finish, running or paused is not applied");
         store.program(ActivityStore.PROGRAM_ENDED, null);
-        assertEquals(ActivityStore.PROGRAM_RUNNING, store.current().program(), "a finished investigation is not changed");
+        assertEquals(ActivityStore.PROGRAM_ENDED, store.current().program(),
+                "the program ending after the finish (its cleanup) is shown (25 Nov 21:30, Eclipse 2025-12)");
     }
 }

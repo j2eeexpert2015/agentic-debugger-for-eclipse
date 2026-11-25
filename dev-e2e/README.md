@@ -78,7 +78,7 @@ Record a **baseline before deploying** a bridge change: 3 full `RegressionSuite`
 - [ ] `AgentEclipseConnectionTests` — 4/4, plus the manual shutdown check
 - [ ] **3 consecutive uninterrupted regression runs** (21/21; 23/23 before 25 Nov), all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
 - [ ] Every scenario that passed in the baseline still passes; no scenario more than ~20 % slower
-- [ ] Ownership checks 32/32 (`testing/ownership-tests/run.ps1`; Eclipse closed after a `DevE2E` deploy)
+- [ ] Ownership checks 32/32: `mvn -pl testing verify -Pintegration-tests -Dit.test=UserResourceSafetyTests` (8 tests)
 - [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass
 - [ ] Manual: Preferences → Configure/Verify; one real Claude investigation; your own breakpoints and session untouched while Claude debugs
 - [ ] Record commit, bundle, JDK and date in the README tracking table
@@ -185,7 +185,7 @@ The updated installation passed all 23 direct scenarios **across separate runs**
 
 ## Retained test infrastructure
 
-Keep the integration test classes in `testing/src/test/java/` (package `e2e`, one JUnit class per product feature, compiled by every build, run only with the `integration-tests` Maven profile), the 32-check ownership harness in `testing/ownership-tests/` (started by its own `run.ps1`, which starts the test Eclipse itself), the Maven fixture modules and the optional skill under `skills/eclipse-debugger/`. The older Windows batch and PowerShell runners, the `integrate`/`cleanup` migration modes and the one-off `dev-e2e` updaters were removed on 25 Nov 2026 (OPEN-38 step 1); the top-level README records current progress.
+Keep the integration test classes in `testing/src/test/java/` (package `e2e`, one JUnit class per product feature, compiled by every build, run only with the `integration-tests` Maven profile), including `UserResourceSafetyTests`, which replaced the 32-check PowerShell ownership harness on 25 Nov 2026, the Maven fixture modules and the optional skill under `skills/eclipse-debugger/`. The older Windows batch and PowerShell runners, the `integrate`/`cleanup` migration modes and the one-off `dev-e2e` updaters were removed on 25 Nov 2026 (OPEN-38 step 1); the top-level README records current progress.
 
 For a release gate, record the exact source revision, Eclipse bundle identity, JDK, command and the JSON reports of every regression group, rerun against a clean build and distinguish direct JDT evidence from Claude agent behavior.
 

@@ -10,6 +10,11 @@
     <name>Agentic Debugger for Eclipse IDE</name>
     <properties>
         <tycho.version>5.0.4</tycho.version>
+        <!-- OPEN-31: the Eclipse release the plugin is compiled against = the OLDEST supported release (2025-12), so
+             every build proves the plugin uses no newer API; the same build runs on 2026-03, 2026-06 and 2026-09.
+             MANIFEST.MF's minimum versions are this release's. When a new Eclipse is released, move both to the next
+             oldest (for example 2026-03 after 2026-12). Override to try another: -Declipse.release=2026-09 -->
+        <eclipse.release>2025-12</eclipse.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
     <modules>
@@ -26,9 +31,9 @@
     </modules>
     <repositories>
         <repository>
-            <id>eclipse-2026-09</id>
+            <id>eclipse-release</id>
             <layout>p2</layout>
-            <url>https://download.eclipse.org/releases/2026-09</url>
+            <url>https://download.eclipse.org/releases/${eclipse.release}</url>
         </repository>
     </repositories>
     <build>

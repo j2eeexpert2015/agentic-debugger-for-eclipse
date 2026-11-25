@@ -16,7 +16,7 @@ Claude Code → MCP stdio server → authenticated localhost Eclipse bridge → 
 | `mcp-server/` | MCP tools, investigation tracking, session report and live events (`SessionReport`, `ActivityForwarder`), test-only fixture HTTP tools |
 | `report/` | Report events and isolation rules (ADR-009), shared escaping/Markdown/colours/JSON, the Agent Activity store and page (embedded in the plugin as `lib/report.jar`), the HTML report writer (the same page as a file) |
 | `dev-e2e/` | `DevE2E` (prepares the test Eclipse: config, build, deploy, start, report-replay), grader launcher |
-| `testing/` | Claude transcript grader and its unit tests, the Claude trial runner (`src/main`); the integration tests and Claude end-to-end tests as JUnit 5 classes (`src/test/java/.../e2e`, profile `integration-tests`, [list](integration-tests.md)); the 32-check ownership harness (`ownership-tests/`) |
+| `testing/` | Claude transcript grader and its unit tests, the Claude trial runner (`src/main`); the integration tests and Claude end-to-end tests as JUnit 5 classes (`src/test/java/.../e2e`, profile `integration-tests`, [list](integration-tests.md)); the user-resource safety tests that replaced the 32-check ownership harness are `UserResourceSafetyTests` |
 | `examples/` | Intentionally buggy fixtures the tests are written against; **never changed** |
 | `skills/eclipse-debugger/` | Optional agent guidance, separate from code-enforced safety |
 | `docs/` | Decisions (ADRs), capabilities and SB scenarios, feature catalog, this workflow, designs |

@@ -60,7 +60,8 @@ of the run is printed at the end. To repeat a trial, run the command again;
    stops only when the condition matches". In reports and result lines it is written `conditional-stops-only-on-match`.
 3. **Each test that changes anything runs in its own NORMAL investigation** and fails unless that investigation's
    cleanup was complete: own breakpoints gone, own JVM ended (base class `EclipseIntegrationTest`).
-4. **Stops are awaited with `WAIT_FOR_STOP`**, the way the agent does it, never by polling threads.
+4. **Stops are awaited with `WAIT_FOR_STOP`**, the way the agent does it, never by polling threads. (Exception: the
+   user's own program in `UserResourceSafetyTests`, which stopped before any wait, is checked with `GET_DEBUG_STATE`.)
 5. **Suites** list their classes (`@Suite`, `@SelectClasses`): `RegressionSuite`, `ExtendedSuite`, `FullSuite`. The
    tests share one Eclipse and run one after the other; every class has a 6-minute limit per test (`@Timeout`), the
    Claude tests 10 minutes.
@@ -93,10 +94,10 @@ Class, then each test method as it appears in reports.
 | `InvestigationIsolationTests` (**investigation-isolation**): one investigation never stops or changes another one's program | `borrowed-app-survives-other-finish` | B uses A's running program and finishes: A's program keeps running, and B can no longer restart it |
 | | `two-apps-stay-independent` | Orders and Inventory run together for two investigations; finishing Orders leaves Inventory running |
 
-## Extended suite: `ExtendedSuite` (9 tests)
+## Extended suite: `ExtendedSuite` (17 tests)
 
-Kept out of the default because they need a short lease or the bridge's test hook; run them for changes to cleanup
-or to the bridge.
+Kept out of the default because they need a short lease, the bridge's test hook or the test's user breakpoints
+and launches; run them for changes to cleanup, ownership or the bridge.
 
 | Class (report name) | Test | Checks |
 |---|---|---|
@@ -109,6 +110,14 @@ or to the bridge.
 | | `busy-command-reported` | A second state change gets `BRIDGE_BUSY` naming the running command, then succeeds |
 | | `parallel-requests-succeed` | 20 parallel reads all succeed |
 | | `wrong-token-rejected` | A missing or wrong token is refused |
+| `UserResourceSafetyTests` (**user-resource-safety**, OPEN-02/03): the user's own breakpoints and launches are never taken over, changed or removed. Before the tests the test Eclipse gets the user's things, created the way a person creates them (test commands `TEST_USER_*`): a line breakpoint in `LongRunningApplication`, an exception breakpoint for `ArithmeticException` (caught only), a launch configuration with program and VM arguments and an environment variable, running and stopped at that breakpoint; all removed afterwards. Runs in this order; each check is recorded under the name it had in the former PowerShell harness (`testing/ownership-tests`, deleted 25 Nov) | `user-breakpoints-cannot-be-taken-over` | The agent sees the user's breakpoints as the user's: cannot add a condition, an exception breakpoint over theirs, or remove either; both keep their settings |
+| | `borrowed-user-program-is-never-stopped` | The agent may use the user's running program but cannot stop or restart it; a second launch for that investigation is refused without leaving a configuration; the program is still stopped afterwards |
+| | `cleanup-removes-only-the-agents-own-things` | Finishing removes the agent's breakpoint and ends its program; a breakpoint the user set where the agent's was survives; the user's program keeps running; another investigation could not resume it; a finished ID is refused |
+| | `invalid-requests-are-refused` | Invalid mode, unknown JUnit method, invalid variable path, page over 50, malformed or too many step filters: refused |
+| | `same-name-programs-are-never-guessed` | Two runs of the user's configuration: borrowing by that name and reading its state are refused, never guessed |
+| | `stale-investigation-cannot-control-new-run` | After the user ended and restarted their program, an investigation that used the old run can neither pause nor finish against the new one |
+| | `controlled-investigation-keeps-its-program` | A CONTROLLED investigation keeps its stopped program and breakpoint at the finish (removed by the test afterwards) |
+| | `user-settings-are-unchanged` | After all of it: the user's breakpoints and launch configuration (main class, program and VM arguments, environment) unchanged, their program still running |
 
 ## Claude end to end: `ClaudeAgentEndToEndTests` (uses Claude usage)
 

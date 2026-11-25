@@ -36,6 +36,8 @@ public final class BridgeCommands {
             "EXPAND_VARIABLE",
             "GET_PROCESS_OUTPUT",
             "VERIFY_OWNED_FIXTURE_LAUNCH",
+            // Test Eclipse only (OPEN-02/03): reports the test's user breakpoints and launch configuration.
+            "TEST_USER_STATE",
             // Waits up to 60 s for a debugger stop but changes nothing (see WAITING below).
             "WAIT_FOR_STOP",
             // Bridge-level commands answered by the dispatcher itself.
@@ -65,7 +67,13 @@ public final class BridgeCommands {
             // Expressions can run arbitrary code in the debugged JVM.
             "EVALUATE_EXPRESSION",
             "CONTROL_DEBUG",
-            "BRIDGE_TEST_SLEEP");
+            "BRIDGE_TEST_SLEEP",
+            // Test Eclipse only (OPEN-02/03): create, change and remove the test's "user" breakpoints and launches.
+            "TEST_USER_SEED",
+            "TEST_USER_REPLACE_BREAKPOINT",
+            "TEST_USER_LAUNCH_AGAIN",
+            "TEST_TERMINATE_LAUNCH",
+            "TEST_USER_CLEANUP");
 
     /** Commands that launch, restart or terminate JVMs and may legitimately take long. */
     static final Set<String> LONG_RUNNING = Set.of(

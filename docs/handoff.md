@@ -24,7 +24,89 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 18:50): grader counts breakpoints the MCP server attached, checked 18:57
+## Last delivery (25 Nov, 22:20): OPEN-31 done, Eclipse 2025-12 to 2026-09, checked 22:22
+
+Final check 22:19-22:22: plain `mvn clean package` built against 2025-12 by default (report 51, MCP server 31, grader 21,
+plugin 57); build 1.5.0.202611251648 with the 2025-12 minimums installed into Eclipse 2026-09; regression 21/21.
+
+
+Results: build against 2025-12 without a compile error; Eclipse 2025-12: install, regression 21/21 (22:08),
+`UserResourceSafetyTests` 8/8 (22:03), agent-disconnect test and Agent Activity window ("Program: ended", 21:54); the
+same build 1.5.0.202611251630 on Eclipse 2026-09: regression 21/21 (22:15). Now:
+- `pom.xml`: `eclipse.release` default `2025-12` (the oldest supported release), with the rule for new releases.
+- `MANIFEST.MF`: minimums are the 2025-12 versions, read from the owner's 2025-12 install:
+  `org.eclipse.ui` 3.207.400, `org.eclipse.debug.core` 3.23.200, `org.eclipse.jdt.debug` 3.25.0.
+- README: OPEN-31 moved to Done.
+Machine setup: two test Eclipses, `C:\All_Softwares\eclipse` (2026-09, workspace `java-e2e-workspace`) and
+`C:\All_Softwares\eclipse-2025-12` (workspace `java-e2e-workspace-2025-12`); `dev-e2e/e2e.properties` points to one
+of them. Daily work on 2026-09; the regression on 2025-12 before a release. When Eclipse 2026-12 is released, the
+window moves: 2026-03 becomes the oldest (build target, minimums, test install).
+Check: plain `mvn clean package` (now against 2025-12), deploy into 2026-09, regression 21/21: the minimums do not
+block the install. Trial needed: no.
+
+## Delivery before (25 Nov, 21:40): the user's own breakpoints and launches proven safe (OPEN-02, OPEN-03, OPEN-09), checked 22:03
+
+Result 22:03 on Eclipse 2025-12 (build 1.5.0.202611251630, `clean` build: report 51, MCP server 31, grader 21, plugin 57):
+`UserResourceSafetyTests` 8/8 with the loop-counter check, user resources removed. OPEN-02, 03, 09, 35 moved to Done;
+`testing/ownership-tests` deleted. The Agent Activity window stays on "waiting" during these tests: they talk to the
+bridge directly, not through the MCP server, so no activity events exist (only the agent-disconnect test and Claude
+trials go through the MCP server). OPEN-31 so far on 2025-12: compiles, installs, these 8 tests, the agent-disconnect
+test and the window ("Program: ended", 21:54); the regression suite on 2025-12 is still to be reported.
+
+
+Prepared while OPEN-31 (Eclipse 2025-12) was being checked; on top of `eclipse-2025-12.zip`.
+- New plugin class `TestUserResources` with test commands `TEST_USER_SEED`, `TEST_USER_STATE`,
+  `TEST_USER_REPLACE_BREAKPOINT`, `TEST_USER_LAUNCH_AGAIN`, `TEST_TERMINATE_LAUNCH`, `TEST_USER_CLEANUP`: they create
+  the user's own things the way a person does (JDT breakpoints without the agent's attribute, a saved launch
+  configuration with program and VM arguments and an environment variable), only in the test Eclipse
+  (`AGENTDEBUG_E2E=1`) and only in the fixture project; what they create carries an extra attribute so a cleanup
+  also finds leftovers after an Eclipse restart. Classified in `BridgeCommands` (STATE read-only, the rest
+  state-changing).
+- New integration class `UserResourceSafetyTests` (extended and full suite; 8 tests, run in order): the 32 checks of
+  `testing/ownership-tests`, each recorded under its old name, plus OPEN-02's "the user's configuration keeps every
+  attribute". `testing/ownership-tests` stays until this class passes, then it is deleted.
+- OPEN-09: plugin unit test CR-U7 reads `ClaudeIntegration`: only `claude mcp get|add|remove eclipse-debugger`, never
+  Claude's files (plugin tests 57).
+- OPEN-35 marked done (confirmed by the owner 21:00).
+- OPEN-31 finding (owner's check 21:30 on Eclipse 2025-12, agent-disconnect test): the Agent Activity window opened
+  by itself with the right banner and tags, but its program line stayed "paused at StepFilterApplication.main:9"
+  although the cleanup had ended the JVM (2026-09 at 18:28 said "ended"). Eclipse reported the end after the finish
+  event, and `ActivityStore.program` ignored everything once the investigation was finished. Now "ended" is still
+  applied to the newest investigation after its finish (running or paused are not); AS-U9 changed accordingly.
+First run 21:36 (Eclipse 2025-12, build 1.5.0.202611251603, plugin tests 57): 7 of 8, 31 of 32 old checks PASS,
+user resources removed. Failed: "reused session stays suspended", one `GET_DEBUG_STATE` read right after the
+borrower's finish said not suspended. Nothing in the code path resumes a borrowed session (finish of a borrower
+touches no launch), and later tests found the user's program alive and stopped again; most likely the read caught
+Eclipse evaluating a variable for its views (the thread runs for that moment). The check now compares the program's
+loop counter before and after (any resume would raise it) instead of one read.
+Runs 21:52 and 21:54 used the OLD compiled test ("testCompile: Nothing to compile"): the extracted source carried
+the zip's file time (written in UTC, read as local time), older than the class compiled at 21:34, so Maven skipped
+it; the 21:54 PASS was the old single read being lucky. Lesson: a command that only extracts sources runs
+`mvn ... clean ...`; zips are now written with India time.
+Check: `mvn -pl testing clean verify -Dit.test=UserResourceSafetyTests`; expected 8/8 and `userLoopCountBefore` equal
+to `userLoopCountAfter` in `evaluation/reports/user-resource-safety.json`. Then the agent-disconnect test once more
+on 2025-12: the window's program line says "ended".
+Not run by me: the new plugin class compiles against stubs of the JDT and debug APIs only; the integration class
+compiles. Trial needed: no.
+
+## Delivery before (25 Nov, 21:00): older Eclipse releases, first step (OPEN-31), waiting for check
+
+Branch `feature/open-31-eclipse-compatibility`. Goal: support the last four Eclipse releases (2025-12 to 2026-09).
+Java stays 21: Eclipse itself requires Java 21 since 2024-06, so a lower Java level would not widen the range; the
+code is Java 17 level except one pattern `switch` in `AsyncReportRecorder`.
+- `pom.xml`: the build target is the property `eclipse.release` (default `2026-09`), so
+  `mvn clean package -Declipse.release=2025-12` compiles the plugin against 2025-12 and reports any newer API it uses.
+- `MANIFEST.MF`: the minimum versions `org.eclipse.ui 3.209.100`, `org.eclipse.debug.core 3.24.0` and
+  `org.eclipse.jdt.debug 3.26.100` (all 2026-09) removed; they made 2025-12 and older refuse the install. Once the
+  oldest supported release is known, set the minimums to its versions.
+- Test Eclipse 2025-12 in `C:\All_Softwares\eclipse-2025-12`, its own workspace; `dev-e2e/e2e.properties` (not in
+  git) points to it while checking: `eclipse=C:/All_Softwares/eclipse-2025-12`,
+  `workspace=${LOCALAPPDATA}/AgenticDebugger/java-e2e-workspace-2025-12`. DevE2E creates the workspace and the plugin
+  imports the test projects on the first start.
+Check: build against 2025-12, deploy, regression suite 21/21, a look at the Agent Activity view. Then the same build
+on 2026-09. Trial needed: no.
+
+## Delivery before (25 Nov, 18:50): grader counts breakpoints the MCP server attached, checked 18:57
 
 Result: grader tests 21/21; re-grade of the 18:43 Haiku transcript: PASS (tools=13, waits=3, turns=20, flowFields=6/7,
 purpose=3/3). So the one Haiku check is a PASS at $0.014 and 20 turns.
@@ -221,7 +303,7 @@ Drop the last line when the delivery says "Trial needed: no". All tests and opti
 
 **Modules** (7 in the reactor): `report` (events, isolation, HTML report writer, the Agent Activity store and page;
 no dependencies; embedded in the plugin as `lib/report.jar`), `mcp-server`, `testing` (grader, Claude trial runner, the
-integration tests as JUnit classes in `src/test/java/.../e2e`, the ownership harness in `ownership-tests/`), `eclipse-plugin`, `eclipse-feature`,
+integration tests as JUnit classes in `src/test/java/.../e2e`), `eclipse-plugin`, `eclipse-feature`,
 `eclipse-update-site`, the parent `pom.xml`. `dev-e2e/` holds `DevE2E` (prepares the test Eclipse) and the grader launcher.
 
 **OPEN-38 codebase reduction** ([analysis](codebase-reduction-analysis.md)):
@@ -286,7 +368,7 @@ stop), `ActivityStore` (events in memory). Step titles and details come from `mc
 (page actions `open`, `openReport`, `theme`). The assistant checks its work with the report unit tests run outside
 Maven against JUnit stand-ins, and renders reports from the 10:23 trial data in Chrome to look at them.
 
-**Other open items** (details in the README table): OPEN-35 manual check, OPEN-37 (mostly covered by R4 phase 1; source line under stops open),
-OPEN-30 R2b/R3, OPEN-03 ownership harness by hand (`testing/ownership-tests/run.ps1` after a deploy, Eclipse closed),
-OPEN-22/23, OPEN-31 to OPEN-34, and the older test items. `examples/README.md` has two dead links to deleted documents;
+**Other open items** (details in the README table): OPEN-37 (mostly covered by R4 phase 1; source line under stops open),
+OPEN-30 R2b/R3, OPEN-22/23, OPEN-32 to OPEN-34, `control_debug_session` without an investigation can
+stop or resume any session (found 25 Nov, decision pending), and the older test items. `examples/README.md` has two dead links to deleted documents;
 left unchanged by the rule above until the owner decides.

@@ -133,6 +133,13 @@ public final class EclipseAgentOperations {
                 case "CONTROL_DEBUG" -> control(p);
                 case "VERIFY_OWNED_FIXTURE_LAUNCH" -> TEST_SUPPORT ? verifyOwnedFixtureLaunch(p) : testOnly(p[0]);
                 case "GET_PROCESS_OUTPUT" -> getProcessOutput(p);
+                // OPEN-02/03: the user's own breakpoints and launches, created for the user-resource safety tests.
+                case "TEST_USER_SEED" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
+                case "TEST_USER_STATE" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
+                case "TEST_USER_REPLACE_BREAKPOINT" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
+                case "TEST_USER_LAUNCH_AGAIN" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
+                case "TEST_TERMINATE_LAUNCH" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
+                case "TEST_USER_CLEANUP" -> TEST_SUPPORT ? TestUserResources.execute(p) : testOnly(p[0]);
                 default -> error("Unknown command");
             };
         } catch (Exception e) {
@@ -144,7 +151,7 @@ public final class EclipseAgentOperations {
 
     /**
      * Test support (OPEN-38 step 5): the commands only the test tools use ({@code GET_E2E_INFO},
-     * {@code VERIFY_OWNED_FIXTURE_LAUNCH}) answer only in an Eclipse started by {@code dev-e2e/DevE2E.java}, which
+     * {@code VERIFY_OWNED_FIXTURE_LAUNCH}, the {@code TEST_USER_*} commands of {@link TestUserResources}) answer only in an Eclipse started by {@code dev-e2e/DevE2E.java}, which
      * sets {@code AGENTDEBUG_E2E=1}; in a normal Eclipse they are refused. (The fixture HTTP tools of the MCP server
      * are switched on the same way, by {@code AGENTDEBUG_E2E_HTTP}, and the fixture projects by
      * {@code AGENTDEBUG_FIXTURE_SOURCE}.)
