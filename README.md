@@ -295,6 +295,7 @@ Changes follow an **evidence-first, reviewable process**: reproduce and isolate 
 | [Test guide](dev-e2e/README.md) | `DevE2E` commands, suites, Claude trials, setup checks |
 | [Designs](docs/design/README.md) | Agent Activity view and report designs and requirements |
 | [Codebase reduction](docs/codebase-reduction-analysis.md) | The OPEN-38 analysis and plan |
+| [Handoff](docs/handoff.md) | Where the work stands and how it is done, for a new chat or a new helper; read first |
 | [Coding-agent instructions](AGENTS.md) · [Skill](skills/eclipse-debugger/SKILL.md) | |
 
 Dated phase reports, the old roadmaps, backlog and handoff were removed on 25 Nov 2026 (OPEN-38 step 2); they remain in the git history.
