@@ -24,7 +24,7 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 15:15): OPEN-39 token use, items 1 and 2, waiting for check
+## Last delivery (25 Nov, 15:15): OPEN-39 token use, items 1 and 2, checked 15:45 to 15:48
 
 The owner asked (14:24) whether the tool and the tests spend tokens they need not. Analysis of the trial transcript
 `boot-quote-20261125-065851-157.claude.jsonl` (Sonnet, $0.19, 25 turns, 20 API calls, cache read 676k, output 5.5k):
@@ -45,6 +45,24 @@ listed first, the value hidden in `intCompact`), and after the finish it called 
   (`SessionReport.withReportFile`, `ReportingTools`, SR-U15). Skill and tool descriptions say no re-check is needed.
 - Trial needed: **yes** (tool replies and the skill changed). Expected: no second expansion of `unitPrice`, no
   `list_*`/`get_investigation_report` calls after the finish, fewer turns than 25.
+
+Result 25 Nov 15:45 and 15:48 (two trials, both `VERDICT PASS`, `REPORT CHECK PASS`, flowFields 7/7, purpose 2/2).
+Transcript `boot-quote-20261125-101805-410.claude.jsonl` against the 06:58 one:
+
+| | 06:58 (before) | 15:48 (after) |
+|---|---|---|
+| Turns | 25 | 18 |
+| Cost | $0.19 | $0.14 |
+| Cache read / cache write / output tokens | 676k / 17k / 5.5k | 497k / 11k / 4.4k |
+| Expansions of `unitPrice` | 2 | 0 (`wait_for_stop` showed `"value":"60"`) |
+| Calls after the finish | 3 (`list_debug_sessions`, `list_breakpoints`, `get_investigation_report`) | 0 |
+
+The finish reply carried `breakpointsRemoved 1`, `ownBreakpointsLeft 0`, `cleanup` and `reportFile`; the final answer
+gave the report path from it. What is left: about 30k tokens of every call are Claude Code's own context (the owner's
+37 skills, plugins and tools), read again on each of about 13 calls; that is the trial's Claude configuration, not
+our tool. The two calls at the start (`list_debug_sessions`, `list_breakpoints`) stay: the skill's safety check
+before changing state, small replies. ToolSearch loads 16 of our tools at once, 4 of them unused (about 4.5k tokens
+once); not worth a change.
 
 Later in OPEN-39: Haiku against Sonnet (3 runs each), a smaller Claude configuration for trials, shorter tool
 descriptions, `wait_for_debug_pause` removed, possible duplicate regression scenarios compared before any removal.
