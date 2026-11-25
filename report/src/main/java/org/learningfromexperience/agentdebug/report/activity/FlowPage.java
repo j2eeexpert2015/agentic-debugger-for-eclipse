@@ -24,7 +24,9 @@ import org.learningfromexperience.agentdebug.report.format.ReportFormat;
  *       trips no longer fill the page;</li>
  *   <li><b>No stop</b>: the program ended, or the wait ended, without a stop; also added when breakpoints were set but
  *       nothing ever stopped;</li>
- *   <li><b>Never hit</b>: a breakpoint that was set but never stopped the program (OPEN-37);</li>
+ *   <li><b>Never hit</b>: a breakpoint that was set but never stopped the program (OPEN-37); <b>Not checked</b>
+ *       instead when the agent never asked whether the program stopped (no wait for a stop, no stack or variables
+ *       read), for example an agent that disconnected: then whether it was hit is not known;</li>
  *   <li><b>Cleanup</b>; and <b>From the agent</b>, the agent's analysis, the only node that is not recorded data.</li>
  * </ul>
  * A refused call stays with the node it was made at and is marked there.
@@ -45,7 +47,10 @@ import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 final class FlowPage {
 
     /** What a node stands for. */
-    enum Kind { PREP, REQUEST, ASSUMED, RESPONSE, STOP, NOSTOP, NEVER, CLEAN, AGENT }
+    enum Kind { PREP, REQUEST, ASSUMED, RESPONSE, STOP, NOSTOP, NEVER, UNCHECKED, CLEAN, AGENT }
+
+    /** The node added when breakpoints were set but the agent never asked whether the program stopped. */
+    static final String STOPS_NOT_CHECKED = "Stops not checked";
 
     /** One call, or several identical ones, at a node: the tool, what it was about (path, action), how often. */
     record Call(String tool, String about, int count, boolean refused) {
@@ -467,7 +472,11 @@ final class FlowPage {
         return m.find() ? m.group(1) + ":" + m.group(2) : title;
     }
 
-    /** Breakpoints that never stopped the program, and "No stop was reached" when there were breakpoints but no stop. */
+    /**
+     * Breakpoints that never stopped the program, and "No stop was reached" when there were breakpoints but no stop.
+     * When the agent never asked whether the program stopped (no wait for a stop, no stack or variables read), nothing
+     * is known about the breakpoints: they are "Not checked", not "Never hit".
+     */
     private static List<Node> missed(ActivityStore.Investigation inv, List<Node> nodes) {
         Set<String> hit = new LinkedHashSet<>();
         boolean stopped = false, noStopNode = false;
@@ -485,14 +494,23 @@ final class FlowPage {
             Matcher m = BREAKPOINT.matcher(s.title());
             if (m.find()) set.putIfAbsent(simple(m.group(1)) + ":" + m.group(2), i);
         }
+        boolean asked = false;
+        for (ActivityStore.Step s : inv.steps())
+            if ("STOP".equals(s.kind()) || "INSPECT".equals(s.kind())) asked = true;
         List<Node> out = new ArrayList<>();
         if (!set.isEmpty() && !stopped && !noStopNode)
-            out.add(new Node(Kind.NOSTOP, "No stop was reached", "breakpoints were set, but the program never stopped",
-                    List.of(), null, null, null, List.of(), List.of(), List.of(), List.of(), null, List.of(), false,
-                    null, null));
+            out.add(asked
+                    ? new Node(Kind.NOSTOP, "No stop was reached", "breakpoints were set, but the program never stopped",
+                            List.of(), null, null, null, List.of(), List.of(), List.of(), List.of(), null, List.of(), false,
+                            null, null)
+                    : new Node(Kind.NOSTOP, STOPS_NOT_CHECKED, "breakpoints were set, but the agent never asked whether"
+                            + " the program stopped", List.of(), null, null, null, List.of(), List.of(), List.of(), List.of(),
+                            null, List.of(), false, null, null));
         for (var e : set.entrySet()) {
             if (hit.contains(e.getKey())) continue;
-            out.add(new Node(Kind.NEVER, e.getKey(), "breakpoint set, never hit", List.of(e.getValue()), null, null,
+            out.add(new Node(asked ? Kind.NEVER : Kind.UNCHECKED, e.getKey(),
+                    asked ? "breakpoint set, never hit" : "breakpoint set, not checked whether it was hit",
+                    List.of(e.getValue()), null, null,
                     null, List.of(), List.of(), List.of(), List.of(), null, List.of(), false,
                     purposeOf(inv.steps().get(e.getValue())), null));
         }
@@ -611,7 +629,7 @@ final class FlowPage {
             .fnode .side{display:block;font-size:12px;color:#1f2937;margin-top:4px}
             .fnode .side span{background:#e0e7ff;color:#1e3a8a;border-radius:5px;padding:0 7px;margin-right:4px;
             display:inline-block;font-weight:600}
-            .fnode.never{border-style:dashed;border-left-style:solid;background:#f8fafc}
+            .fnode.never,.fnode.unchecked{border-style:dashed;border-left-style:solid;background:#f8fafc}
             .fnode.agent{border-style:dashed;border-left-style:solid;background:#faf5ff}
             .fnode.nostop{background:#fffbeb}
             .farrow{height:16px;margin-left:24px;border-left:3px solid #94a3b8}
@@ -779,7 +797,7 @@ final class FlowPage {
             body.dark .fnode .nm{color:var(--text);font:650 14px ui-monospace,Consolas,monospace}
             body.dark .fnode .sub{color:var(--muted);font-size:12px}
             body.dark .fnode .side span{background:rgba(90,162,255,.13);color:#bcd6ff;font-weight:500}
-            body.dark .fnode.never,body.dark .fnode.agent{border-style:dashed;background:var(--panel2)}
+            body.dark .fnode.never,body.dark .fnode.unchecked,body.dark .fnode.agent{border-style:dashed;background:var(--panel2)}
             body.dark .fnode.nostop{border-color:rgba(255,200,87,.5)}
             body.dark .fnode:hover{border-color:var(--blue)}
             body.js.dark .fnode{opacity:.55}
@@ -995,7 +1013,7 @@ final class FlowPage {
     /** The arrow into node i is dashed when it leads to or from something not recorded as it ran. */
     private static boolean dashed(List<Node> nodes, int i) {
         Kind k = nodes.get(i).kind(), before = nodes.get(i - 1).kind();
-        return k == Kind.AGENT || k == Kind.NEVER || k == Kind.ASSUMED || before == Kind.ASSUMED;
+        return k == Kind.AGENT || k == Kind.NEVER || k == Kind.UNCHECKED || k == Kind.ASSUMED || before == Kind.ASSUMED;
     }
 
     private static String nodeClass(Node n) {
@@ -1107,6 +1125,13 @@ final class FlowPage {
         StringBuilder out = new StringBuilder();
         if (n.breakpointHit()) out.append("<span class=\"ftag bp\">BREAKPOINT HIT</span>");
         if (n.kind() == Kind.NEVER) out.append("<span class=\"ftag never\">NEVER HIT</span>");
+        // Not checked is the absence of an observation: never also tagged OBSERVED.
+        boolean notChecked = n.kind() == Kind.UNCHECKED || STOPS_NOT_CHECKED.equals(n.name());
+        if (notChecked) {
+            out.append("<span class=\"ftag never\">NOT CHECKED</span>");
+            if (n.refused() > 0) out.append("<span class=\"ftag ref\">REFUSED CALL</span>");
+            return out.toString();
+        }
         if (n.refused() > 0) out.append("<span class=\"ftag ref\">REFUSED CALL</span>");
         out.append(n.kind() == Kind.AGENT || n.kind() == Kind.ASSUMED ? "<span class=\"ftag agent\">FROM THE AGENT</span>"
                 : "<span class=\"ftag obs\">OBSERVED</span>");
@@ -1119,7 +1144,7 @@ final class FlowPage {
             case REQUEST, RESPONSE -> ReportFormat.kindColour("HTTP");
             case STOP -> ReportFormat.kindColour("STOP");
             case NOSTOP -> "#f59e0b";
-            case NEVER -> "#9ca3af";
+            case NEVER, UNCHECKED -> "#9ca3af";
             case CLEAN -> ReportFormat.kindColour("CLEANUP");
             case AGENT, ASSUMED -> "#7c3aed";
         };
@@ -1134,6 +1159,7 @@ final class FlowPage {
             case REQUEST -> "HTTP request: " + n.name();
             case RESPONSE -> "HTTP response: " + n.name().substring("HTTP ".length());
             case NEVER -> "Never hit: breakpoint " + n.name();
+            case UNCHECKED -> "Not checked: breakpoint " + n.name();
             case AGENT -> analysis(inv).title() != null ? "From the agent: " + analysis(inv).title() : n.name();
             default -> n.name();
         };
@@ -1150,6 +1176,10 @@ final class FlowPage {
                     "The breakpoint at " + n.name() + " was set (step " + (inv.droppedSteps() + n.steps().get(0) + 1)
                             + ") but the program never stopped there in this session: the line was not reached by"
                             + " what ran, or another branch was taken."))).append("</div></div>");
+            case UNCHECKED -> out.append("<div class=\"fsec\"><div class=\"fobs\">").append(ActivityPage.links(html(
+                    "The breakpoint at " + n.name() + " was set (step " + (inv.droppedSteps() + n.steps().get(0) + 1)
+                            + "), but the agent never asked whether the program stopped: no wait for a stop and no stack"
+                            + " or variables read. Whether the program reached it is not known."))).append("</div></div>");
             case AGENT -> agentBody(inv, out);
             case ASSUMED -> out.append("<div class=\"fsec\"><div class=\"fagent\">").append(ActivityPage.links(html(n.sub())))
                     .append("</div><div class=\"fnote\">The agent's description of how the request reached the first stop."
@@ -1172,13 +1202,14 @@ final class FlowPage {
             }
         }
         if (n.purpose() != null)
-            out.append("<div class=\"fsec\"><h3>").append(n.kind() == Kind.NEVER ? "Why the agent set it"
+            out.append("<div class=\"fsec\"><h3>").append(n.kind() == Kind.NEVER || n.kind() == Kind.UNCHECKED ? "Why the agent set it"
                             : "Why the agent stopped here").append(" <span class=\"ftag agent\">FROM THE AGENT</span>"
                     + "</h3><div class=\"fagent\">").append(html(n.purpose())).append("</div></div>");
         if (n.finding() != null)
             out.append("<div class=\"fsec\"><h3>What the agent learned here <span class=\"ftag agent\">FROM THE AGENT"
                     + "</span></h3><div class=\"fagent\">").append(html(n.finding())).append("</div></div>");
-        if (n.kind() != Kind.NEVER && n.kind() != Kind.AGENT && n.kind() != Kind.ASSUMED) calls(inv, n, out);
+        if (n.kind() != Kind.NEVER && n.kind() != Kind.UNCHECKED && n.kind() != Kind.AGENT && n.kind() != Kind.ASSUMED)
+            calls(inv, n, out);
     }
 
     /**

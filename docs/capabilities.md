@@ -69,7 +69,7 @@ Keep these stable IDs aligned with the [feature roadmap](feature-roadmap.md), wh
 | CORE-10 | Source and installed binary integrity checks | Historical candidate checks passed; recheck source/artifact match for release |
 | CORE-11 | Windows build/deploy/doctor/test scripts | Local installed deployment, doctor and regression passed; keep isolated test workspace |
 | CORE-14 | Event-based stop waiting (`wait_for_stop`): reason, thread, location, frames and locals in one call; `TERMINATED`/`TIMEOUT` explicit | **Verified on installed Windows build, 23 Nov 2026** (`stops` group 5/5 stop scenarios, 23/23 regression). See [feature roadmap](feature-roadmap.md#phase-0--core-eclipse-mcp) |
-| CORE-15 | Process output keeps beginning and end (first/last 4000 characters, total sizes) | **Verified on installed Windows build, 23 Nov 2026** (`stops:output`); unit checks OUT-U1..U5 5/5 |
+| CORE-15 | Process output keeps beginning and end (first/last 4000 characters, total sizes) | **Verified on installed Windows build, 23 Nov 2026** (`stops:output`, now `stops-and-variables:program-output-read`); unit checks OUT-U1..U5 5/5 |
 | CORE-12 | Optional agent debugging skill | Skill source exists; live activation/comparative acceptance incomplete; core debugger independent |
 | JAVA-01 | Conditional breakpoints | Phase 1 direct and explicit Claude verified |
 | JAVA-02 | Caught/uncaught exception breakpoints | Phase 1 verified; Spring exception handler tested separately with line stops |
@@ -152,10 +152,11 @@ fixture HTTP client only calls a verified loopback server belonging to the fixtu
 
 ```cmd
 java dev-e2e/DevE2E.java config
-java dev-e2e/DevE2E.java test --suite regression --approve-fixture-post
+java dev-e2e/DevE2E.java start
+mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 ```
 
-Results are written to `evaluation/reports/*-java-live.json`. The direct verifiers do **not** run Claude and do not
+Results are written to `evaluation/reports/<group>.json` (groups and scenarios: [integration tests](integration-tests.md)). The direct tests do **not** run Claude and do not
 establish symptom-prompt quality; see the [test guide](../dev-e2e/README.md) for Claude trials. This file describes
 **current user-visible capabilities**, not future feature promises; feature IDs and their evidence are in the
 [feature catalog](feature-roadmap.md).

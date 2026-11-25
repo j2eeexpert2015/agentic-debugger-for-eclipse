@@ -1,4 +1,4 @@
-# Handoff for a new chat (25 Nov 2026, 15:15)
+# Handoff for a new chat (25 Nov 2026, 17:45)
 
 Read this first, then the README section **Status and tracking**, which is the single tracking list. This file only
 says where the work stands and how we work; details live in the README and the documents it links.
@@ -24,7 +24,62 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (25 Nov, 15:15): OPEN-39 token use, items 1 and 2, checked 15:45 to 15:48
+## Last delivery (25 Nov, 18:10): an agent that left without finishing, shown and tested properly, waiting for check
+
+Checked 17:42 (`report-not-checked.zip`): the window showed "Stops not checked" and NOT CHECKED, the replayed report
+differed from the original only by the new style lines, REPORT CHECK PASS. The owner then pointed at what was still
+wrong on the screenshot; three fixes (`agent-left.zip`):
+- The two "not checked" nodes carried NOT CHECKED and OBSERVED at once: now NOT CHECKED only (`FlowPage.tags`,
+  `STOPS_NOT_CHECKED`; FP-U9 checks the tags of every node).
+- The banner said only "Ended without the agent finishing it": now also why, from the MCP server's record, e.g.
+  "...: agent closed the MCP connection, so the MCP server finished it" (`ActivityPage.statusLine`, AP-U2 extended).
+- The test `agentDisconnectCleansUp` continued as soon as the program was launched (2 s), so it never proved the
+  realistic case. It now confirms through the bridge that the program is stopped at `StepFilterApplication:9` before
+  the agent's connection closes, then that the breakpoint is gone and the stopped JVM ended.
+Trial needed: no.
+
+## Delivery before (25 Nov, 17:45): report says "not checked" instead of "never hit", checked 17:42
+
+The owner saw, during the run below, the Agent Activity window of the test "Closing the agent connection cleans up":
+"No stop was reached" and "StepFilterApplication:9 NEVER HIT". That test sets a breakpoint, starts the program and
+closes its connection without ever asking whether the program stopped, so the report could not know; the program was
+probably stopped there (exit value 1: ended by the cleanup). `FlowPage.missed` now checks whether the agent asked
+(any wait for a stop or any stack/variables read): if not, the node is "Stops not checked" and each breakpoint
+"Not checked" (new kind `UNCHECKED`, tag NOT CHECKED) instead of "No stop was reached" / "Never hit" (FP-U3 changed,
+FP-U9 new; report tests 51). Also `testing/pom.xml`: the profile no longer lists the `-D` options again (Maven passes
+them by itself; the list caused "System property ... overwritten" warnings). Trial needed: no (`report-replay`).
+
+## Delivery before (25 Nov): integration tests as JUnit 5 (OPEN-18), checked 17:26 to 17:32
+
+Result: build with all unit tests, `deploy` ready, `FullSuite` 30/30 in 3 min (every class green on the first run),
+`ClaudeAgentEndToEndTests#springBootWrongQuote` VERDICT PASS (10 debugger calls, 17 turns, $0.21) with REPORT CHECK
+PASS. OPEN-18 moved to Done.
+
+The owner found the test group names meaningless (`phase1`, `phase2`, `acceptance`, `boot-gaps` describe when a test
+was written) and the DevE2E options hard to read. In one delivery (`junit-integration-tests.zip`, it replaces the
+unchecked `tests-by-feature.zip`):
+- **Regrouped by feature** after a full inventory ([integration tests](integration-tests.md), section "What changed"):
+  duplicates removed (`boot/discovery`, `boot/readiness`, `phase2/ownership`, `boot-gaps/owned-isolation`), the
+  owner dropped `boot-gaps/readiness-timeout` (tested the fixture, not the product; flaky), overlaps merged. Regression
+  23 → 21, full 38 → 30.
+- **JUnit 5 classes** in `testing/src/test/java/.../e2e`: one per feature on the base class `EclipseIntegrationTest`
+  (its own investigation per test, cleanup asserted in `@AfterEach`, one result line per test, a JSON report per
+  class), test methods named after the behaviour with readable `@DisplayName`s, suites `RegressionSuite`,
+  `ExtendedSuite`, `FullSuite` (`@SelectClasses`), approvals as JUnit conditions (skipped, not failed, without them),
+  `@Timeout` 6 min. Run with `mvn -pl testing verify -Pintegration-tests [-Dit.test=...]` (failsafe profile in
+  `testing/pom.xml`) or from the IDE. Settings come from `dev-e2e/e2e.properties` (`TestEnvironment`).
+- **Claude trials** are `ClaudeAgentEndToEndTests` (3 tests, pass = verdict PASS; `-Dclaude.approved=true`,
+  `-Dclaude.model`, `-Dclaude.report`, `-Dclaude.skill`); the runner moved to `testing/.../testing/trial/ClaudeSymptomTrial.java`
+  (`run(...)` returns the verdict). The skill sync moved from DevE2E into the test class.
+- **Step B:** every wait for a stop uses `WAIT_FOR_STOP` (`awaitStop`), the way the agent does it.
+- **DevE2E** only prepares the test Eclipse: `config`, `build`, `all`, `deploy`, `start`, `report-replay`
+  (866 → 494 lines); `test` and `list` say what replaced them.
+- Checked by the assistant: everything compiles against the real JUnit 5.14.1 API (built from its sources) with all
+  warnings as errors; the JUnit run itself was tried against a fake bridge: result lines, report, skips with reasons,
+  the regression suite finding all 21 tests. Not checked: Maven's failsafe profile (no Maven access here) and the real Eclipse.
+- Trial needed: no product change, but the Claude runner moved; the standard check runs one Claude test to confirm it.
+
+## Earlier delivery (25 Nov, 15:15): OPEN-39 token use, items 1 and 2, checked 15:45 to 15:48
 
 The owner asked (14:24) whether the tool and the tests spend tokens they need not. Analysis of the trial transcript
 `boot-quote-20261125-065851-157.claude.jsonl` (Sonnet, $0.19, 25 turns, 20 API calls, cache read 676k, output 5.5k):
@@ -126,19 +181,22 @@ Close Eclipse first, then:
 ```
 cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse ^
  && call mvn clean package ^
- && java dev-e2e/DevE2E.java deploy --suite regression --approve-fixture-post ^
- && java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post --report
+ && java dev-e2e/DevE2E.java deploy ^
+ && call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true ^
+ && call mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true -Dclaude.report=true
 ```
 
-Expected now: BUILD SUCCESS with unit tests `report` 50, `mcp-server` 31, `testing` 19, `eclipse-plugin` 56;
-regression 23/23; the trial `VERDICT PASS` and `REPORT CHECK PASS`.
+Expected now: BUILD SUCCESS with unit tests `report` 51, `mcp-server` 31, `testing` 19, `eclipse-plugin` 56;
+`deploy` ends with "The test Eclipse is ready"; `RegressionSuite` 21 tests, 0 failures (30 with `-Dit.test=FullSuite`) (one line per test such as
+`breakpoints/conditional-stops-only-on-match: PASS`); the Claude test passes (VERDICT PASS) with `REPORT CHECK PASS`.
+Drop the last line when the delivery says "Trial needed: no". All tests and options: [integration tests](integration-tests.md).
 
 ## Where things stand
 
 **Modules** (7 in the reactor): `report` (events, isolation, HTML report writer, the Agent Activity store and page;
-no dependencies; embedded in the plugin as `lib/report.jar`), `mcp-server`, `testing` (grader, the direct bridge
-verifiers in package `e2e`, the ownership harness in `ownership-tests/`), `eclipse-plugin`, `eclipse-feature`,
-`eclipse-update-site`, the parent `pom.xml`. `dev-e2e/` holds `DevE2E` (build, deploy, test runs) and the Claude trial.
+no dependencies; embedded in the plugin as `lib/report.jar`), `mcp-server`, `testing` (grader, Claude trial runner, the
+integration tests as JUnit classes in `src/test/java/.../e2e`, the ownership harness in `ownership-tests/`), `eclipse-plugin`, `eclipse-feature`,
+`eclipse-update-site`, the parent `pom.xml`. `dev-e2e/` holds `DevE2E` (prepares the test Eclipse) and the grader launcher.
 
 **OPEN-38 codebase reduction** ([analysis](codebase-reduction-analysis.md)):
 - Steps 1 to 3 done and checked (unused files, documents, one JSON reader, no legacy bridge).
@@ -146,8 +204,8 @@ verifiers in package `e2e`, the ownership harness in `ownership-tests/`), `eclip
   removed, test commands only in a `DevE2E` Eclipse, `e2e-runner` merged into `testing`. Build with the test counts
   below, regression 23/23, Claude trial PASS with REPORT CHECK PASS (three runs). Result: 189 files to 125, 13 Maven
   modules to 7. OPEN-38 is done.
-- Not done on purpose: one runner with scenario classes (most verifiers already share `PhaseOneBridgeVerifier.Bridge`
-  and `.Json`; a rewrite only the live regression can check costs more than it saves).
+- One test class per feature group was left out of OPEN-38 on purpose; the owner asked for it on 25 Nov afternoon
+  (unclear group names), done as OPEN-18 step A2 (see "Last delivery").
 
 **OPEN-36 Agent Activity** (live view of what the agent does):
 - The page shows the steps in time order (running step red and breathing, done green), the pinned banner with a

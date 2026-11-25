@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 
 /**
- * JUnit 5 unit tests for {@link FlowPage}, the program flow of the HTML report (FP-U1 to FP-U8, OPEN-30 R4 phases 1 and 2).
+ * JUnit 5 unit tests for {@link FlowPage}, the program flow of the HTML report (FP-U1 to FP-U9, OPEN-30 R4 phases 1 and 2).
  * The steps have the titles and details the MCP server writes (trial of 25 Nov 10:23 and variations of it). No Eclipse
  * needed: run by {@code mvn clean package}.
  *
@@ -163,11 +163,38 @@ class FlowPageTest {
                 FlowPage.Kind.NEVER, FlowPage.Kind.CLEAN), kinds(none), "the wait itself is the no-stop node");
         assertEquals("Waited for a stop: none (TIMEOUT)", none.get(2).name());
 
-        List<FlowPage.Node> silent = FlowPage.nodes(inv(List.of(breakpoint("OrderService", 24), LAUNCH, REQUEST,
+        // The agent read the stack but never waited: it asked, so a breakpoint not seen is "never hit".
+        List<FlowPage.Node> looked = FlowPage.nodes(inv(List.of(breakpoint("OrderService", 24), LAUNCH, REQUEST,
+                ok("INSPECT", "Read the call stack: OrdersApplication", List.of(), "Tool: get_stack_frames"),
                 RESPONSE, CLEANUP), null));
         assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.REQUEST, FlowPage.Kind.RESPONSE, FlowPage.Kind.NOSTOP,
-                FlowPage.Kind.NEVER, FlowPage.Kind.CLEAN), kinds(silent));
-        assertEquals("No stop was reached", silent.get(3).name());
+                FlowPage.Kind.NEVER, FlowPage.Kind.CLEAN), kinds(looked));
+        assertEquals("No stop was reached", looked.get(3).name());
+    }
+
+    @Test @DisplayName("FP-U9 an agent that never asked whether the program stopped: breakpoints 'not checked', not 'never hit'")
+    void fpU9() {
+        // As in the agent-disconnect test of 25 Nov 17:30: breakpoint, launch, then the agent's connection closed.
+        ActivityStore.Investigation inv = inv(List.of(breakpoint("StepFilterApplication", 9), LAUNCH,
+                ok("CLEANUP", "Cleaned up automatically", List.of("Finished by the MCP server: agent closed the MCP connection",
+                        "Removed own breakpoint StepFilterApplication:9"))), null);
+        List<FlowPage.Node> nodes = FlowPage.nodes(inv);
+        assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.NOSTOP, FlowPage.Kind.UNCHECKED, FlowPage.Kind.CLEAN),
+                kinds(nodes));
+        assertEquals("Stops not checked", nodes.get(1).name());
+        assertEquals("StepFilterApplication:9", nodes.get(2).name());
+        String html = FlowPage.render(inv);
+        assertTrue(html.contains("NOT CHECKED") && html.contains("Not checked: breakpoint ")
+                && html.contains("never asked whether the program stopped"), "the page says what is not known");
+        assertFalse(html.contains("NEVER HIT") || html.contains("No stop was reached")
+                || html.contains("the program never stopped"), "and claims nothing it did not see");
+        // The two "not checked" nodes carry NOT CHECKED only, never OBSERVED; the recorded ones stay OBSERVED.
+        String flow = html.substring(html.indexOf("<div class=\"fflow\">"), html.indexOf("<div class=\"fdetail\">"));
+        String[] boxes = flow.split("<a class=\"fnode ");
+        assertTrue(boxes[1].startsWith("prep") && boxes[1].contains("ftag obs"), "Preparation was recorded");
+        assertTrue(boxes[2].contains("NOT CHECKED") && !boxes[2].contains("ftag obs"), "Stops not checked: " + boxes[2]);
+        assertTrue(boxes[3].contains("NOT CHECKED") && !boxes[3].contains("ftag obs"), "the breakpoint: " + boxes[3]);
+        assertTrue(boxes[4].startsWith("clean") && boxes[4].contains("ftag obs"), "the cleanup was recorded");
     }
 
     @Test @DisplayName("FP-U4 expressions with their results; a refused call stays at its node and is marked")

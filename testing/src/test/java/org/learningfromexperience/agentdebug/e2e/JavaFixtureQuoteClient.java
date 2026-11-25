@@ -113,7 +113,7 @@ public final class JavaFixtureQuoteClient {
                     URI.create("http://127.0.0.1:" + appPort + "/agentdebug-fixture/identity"))
                     .timeout(Duration.ofSeconds(8)).GET().build(), HttpResponse.BodyHandlers.ofString());
             require(identity.statusCode() == 200, "Test fixture identity endpoint unavailable");
-            Map<String,Object> identityBody = map(PhaseOneBridgeVerifier.Json.parse(identity.body()));
+            Map<String,Object> identityBody = map(Json.parse(identity.body()));
             require(number(identityBody.get("pid")) == pid && "OrdersApplication".equals(identityBody.get("application")),
                     "HTTP listener does not belong to selected fixture JVM");
             require(process.isAlive(), "Fixture JVM exited before HTTP reproduction");
@@ -134,7 +134,7 @@ public final class JavaFixtureQuoteClient {
             record.put("body", response.body());
             Path temp = Files.createTempFile(receipt.getParent(), "agentdebug-receipt-", ".tmp");
             try {
-                Files.writeString(temp, PhaseOneBridgeVerifier.Json.stringify(record), StandardCharsets.UTF_8);
+                Files.writeString(temp, Json.stringify(record), StandardCharsets.UTF_8);
                 Files.move(temp, receipt, StandardCopyOption.ATOMIC_MOVE);
             } finally { Files.deleteIfExists(temp); }
         }
@@ -148,7 +148,7 @@ public final class JavaFixtureQuoteClient {
             writer.println("AUTH " + token + " " + command);
             String line = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8)).readLine();
             require(line != null, "No response from Eclipse bridge");
-            return map(PhaseOneBridgeVerifier.Json.parse(line));
+            return map(Json.parse(line));
         }
     }
     private static String required(Map<String,String> map, String key) {

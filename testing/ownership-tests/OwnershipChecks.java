@@ -25,7 +25,7 @@ public final class OwnershipChecks implements IStartup {
     private final List<IBreakpoint> markers = new ArrayList<>();
     private final List<ILaunch> sessions = new ArrayList<>();
     private final List<String> active = new ArrayList<>();
-    private PhaseOneBridgeVerifier.Bridge bridge;
+    private Bridge bridge;
     private ILaunchConfiguration config;
 
     public void earlyStartup() {
@@ -49,7 +49,7 @@ public final class OwnershipChecks implements IStartup {
                 }
                 try {
                     Files.writeString(workspace.resolve("ownership-results.json"),
-                            PhaseOneBridgeVerifier.Json.stringify(results));
+                            Json.stringify(results));
                 } catch (Exception ex) {
                     throw new IllegalStateException(ex);
                 }
@@ -61,7 +61,7 @@ public final class OwnershipChecks implements IStartup {
         Map<String, Object> info = null;
         for (int n = 0; n < 180 && info == null; n++) {
             try {
-                bridge = new PhaseOneBridgeVerifier.Bridge();
+                bridge = new Bridge();
                 info = call("GET_E2E_INFO");
             } catch (java.io.IOException ex) {
                 Thread.sleep(1000);

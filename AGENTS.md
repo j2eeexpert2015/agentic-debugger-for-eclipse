@@ -31,23 +31,23 @@ history if one is needed.
 
 - Preserve personal Eclipse projects, user-owned breakpoints/JVMs/configurations, and unrelated Claude MCP registrations. NEVER silently modify `~/.claude.json`, delete a workspace, kill a user JVM, or enable permission bypass.
 - Dedicated tests use untracked `dev-e2e/e2e.properties`, a disposable Eclipse workspace, a nondefault bridge port, and authentication. Do not ask the user to manually `set AGENTDEBUG_PORT` in CMD.
-- Fixture POSTs require explicit `--approve-fixture-post`; Claude trials require explicit `--approve-claude`. The HTTP MCP reproduction tools are E2E-only and must verify fixture/launch ownership. Keep fixture bugs intentional for the debugger oracle.
+- Fixture POSTs require explicit `-Dfixture.post.approved=true`; Claude end-to-end tests require explicit `-Dclaude.approved=true`. The HTTP MCP reproduction tools are E2E-only and must verify fixture/launch ownership. Keep fixture bugs intentional for the debugger oracle.
 - Prefer small complete source files. Never replace whole docs when a small insertion suffices. No automatic deletions.
 
 ## Validation order
 
 1. Compile/check changes and run the **smallest** relevant direct scenario.
-2. Run its direct test group. For changed runtime behavior, finish with the **23-scenario direct suite** when possible.
-3. If plugin/MCP runtime changed, close the dedicated Eclipse instance before `java dev-e2e/DevE2E.java all --approve-fixture-post`. `test` does not deploy changes.
+2. Run its test class. For changed runtime behavior, finish with the **regression suite** (`RegressionSuite`, 21 tests) when possible.
+3. If plugin/MCP runtime changed, close the dedicated Eclipse instance before `java dev-e2e/DevE2E.java all` (or `deploy` after `mvn clean package`); `start` does not deploy changes.
 4. Run Claude trials only when approved and useful. Examine `.claude.jsonl` events and cleanup results; `REVIEW_REQUIRED` or CLI exit code zero is **not** automatic PASS.
 5. Record independently what passed, failed, was blocked, or was not run. Do not hide flaky full-suite failures behind separately passing tests.
 
 From repository root:
 
 ```cmd
-java dev-e2e/DevE2E.java list
-java dev-e2e/DevE2E.java test --tests boot-gaps:junit-invalid-method
-java dev-e2e/DevE2E.java test --approve-fixture-post
+java dev-e2e/DevE2E.java start
+mvn -pl testing verify -Pintegration-tests -Dit.test=ProgramStartTests#rejectsUnknownJunitMethod
+mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 ```
 
 ## Handoff and documentation

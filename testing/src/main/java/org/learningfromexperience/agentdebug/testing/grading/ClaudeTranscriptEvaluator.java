@@ -157,7 +157,7 @@ public final class ClaudeTranscriptEvaluator {
             System.out.println("No Claude transcripts (*.claude.jsonl / *.claude.json) found under "
                     + inputs.stream().map(p -> p.toAbsolutePath().toString()).toList() + ".");
             System.out.println("Nothing to grade. Capture and grade a new run with:");
-            System.out.println("  java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post");
+            System.out.println("  mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true");
             System.exit(requirePass ? 1 : 0);
         }
         System.out.println("Found " + transcripts.size() + " transcript(s)");

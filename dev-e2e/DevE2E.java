@@ -8,18 +8,15 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-/** Java 21 source launcher. One repeatable entry point; never terminates an Eclipse process. */
+/**
+ * Java 21 source launcher for the test environment: checks this machine's settings, builds, installs the plugin into
+ * the dedicated test Eclipse and starts it. The tests themselves are JUnit 5 classes in the testing module, run with
+ * Maven (docs/integration-tests.md). Never terminates an Eclipse process.
+ */
 public class DevE2E {
     private final Path bundle, repo, eclipse, workspace;
     private final int port;
     private final String mode;
-    private final boolean approval;
-    private boolean claudeApproval;
-    /** Claude trials only: runs per scenario (--repeat N) and skill mode (--no-skill). */
-    private int claudeRepeat = 1;
-    private boolean claudeNoSkill;
-    /** Claude trials only: the MCP server also writes a debugging session report (--report, OPEN-30). */
-    private boolean claudeReport;
     private static final String IU = "org.learningfromexperience.eclipse.agentdebug.feature.feature.group";
 
     /**
@@ -32,9 +29,8 @@ public class DevE2E {
 
     private static final String PROPERTIES = "dev-e2e/e2e.properties";
 
-    private DevE2E(Path source, String mode, boolean approval) throws Exception {
+    private DevE2E(Path source, String mode) throws Exception {
         this.mode = mode;
-        this.approval = approval;
         List<String> problems = new ArrayList<>();
         if (Runtime.version().feature() < 21)
             problems.add("Java " + Runtime.version().feature() + " runs this tool; Java 21 or newer is needed (java -version shows which java is on PATH).");
@@ -139,9 +135,9 @@ public class DevE2E {
     }
     /**
      * Checks before a mode starts its work, so it does not fail halfway: Maven for building, a finished build for
-     * deploying (and a warning when sources are newer than it), the claude command for Claude trials.
+     * deploying (and a warning when sources are newer than it).
      */
-    private void preflight(String mode, Map<String, List<String>> selected) {
+    private void preflight(String mode) {
         List<String> problems = new ArrayList<>();
         if ((mode.equals("build") || mode.equals("all")) && !commandWorks(windows() ? "mvn.cmd" : "mvn", "-v"))
             problems.add("Maven (mvn) is not on PATH. Install Maven 3.9+ and open a new terminal; 'mvn -v' must work.");
@@ -162,9 +158,6 @@ public class DevE2E {
                         + " > " + Instant.ofEpochMilli(builtAt) + "). 'deploy' installs the OLD build. Run 'mvn clean package' first if that is not intended.");
             }
         }
-        if (selected != null && selected.containsKey("claude") && !commandWorks("claude", "--version"))
-            problems.add("The 'claude' command (Claude Code) could not be started from this tool, so Claude trials cannot run."
-                + " 'claude --version' must work in this terminal.");
         if (!problems.isEmpty()) {
             StringBuilder out = new StringBuilder("Cannot start '" + mode + "':");
             for (int i = 0; i < problems.size(); i++) out.append("\n ").append(i + 1).append(". ").append(problems.get(i));
@@ -263,11 +256,6 @@ public class DevE2E {
     private Path directorExe() {return windows() ? eclipse.resolve("eclipsec.exe") : eclipse.resolve("eclipse");}
 
     private void verifySources() throws Exception {
-        for (String filename : List.of("PhaseOneBridgeVerifier.java", "PhaseTwoBridgeVerifier.java",
-                "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java")) {
-            check(Files.isRegularFile(repo.resolve("testing/src/main/java/org/learningfromexperience/agentdebug/e2e/" + filename)),
-                    "Missing committed Java verifier " + filename + " (restore it from git: git checkout -- testing).");
-        }
         check(Files.isRegularFile(repo.resolve("examples/spring-boot-debugging/src/main/java/org/learningfromexperience/bootfixture/orders/FixtureIdentityController.java")),
                 "Missing committed fixture identity controller");
     }
@@ -391,278 +379,6 @@ public class DevE2E {
         }
         throw new IllegalStateException("Eclipse did not start bridge within 5 minutes. Inspect "+workspace.resolve(".metadata/.log"));
     }
-    private void test(Map<String, List<String>> selection) throws Exception {
-        if (selection.containsKey("phase2") || selection.containsKey("boot-quote")) {
-            if (!approval) throw new IllegalArgumentException("HTTP tests require --approve-fixture-post");
-        }
-        verifySources();
-        Path classes = repo.resolve("testing/target/phase2-classes");
-        Files.createDirectories(classes);
-        Path sources = repo.resolve("testing/src/main/java/org/learningfromexperience/agentdebug/e2e");
-        System.out.println("== Compile Java E2E verifiers ==");
-        List<String> compile = new ArrayList<>(List.of(javaBin("javac"), "--release", "21", "-encoding", "UTF-8",
-                "-d", classes.toString()));
-        for (String file : List.of("PhaseOneBridgeVerifier.java", "PhaseTwoBridgeVerifier.java",
-                "JavaFixtureQuoteClient.java", "SpringBootDirectVerifier.java", "SpringBootQuoteVerifier.java"))
-            compile.add(sources.resolve(file).toString());
-        for (String optional : List.of("PendingAcceptanceVerifier.java", "BootGapVerifier.java", "BridgeFaultVerifier.java",
-                "StopEventVerifier.java", "InvestigationLeaseVerifier.java")) {
-            Path sourceFile = sources.resolve(optional);
-            boolean required = (optional.startsWith("Pending") && selection.containsKey("acceptance"))
-                    || (optional.startsWith("BootGap") && selection.containsKey("boot-gaps"))
-                    || (optional.startsWith("BridgeFault") && selection.containsKey("bridge"))
-                    || (optional.startsWith("StopEvent") && selection.containsKey("stops"))
-                    || (optional.startsWith("InvestigationLease") && selection.containsKey("lease"));
-            if (required) check(Files.isRegularFile(sourceFile),
-                    "Missing " + optional + ". Update the repository to the current source before running this group.");
-            if (Files.isRegularFile(sourceFile)) compile.add(sourceFile.toString());
-        }
-        runProcess(compile, repo, Map.of(), 120);
-        if(selection.containsKey("claude")) {
-            if(!claudeApproval) throw new IllegalArgumentException("Claude token usage requires --approve-claude");
-            Path claudeSource=repo.resolve("dev-e2e/ClaudeSymptomTrial.java");
-            // The grader lives in the testing module (its unit tests run in "mvn clean package").
-            Path evaluatorSource=repo.resolve("testing/src/main/java/org/learningfromexperience/agentdebug/testing/grading/ClaudeTranscriptEvaluator.java");
-            check(Files.isRegularFile(claudeSource),"Missing Claude trial capture Java source");
-            check(Files.isRegularFile(evaluatorSource),"Missing Claude transcript evaluator Java source");
-            runProcess(List.of(javaBin("javac"),"--release","21","-encoding","UTF-8",
-                    "-d",classes.toString(),claudeSource.toString(),evaluatorSource.toString()),repo,Map.of(),60);
-            // OPEN-32: the trial uses the skill of this repository (the test Eclipse does not install it).
-            if(!claudeNoSkill) syncSkill();
-        }
-        startAndWait();
-        Map<String,String> env = Map.of("AGENTDEBUG_PORT", Integer.toString(port));
-        List<String> failures = new ArrayList<>();
-        // One batch ID for all Claude runs of this command, so the summary covers exactly this batch.
-        String batch = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
-                .withZone(java.time.ZoneOffset.UTC).format(java.time.Instant.now())
-                + (claudeNoSkill ? "-noskill" : "-skill");
-        Path classesDir = classes;
-        for (var entry : selection.entrySet()) for (String scenario : entry.getValue())
-        for (int run = 1; run <= (entry.getKey().equals("claude") ? claudeRepeat : 1); run++) {
-            if(entry.getKey().equals("claude") && scenario.equals("all"))
-                throw new IllegalArgumentException("Use --groups claude for three trials, or --tests claude:boot-quote,claude:junit,claude:validation");
-            String group=entry.getKey();
-            String reportKey=(group.equals("boot") ? "boot-direct" : group)
-                    + ("all".equals(scenario) ? "" : "-" + scenario);
-            Path report=repo.resolve("evaluation/reports/" + reportKey + "-java-live.json");
-            List<String> args=new ArrayList<>(List.of(javaBin("java"), "-cp", classes.toString()));
-            switch (group) {
-                case "phase1" -> {
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.PhaseOneBridgeVerifier",
-                        "--root",repo.toString(),"--project","phase-one-debugging","--scenario",scenario,
-                        "--output",report.toString()));
-                }
-                case "phase2" -> {
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.PhaseTwoBridgeVerifier",
-                        "--root",repo.toString(),"--workspace",workspace.toString(),"--port",Integer.toString(port),
-                        "--scenario",scenario,"--approve-fixture-post","--http-client","java","--output",report.toString()));
-                }
-                case "boot" -> {
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.SpringBootDirectVerifier",
-                        "--workspace",workspace.toString(),"--port",Integer.toString(port),
-                        "--scenario",scenario,"--output",report.toString()));
-                }
-                case "boot-quote" -> {
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.SpringBootQuoteVerifier",
-                        "--root",repo.toString(),"--workspace",workspace.toString(),"--port",Integer.toString(port),
-                        "--approve-fixture-post","--output",report.toString()));
-                }
-                case "acceptance" -> {
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.PendingAcceptanceVerifier",
-                        "--root",repo.toString(),"--workspace",workspace.toString(),
-                        "--scenario",scenario,"--output",report.toString()));
-                }
-                case "claude" -> {
-                    if(!approval && !scenario.equals("junit"))
-                        throw new IllegalArgumentException("Claude HTTP trials require --approve-fixture-post");
-                    args.addAll(List.of("ClaudeSymptomTrial",repo.toString(),scenario,
-                            repo.resolve("evaluation/reports/claude-trials").toString(),"--approve-claude",
-                            "--batch",batch));
-                    if(approval) args.add("--approve-fixture-post");
-                    if(claudeNoSkill) args.add("--no-skill");
-                    if(claudeReport) args.add("--report");
-                }
-                case "bridge" -> {
-                    // CORE-13 bridge stability fault injection; needs the E2E-started Eclipse (AGENTDEBUG_E2E=1).
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BridgeFaultVerifier",
-                        "--port",Integer.toString(port),"--scenario",scenario,"--output",report.toString()));
-                }
-                case "stops" -> {
-                    // CORE-14/15: event-based wait_for_stop and process output, on phase-one fixtures.
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.StopEventVerifier",
-                        "--root",repo.toString(),"--scenario",scenario,"--output",report.toString()));
-                }
-                case "lease" -> {
-                    // CORE-17: abandoned investigations cleaned up; MCP auto-attach and disconnect cleanup.
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.InvestigationLeaseVerifier",
-                        "--root",repo.toString(),"--scenario",scenario,"--output",report.toString()));
-                }
-                case "boot-gaps" -> {
-                    args.addAll(List.of("org.learningfromexperience.agentdebug.e2e.BootGapVerifier",
-                        "--root",repo.toString(),"--workspace",workspace.toString(),
-                        "--port",Integer.toString(port),"--scenario",scenario,"--output",report.toString()));
-                }
-                default -> throw new IllegalArgumentException("Unknown suite: " + group);
-            }
-            System.out.println("== Java E2E: " + group + "/" + scenario
-                    + (group.equals("claude") ? " (run " + run + " of " + claudeRepeat + ", " + (claudeNoSkill ? "skill disabled" : "skill allowed") + ")" : "") + " ==");
-            try {
-                runProcess(args,repo,env,group.equals("claude")?530:360);
-                System.out.println(group.equals("claude")?"CAPTURED and graded: see the VERDICT line above (*.verdict.json)":"PASS: "+report);
-            } catch (Exception error) { failures.add(group+"/"+scenario+": "+error.getMessage()); }
-        }
-        if (selection.containsKey("claude")) {
-            // Pass rate, tool calls, turns, time and cost across the runs of this batch.
-            try {
-                runProcess(List.of(javaBin("java"),"-cp",classesDir.toString(),"org.learningfromexperience.agentdebug.testing.grading.ClaudeTranscriptEvaluator","--summary",
-                        "--batch",batch,repo.resolve("evaluation/reports/claude-trials").toString()),repo,Map.of(),60);
-            } catch (Exception error) { failures.add("claude summary: "+error.getMessage()); }
-        }
-        if (!failures.isEmpty()) throw new IllegalStateException("E2E failures: " + String.join(" | ",failures));
-        System.out.println(selection.containsKey("claude")?"Completed requested runs; Claude verdicts are in evaluation/reports/claude-trials/*.verdict.json":"PASS: all requested Java E2E suites");
-    }
-    private static final Map<String,Set<String>> SCENARIOS = Map.of(
-        "phase1", Set.of("all","conditional","exception","junit","variables","trace","pause-restart","filters"),
-        "phase2", Set.of("all","validation","ownership"),
-        "boot", Set.of("all","discovery","readiness"),
-        "boot-quote", Set.of("all","quote"),
-        "acceptance", Set.of("all","core-step-into-out","sb01-target-selection","sb09-borrowed-session","sb09-expired-owner"),
-        "boot-gaps", Set.of("all","two-mains","junit-invalid-method","two-services","startup-failure","readiness-timeout","port-conflict","owned-isolation"),
-        "claude", Set.of("all","boot-quote","junit","validation"),
-        "bridge", Set.of("all","slow-command","busy","parallel-load","auth"),
-        "stops", Set.of("all","breakpoint","step","exception","pause","terminated","output"),
-        "lease", Set.of("all","idle-expiry","wait-keeps-alive","controlled-kept","mcp-disconnect","mcp-several"));
-    /** Execution order of the verifier groups; also the order of a run selected by feature or suite. */
-    private static final List<String> GROUP_ORDER = List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps",
-            "stops","lease","bridge","claude");
-    /** The six groups of the 23-scenario regression (the default when nothing is selected). */
-    private static final List<String> REGRESSION_GROUPS = List.of("phase1","phase2","boot","boot-quote","acceptance","boot-gaps");
-    /**
-     * Integration tests by product feature (OPEN-18). Each entry is "group:scenario", or "group:all" for a whole group.
-     * The verifier groups stay as they are; a feature only selects scenarios from them. Every regression scenario
-     * belongs to exactly one feature (checked by {@link #checkFeatureCatalog()}).
-     */
-    private static final LinkedHashMap<String,List<String>> FEATURES = new LinkedHashMap<>();
-    static {
-        FEATURES.put("breakpoints", List.of("phase1:conditional","phase1:exception","phase1:trace"));
-        FEATURES.put("execution-control", List.of("phase1:pause-restart","phase1:filters","acceptance:core-step-into-out"));
-        FEATURES.put("inspection", List.of("phase1:variables"));
-        FEATURES.put("junit", List.of("phase1:junit","boot-gaps:junit-invalid-method"));
-        FEATURES.put("spring-boot", List.of("boot:discovery","boot:readiness","boot-quote:quote","phase2:validation",
-                "acceptance:sb01-target-selection","boot-gaps:two-mains","boot-gaps:two-services",
-                "boot-gaps:startup-failure","boot-gaps:readiness-timeout","boot-gaps:port-conflict"));
-        FEATURES.put("ownership", List.of("phase2:ownership","acceptance:sb09-expired-owner",
-                "acceptance:sb09-borrowed-session","boot-gaps:owned-isolation"));
-        FEATURES.put("stop-events", List.of("stops:all"));
-        FEATURES.put("abandoned-cleanup", List.of("lease:all"));
-        FEATURES.put("bridge", List.of("bridge:all"));
-        FEATURES.put("claude", List.of("claude:all"));
-    }
-    /** Named sets of features. "regression" runs the six regression groups whole, exactly as before OPEN-18. */
-    private static final LinkedHashMap<String,List<String>> SUITES = new LinkedHashMap<>();
-    static {
-        SUITES.put("regression", List.of("breakpoints","execution-control","inspection","junit","spring-boot","ownership"));
-        SUITES.put("extended", List.of("stop-events","abandoned-cleanup","bridge"));
-        SUITES.put("full", List.of("breakpoints","execution-control","inspection","junit","spring-boot","ownership",
-                "stop-events","abandoned-cleanup","bridge"));
-    }
-    /** Every regression scenario is in exactly one feature, and every feature entry names a real scenario. */
-    private static void checkFeatureCatalog() {
-        Map<String,String> owner=new HashMap<>();
-        for (var feature : FEATURES.entrySet()) for (String entry : feature.getValue()) {
-            String[] parts=entry.split(":",2);
-            check(SCENARIOS.containsKey(parts[0]) && SCENARIOS.get(parts[0]).contains(parts[1]),
-                    "Feature " + feature.getKey() + " names an unknown scenario: " + entry);
-            String previous=owner.put(entry, feature.getKey());
-            check(previous == null, entry + " is in two features: " + previous + ", " + feature.getKey());
-        }
-        for (String group : REGRESSION_GROUPS) for (String scenario : SCENARIOS.get(group)) {
-            if (!scenario.equals("all")) check(owner.containsKey(group + ":" + scenario),
-                    "Regression scenario " + group + ":" + scenario + " belongs to no feature");
-        }
-    }
-    /**
-     * Turns features into the group/scenario selection the runner executes. A group whose scenarios are all selected
-     * runs as one "all" invocation, so a suite that covers whole groups behaves exactly like selecting those groups.
-     */
-    private static LinkedHashMap<String,List<String>> byFeatures(List<String> features) {
-        Map<String,Set<String>> wanted=new HashMap<>();
-        for (String raw : features) {
-            String feature=raw.strip();
-            if (!FEATURES.containsKey(feature))
-                throw new IllegalArgumentException("Unknown feature: " + feature + ". Features: " + String.join(", ", FEATURES.keySet()));
-            for (String entry : FEATURES.get(feature)) {
-                String[] parts=entry.split(":",2);
-                wanted.computeIfAbsent(parts[0], ignored->new LinkedHashSet<>()).add(parts[1]);
-            }
-        }
-        LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
-        for (String group : GROUP_ORDER) {
-            Set<String> cases=wanted.get(group);
-            if (cases == null) continue;
-            Set<String> every=new TreeSet<>(SCENARIOS.get(group));
-            every.remove("all");
-            boolean whole=cases.contains("all") || cases.containsAll(every);
-            if (group.equals("claude")) selected.put(group, whole ? List.of("boot-quote","junit","validation") : new ArrayList<>(cases));
-            else selected.put(group, whole ? List.of("all") : scenariosInOrder(group, cases));
-        }
-        return selected;
-    }
-    /** Selected scenarios of one group in a stable order. */
-    private static List<String> scenariosInOrder(String group, Set<String> cases) {
-        return new ArrayList<>(new TreeSet<>(cases));
-    }
-    private static LinkedHashMap<String,List<String>> select(String[] args) {
-        checkFeatureCatalog();
-        LinkedHashMap<String,List<String>> selected=new LinkedHashMap<>();
-        String groups=null, tests=null, features=null, suite=null;
-        for (int i=1;i<args.length;i++) {
-            if (args[i].equals("--groups") && i+1<args.length) groups=args[++i];
-            else if (args[i].equals("--tests") && i+1<args.length) tests=args[++i];
-            else if (args[i].equals("--feature") && i+1<args.length) features=args[++i];
-            else if (args[i].equals("--suite") && i+1<args.length) suite=args[++i];
-            else if (args[i].equals("--repeat") && i+1<args.length) i++;
-            else if (!args[i].equals("--approve-fixture-post") && !args[i].equals("--approve-claude")
-                    && !args[i].equals("--no-skill") && !args[i].equals("--report")) throw new IllegalArgumentException("Unexpected option: "+args[i]);
-        }
-        long selectors=java.util.stream.Stream.of(groups,tests,features,suite).filter(Objects::nonNull).count();
-        if (selectors > 1) throw new IllegalArgumentException("Use only one of --suite, --feature, --groups, --tests");
-        if (suite != null) {
-            if (!SUITES.containsKey(suite.strip()))
-                throw new IllegalArgumentException("Unknown suite: " + suite + ". Suites: " + String.join(", ", SUITES.keySet()));
-            return byFeatures(SUITES.get(suite.strip()));
-        }
-        if (features != null) return byFeatures(Arrays.asList(features.split(",")));
-        if (tests != null) {
-            for (String entry:tests.split(",")) {
-                String[] parts=entry.strip().split(":",2);
-                if (parts.length!=2 || !SCENARIOS.containsKey(parts[0]) || !SCENARIOS.get(parts[0]).contains(parts[1]))
-                    throw new IllegalArgumentException("Unknown test: "+entry);
-                List<String> cases=selected.computeIfAbsent(parts[0], ignored->new ArrayList<>());
-                if (!cases.contains(parts[1])) cases.add(parts[1]);
-            }
-        } else {
-            // No selector: the 23-scenario regression (same as --suite regression).
-            String[] list=groups == null ? REGRESSION_GROUPS.toArray(String[]::new) : groups.split(",");
-            for(String raw:list) {
-                String g=raw.strip();
-                if (!SCENARIOS.containsKey(g)) throw new IllegalArgumentException("Unknown group: "+g);
-                selected.put(g,g.equals("claude")?List.of("boot-quote","junit","validation"):List.of("all"));
-            }
-        }
-        if (selected.isEmpty()) throw new IllegalArgumentException("No scenarios selected");
-        return selected;
-    }
-    /** Scenarios behind a feature; a whole group counts all of its scenarios. */
-    private static int scenarioCount(String feature) {
-        int count=0;
-        for (String entry : FEATURES.get(feature)) {
-            String[] parts=entry.split(":",2);
-            count += parts[1].equals("all") ? (parts[0].equals("claude") ? 3 : SCENARIOS.get(parts[0]).size() - 1) : 1;
-        }
-        return count;
-    }
     private void describe() {
         System.out.printf("Mode: %s%nRepository: %s%nEclipse: %s%nWorkspace: %s%nBridge port: %d%n",
                 mode,repo,eclipse,workspace,port);
@@ -671,63 +387,6 @@ public class DevE2E {
      * Runs the tool and turns failures into clear messages: a setup problem is explained with what to do (exit 2),
      * any other failure is one line saying what failed (exit 1); --trace adds the Java stack trace.
      */
-    /**
-     * Makes %USERPROFILE%\.claude\skills\eclipse-debugger the same as skills/eclipse-debugger of this repository
-     * before Claude trials (OPEN-32; a normal Eclipse start does the same from the installed plugin). A file that
-     * differs from what was installed last (recorded in .eclipse-agentdebug\skill-installed.properties, the plugin's
-     * record) is kept as name.bak-time first. Other files in the skill folder are not touched.
-     */
-    private void syncSkill() throws IOException {
-        Path source = repo.resolve("skills/eclipse-debugger");
-        if (!Files.isDirectory(source)) return;
-        Path home = Path.of(System.getProperty("user.home"));
-        Path target = home.resolve(".claude/skills/eclipse-debugger");
-        Path stateFile = home.resolve(".eclipse-agentdebug/skill-installed.properties");
-        Properties state = new Properties();
-        if (Files.isRegularFile(stateFile)) try (InputStream in = Files.newInputStream(stateFile)) { state.load(in); }
-        List<Path> files;
-        try (var walk = Files.walk(source)) { files = walk.filter(Files::isRegularFile).sorted().toList(); }
-        boolean changed = false;
-        String stamp = java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now());
-        for (Path file : files) {
-            String name = source.relativize(file).toString().replace('\\', '/');
-            byte[] content = Files.readAllBytes(file);
-            String sha = sha256(content);
-            Path installed = target.resolve(name);
-            if (Files.isRegularFile(installed)) {
-                String current = sha256(Files.readAllBytes(installed));
-                if (current.equals(sha)) {
-                    if (!sha.equals(state.getProperty(name))) { state.setProperty(name, sha); changed = true; }
-                    continue;
-                }
-                if (!current.equals(state.getProperty(name))) {
-                    Path backup = installed.resolveSibling(installed.getFileName() + ".bak-" + stamp);
-                    Files.copy(installed, backup, StandardCopyOption.REPLACE_EXISTING);
-                    System.out.println("Skill: kept the previous " + name + " as " + backup.getFileName());
-                }
-            }
-            Files.createDirectories(installed.getParent());
-            Files.write(installed, content);
-            state.setProperty(name, sha);
-            changed = true;
-            System.out.println("Skill updated from the repository: " + installed);
-        }
-        if (changed) {
-            Files.createDirectories(stateFile.getParent());
-            try (OutputStream out = Files.newOutputStream(stateFile)) {
-                state.store(out, "Agentic Debugger: skill files as last written (SHA-256)");
-            }
-        }
-    }
-
-    private static String sha256(byte[] content) {
-        try {
-            return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(content));
-        } catch (java.security.NoSuchAlgorithmException impossible) {
-            throw new IllegalStateException(impossible);
-        }
-    }
-
     public static void main(String[] args) {
         boolean trace = Arrays.asList(args).contains("--trace");
         String[] rest = Arrays.stream(args).filter(a -> !a.equals("--trace")).toArray(String[]::new);
@@ -785,20 +444,17 @@ public class DevE2E {
 
     private static void run(String[] args) throws Exception {
         if (args.length == 0 || Set.of("help","--help","-h").contains(args[0])) {
-            System.out.println("From repository root: java dev-e2e/DevE2E.java [config|list|build|all|deploy|test] [selector] [--approve-fixture-post]");
-            System.out.println("Selectors (one at most; none = the 23-scenario regression):");
-            System.out.println("  --suite regression|extended|full");
-            System.out.println("  --feature breakpoints,execution-control,inspection,junit,spring-boot,ownership,stop-events,abandoned-cleanup,bridge");
-            System.out.println("  --groups phase1,phase2,boot,boot-quote,acceptance,boot-gaps,stops,lease,bridge   (verifier groups)");
-            System.out.println("  --tests acceptance:core-step-into-out,boot-gaps:two-mains,stops:step             (single scenarios)");
-            System.out.println("'list' shows every suite, feature, group and scenario.");
-            System.out.println("Claude trials (use Claude usage): test --groups claude|--tests claude:boot-quote --approve-claude [--approve-fixture-post] [--repeat N] [--no-skill] [--report]");
-            System.out.println("'all' builds, deploys (requires Eclipse closed), starts Eclipse, runs the selected suites.");
-            System.out.println("'deploy' reuses Maven output, deploys, starts Eclipse, runs selected suites.");
-            System.out.println("'test' reuses dedicated Eclipse or starts it without redeployment; test selectors are optional.");
-            System.out.println("'config' only checks this machine's settings (dev-e2e/e2e.properties) and prints them.");
-            System.out.println("'report-replay [EVENTS.jsonl]' rebuilds the newest trial report from its recorded events (no Claude, no Eclipse)");
-            System.out.println("  and runs the REPORT CHECK: for changes to the report page only. Needs 'mvn clean package' first.");
+            System.out.println("From the repository root: java dev-e2e/DevE2E.java config|build|all|deploy|start|report-replay");
+            System.out.println("  config         check this machine's settings (dev-e2e/e2e.properties) and print them");
+            System.out.println("  build          mvn clean package");
+            System.out.println("  all            build, install the plugin into the test Eclipse (close it first) and start it");
+            System.out.println("  deploy         install the last build into the test Eclipse (close it first) and start it");
+            System.out.println("  start          start the test Eclipse with the plugin already installed (or check the running one)");
+            System.out.println("  report-replay [EVENTS.jsonl]  rebuild the newest Claude trial report from its recorded events");
+            System.out.println("                 and run the REPORT CHECK (no Claude, no Eclipse; needs 'mvn clean package' first)");
+            System.out.println("The tests are JUnit classes, run with Maven once the test Eclipse runs, for example:");
+            System.out.println("  mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true");
+            System.out.println("  (all suites, classes and options: docs/integration-tests.md)");
             System.out.println("Add --trace to any command to see the Java details of a failure.");
             return;
         }
@@ -807,50 +463,32 @@ public class DevE2E {
                     args.length > 1 && !args[1].startsWith("--") ? Path.of(args[1]) : null);
             return;
         }
-        if (!Set.of("config","build","all","deploy","test","list").contains(args[0]))
-            throw new SetupProblem("Unknown mode: " + args[0] + ". Modes: config, list, build, all, deploy, test"
+        if (Set.of("test","list").contains(args[0]))
+            throw new SetupProblem("'" + args[0] + "' was replaced on 25 Nov 2026: the integration tests are JUnit classes now."
+                + "\n  Start the test Eclipse (java dev-e2e/DevE2E.java start), then for example:"
+                + "\n    mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true"
+                + "\n  Every suite, test class and option: docs/integration-tests.md");
+        if (!Set.of("config","build","all","deploy","start").contains(args[0]))
+            throw new SetupProblem("Unknown mode: " + args[0] + ". Modes: config, build, all, deploy, start, report-replay"
                 + " ('java dev-e2e/DevE2E.java help' explains them).");
+        if (args.length > 1)
+            throw new IllegalArgumentException("Unexpected option: " + args[1] + " (test options belong to the Maven command;"
+                + " see docs/integration-tests.md)");
         Path root=Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
-        boolean approved=Arrays.asList(args).contains("--approve-fixture-post");
-        DevE2E x=new DevE2E(root,args[0],approved);
-        x.claudeApproval=Arrays.asList(args).contains("--approve-claude");
-        x.claudeNoSkill=Arrays.asList(args).contains("--no-skill");
-        x.claudeReport=Arrays.asList(args).contains("--report");
-        int repeatAt=Arrays.asList(args).indexOf("--repeat");
-        if (repeatAt >= 0) {
-            x.claudeRepeat=Integer.parseInt(args[repeatAt+1]);
-            if (x.claudeRepeat < 1 || x.claudeRepeat > 20) throw new IllegalArgumentException("--repeat must be 1-20");
-        }
+        DevE2E x=new DevE2E(root,args[0]);
         x.describe();
         if (args[0].equals("config")) return;
-        if (args[0].equals("list")) {
-            checkFeatureCatalog();
-            System.out.println("== Suites (--suite) ==");
-            for (var suite : SUITES.entrySet()) {
-                int count=0;
-                for (String feature : suite.getValue()) count += scenarioCount(feature);
-                System.out.println(suite.getKey() + " (" + count + "): " + String.join(", ", suite.getValue()));
-            }
-            System.out.println("== Features (--feature) ==");
-            for (var feature : FEATURES.entrySet())
-                System.out.println(feature.getKey() + " (" + scenarioCount(feature.getKey()) + "): " + String.join(", ", feature.getValue()));
-            System.out.println("== Verifier groups (--groups) and scenarios (--tests group:scenario) ==");
-            for (String group : GROUP_ORDER) {
-                System.out.println(group + ": " + String.join(", ", new TreeSet<>(SCENARIOS.get(group))));
-            }
-            return;
-        }
         x.verifySources();
+        x.preflight(args[0]);
         if (args[0].equals("build")) {
-            x.preflight("build", null);
-            x.verifySources();
             x.runProcess(List.of(windows()?"mvn.cmd":"mvn","clean","package"),x.repo,Map.of(),900);
             return;
         }
-        LinkedHashMap<String,List<String>> selected=select(args);
-        x.preflight(args[0], selected);
         if (args[0].equals("all")) x.buildAndDeploy(true);
         if (args[0].equals("deploy")) x.buildAndDeploy(false);
-        x.test(selected);
+        x.startAndWait();
+        System.out.println("The test Eclipse is ready. Run the tests, for example:");
+        System.out.println("  mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true          (regression suite)");
+        System.out.println("  mvn -pl testing verify -Pintegration-tests -Dit.test=FullSuite -Dfixture.post.approved=true");
     }
 }

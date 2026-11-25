@@ -9,7 +9,6 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -20,93 +19,53 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+
 /**
- * Bridge stability (CORE-13) fault-injection checks against the real installed Eclipse bridge.
- * Uses the test-only BRIDGE_TEST_SLEEP command, which the bridge accepts only when the dedicated
- * E2E Eclipse was started with AGENTDEBUG_E2E=1 (DevE2E does this). Launches nothing, changes no
- * project, breakpoint or launch configuration. Scenarios: slow-command, busy, parallel-load, auth.
+ * Group {@code agent-eclipse-connection} (extended suite): the link the agent's MCP server uses to send every command
+ * to the Eclipse plugin (the bridge) stays healthy under a slow command, a busy state-change lane, many parallel
+ * requests and a wrong token. Uses the test-only BRIDGE_TEST_SLEEP command, which the bridge accepts only when the
+ * test Eclipse was started with AGENTDEBUG_E2E=1 (DevE2E does this). Launches nothing and changes no project,
+ * breakpoint or launch configuration.
+ *
+ * @author Ayan Dutta
  */
-public final class BridgeFaultVerifier {
-    private static final List<String> ALL = List.of("slow-command", "busy", "parallel-load", "auth");
-    private final int port;
-    private final String token;
-    private final Path output;
-    private final Map<String, Object> results = new LinkedHashMap<>();
-    private final List<Map<String, Object>> traces = new ArrayList<>();
+@DisplayName("Agent-Eclipse connection: the bridge under load and faults")
+@Timeout(value = 6, unit = TimeUnit.MINUTES)
+class AgentEclipseConnectionTests extends EclipseIntegrationTest {
+    private String token;
 
-    private BridgeFaultVerifier(int port, Path output) throws IOException {
-        this.port = port;
-        this.output = output;
-        this.token = Files.readString(Path.of(System.getProperty("user.home"), ".eclipse-agentdebug",
-                port == 8765 ? "bridge.token" : "bridge-" + port + ".token"), StandardCharsets.UTF_8).trim();
+    @Override String group() { return "agent-eclipse-connection"; }
+
+    /** Reads the bridge token and refuses to run unless the bridge has its diagnostics and the test hook is enabled. */
+    @BeforeAll
+    void preflight() throws Exception {
+        token = Files.readString(Path.of(System.getProperty("user.home"), ".eclipse-agentdebug",
+                "bridge-" + env.port + ".token"), StandardCharsets.UTF_8).trim();
         if (token.isEmpty()) throw new IOException("Empty Eclipse bridge authentication token");
-    }
-
-    public static void main(String[] args) throws Exception {
-        Map<String, String> opts = new LinkedHashMap<>();
-        for (int i = 0; i < args.length; i++) {
-            if (!args[i].startsWith("--") || i + 1 >= args.length) throw new IllegalArgumentException(usage());
-            opts.put(args[i++].substring(2), args[i]);
-        }
-        String scenario = opts.getOrDefault("scenario", "all");
-        if (!scenario.equals("all") && !ALL.contains(scenario)) throw new IllegalArgumentException(usage());
-        int port = Integer.parseInt(required(opts, "port"));
-        if (port < 1024 || port > 65535 || port == 8765
-                || Integer.parseInt(System.getenv().getOrDefault("AGENTDEBUG_PORT", "8765")) != port)
-            throw new IllegalArgumentException("Use a dedicated nondefault AGENTDEBUG_PORT equal to --port");
-        BridgeFaultVerifier v = new BridgeFaultVerifier(port, Path.of(required(opts, "output")));
-        v.preflight();
-        v.run(scenario);
-    }
-
-    /** Refuses to run unless the bridge is in concurrent mode with test hooks enabled. */
-    private void preflight() throws Exception {
         Map<String, Object> diag = call("GET_BRIDGE_DIAGNOSTICS", 5_000);
-        require("success".equals(diag.get("status")),
-                "Bridge has no GET_BRIDGE_DIAGNOSTICS: plugin not updated. Reply: " + diag);
+        require("success".equals(diag.get("status")), "The bridge has no GET_BRIDGE_DIAGNOSTICS: plugin not updated. Reply: " + diag);
         Map<String, Object> hook = call("BRIDGE_TEST_SLEEP 0 READ", 5_000);
         require("success".equals(hook.get("status")),
-                "Test hook disabled. Close the dedicated Eclipse and let DevE2E start it (sets AGENTDEBUG_E2E=1). Reply: " + hook);
+                "Test hook disabled. Close the test Eclipse and let DevE2E start it (sets AGENTDEBUG_E2E=1). Reply: " + hook);
     }
 
-    private void run(String requested) throws Exception {
-        List<String> failures = new ArrayList<>();
-        for (String scenario : requested.equals("all") ? ALL : List.of(requested)) {
-            Map<String, Object> evidence = new LinkedHashMap<>();
-            long t0 = System.nanoTime();
-            try {
-                switch (scenario) {
-                    case "slow-command" -> slowCommand(evidence);
-                    case "busy" -> busy(evidence);
-                    case "parallel-load" -> parallelLoad(evidence);
-                    case "auth" -> auth(evidence);
-                    default -> throw new IllegalArgumentException(scenario);
-                }
-                evidence.put("result", "PASS");
-            } catch (Throwable failure) {
-                evidence.put("result", "FAIL");
-                evidence.put("error", failure.toString());
-                failures.add(scenario + ": " + failure.getMessage());
-            }
-            evidence.put("durationMs", ms(t0));
-            evidence.put("lanesIdleAfter", lanesIdle());
-            results.put(scenario, evidence);
-            System.out.println(scenario + ": " + evidence);
-        }
-        Map<String, Object> report = new LinkedHashMap<>();
-        report.put("generatedAt", Instant.now().toString());
-        report.put("scope", "CORE-13 bridge stability fault injection; direct bridge test, not an agent test");
-        report.put("scenarios", results);
-        report.put("executions", traces);
-        Files.createDirectories(output.toAbsolutePath().getParent());
-        Files.writeString(output, PhaseOneBridgeVerifier.Json.stringify(report), StandardCharsets.UTF_8);
-        if (!failures.isEmpty()) throw new IllegalStateException("Bridge checks failed: " + String.join(" | ", failures));
+    /** Whether the bridge's state-change lane is free again after the test. */
+    @AfterEach
+    void recordLanes() {
+        put("lanesIdleAfter", lanesIdle());
     }
 
     /** BR-E1, BR-E2, BR-E4, BR-E5: a 27 s state change must not block reads; it times out at
      *  the 25 s deadline with an operation ID, is visible in diagnostics and the log, and its
      *  real result is retrievable afterwards. */
-    private void slowCommand(Map<String, Object> evidence) throws Exception {
+    @Test
+    @DisplayName("A slow command does not block other requests")
+    void slowCommandDoesNotBlock() throws Exception {
         ExecutorService pool = daemonPool(1);
         try {
             long t0 = System.nanoTime();
@@ -124,20 +83,20 @@ public final class BridgeFaultVerifier {
                 readMs.put(read, ms(r));
                 require("success".equals(reply.get("status")), read + " succeeded: " + reply);
             }
-            evidence.put("readLatencyMs", readMs);
+            put("readLatencyMs", readMs);
             for (var entry : readMs.entrySet())
                 require(entry.getValue() < 1_000, entry.getKey() + " took " + entry.getValue() + " ms while a state change ran");
 
             // BR-E4: diagnostics show the in-flight command.
             Map<String, Object> diag = call("GET_BRIDGE_DIAGNOSTICS", 5_000);
-            String diagText = PhaseOneBridgeVerifier.Json.stringify(diag);
+            String diagText = Json.stringify(diag);
             require(diagText.contains("BRIDGE_TEST_SLEEP") && diagText.contains("\"lane\":\"MUTATE\""),
                     "diagnostics list the running command: " + diagText);
 
             // BR-E2: explicit timeout at the 25 s deadline, with an operation ID.
             Map<String, Object> timeout = slow.get(40, TimeUnit.SECONDS);
             long timeoutMs = ms(t0);
-            evidence.put("timeoutReplyAfterMs", timeoutMs);
+            put("timeoutReplyAfterMs", timeoutMs);
             require("BRIDGE_TIMEOUT".equals(timeout.get("code")), "BRIDGE_TIMEOUT reply: " + timeout);
             require(timeoutMs >= 24_000 && timeoutMs < 27_000, "timeout reply after " + timeoutMs + " ms");
             require(timeout.get("operationId") instanceof Number, "operationId present: " + timeout);
@@ -153,15 +112,15 @@ public final class BridgeFaultVerifier {
                 Thread.sleep(500);
             }
             require(done != null, "operation completed within 10 s after the timeout");
-            require(PhaseOneBridgeVerifier.Json.stringify(done).contains("\"slept\":27000"), "late result returned: " + done);
+            require(Json.stringify(done).contains("\"slept\":27000"), "late result returned: " + done);
 
             // BR-E5: the log has a SLOW entry with a stack trace and never contains the token.
-            Path log = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "bridge-" + port + ".log");
+            Path log = Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "bridge-" + env.port + ".log");
             String text = Files.readString(log, StandardCharsets.UTF_8);
             require(text.contains("SLOW op=" + id) && text.contains("cmd=BRIDGE_TEST_SLEEP"), "slow command logged in " + log);
             require(text.contains("TIMEOUT op=" + id), "timeout logged");
             require(!text.contains(token), "token never written to the log");
-            evidence.put("logFile", log.toString());
+            put("logFile", log.toString());
         } finally {
             pool.shutdownNow();
         }
@@ -169,7 +128,9 @@ public final class BridgeFaultVerifier {
 
     /** BR-E3: a real state-changing command waits briefly, then gets BRIDGE_BUSY naming the running
      *  command; after the lane frees, the same command succeeds. Cleans up its own investigation. */
-    private void busy(Map<String, Object> evidence) throws Exception {
+    @Test
+    @DisplayName("A second state change gets a clear busy answer")
+    void busyCommandReported() throws Exception {
         ExecutorService pool = daemonPool(1);
         String investigation = null;
         try {
@@ -178,7 +139,7 @@ public final class BridgeFaultVerifier {
             long t0 = System.nanoTime();
             Map<String, Object> busy = call("BEGIN_INVESTIGATION " + enc("NORMAL"), 15_000);
             long busyMs = ms(t0);
-            evidence.put("busyReplyAfterMs", busyMs);
+            put("busyReplyAfterMs", busyMs);
             require("BRIDGE_BUSY".equals(busy.get("code")), "BRIDGE_BUSY reply: " + busy);
             require("BRIDGE_TEST_SLEEP".equals(busy.get("runningCommand")), "names the running command: " + busy);
             require(busyMs >= 4_000 && busyMs < 8_000, "busy reply after " + busyMs + " ms (busy wait 5 s)");
@@ -190,7 +151,7 @@ public final class BridgeFaultVerifier {
         } finally {
             if (investigation != null) {
                 Map<String, Object> finished = call("FINISH_INVESTIGATION " + enc(investigation), 30_000);
-                evidence.put("cleanup", "success".equals(finished.get("status")));
+                put("cleanup", "success".equals(finished.get("status")));
             }
             pool.shutdownNow();
         }
@@ -198,7 +159,9 @@ public final class BridgeFaultVerifier {
     }
 
     /** BR-E: 20 parallel read requests all succeed (no dropped connections, no BUSY). */
-    private void parallelLoad(Map<String, Object> evidence) throws Exception {
+    @Test
+    @DisplayName("Twenty parallel requests all succeed")
+    void parallelRequestsSucceed() throws Exception {
         ExecutorService pool = daemonPool(20);
         try {
             List<Future<Map<String, Object>>> replies = new ArrayList<>();
@@ -207,8 +170,8 @@ public final class BridgeFaultVerifier {
             int ok = 0;
             for (Future<Map<String, Object>> reply : replies)
                 if ("success".equals(reply.get(20, TimeUnit.SECONDS).get("status"))) ok++;
-            evidence.put("successful", ok);
-            evidence.put("totalMs", ms(t0));
+            put("successful", ok);
+            put("totalMs", ms(t0));
             require(ok == 20, ok + "/20 parallel reads succeeded");
         } finally {
             pool.shutdownNow();
@@ -216,11 +179,13 @@ public final class BridgeFaultVerifier {
     }
 
     /** BR-E7: authentication behaves exactly as before on every path. */
-    private void auth(Map<String, Object> evidence) throws Exception {
+    @Test
+    @DisplayName("A missing or wrong token is refused")
+    void wrongTokenRejected() throws Exception {
         String missing = raw("GET_E2E_INFO", 5_000);
         String wrong = raw("AUTH not-the-token BRIDGE_TEST_SLEEP 0 READ", 5_000);
-        evidence.put("missingAuth", missing);
-        evidence.put("wrongToken", wrong);
+        put("missingAuth", missing);
+        put("wrongToken", wrong);
         require(missing.contains("Authentication required"), "missing AUTH rejected: " + missing);
         require(wrong.contains("Invalid authentication token"), "wrong token rejected: " + wrong);
     }
@@ -229,7 +194,7 @@ public final class BridgeFaultVerifier {
 
     private boolean lanesIdle() {
         try {
-            String diag = PhaseOneBridgeVerifier.Json.stringify(call("GET_BRIDGE_DIAGNOSTICS", 5_000));
+            String diag = Json.stringify(call("GET_BRIDGE_DIAGNOSTICS", 5_000));
             return diag.contains("\"mutateLaneFree\":true");
         } catch (Exception unavailable) {
             return false;
@@ -239,20 +204,20 @@ public final class BridgeFaultVerifier {
     /** Authenticated command; arguments must already be in bridge wire format. */
     private Map<String, Object> call(String command, int timeoutMs) throws IOException {
         String reply = raw("AUTH " + token + " " + command, timeoutMs);
-        Object parsed = PhaseOneBridgeVerifier.Json.parse(reply);
+        Object parsed = Json.parse(reply);
         if (!(parsed instanceof Map<?, ?> map)) throw new IOException("Unexpected bridge reply: " + reply);
         Map<String, Object> result = new LinkedHashMap<>();
         map.forEach((k, v) -> result.put(String.valueOf(k), v));
         Map<String, Object> trace = new LinkedHashMap<>();
         trace.put("command", command.split(" ", 2)[0]);
         trace.put("response", result);
-        synchronized (traces) { traces.add(trace); }
+        synchronized (bridge.traces) { bridge.traces.add(trace); }
         return result;
     }
 
     private String raw(String line, int timeoutMs) throws IOException {
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("127.0.0.1", port), 5_000);
+            socket.connect(new InetSocketAddress("127.0.0.1", env.port), 5_000);
             socket.setSoTimeout(timeoutMs);
             OutputStream out = socket.getOutputStream();
             out.write((line + "\n").getBytes(StandardCharsets.UTF_8));
@@ -274,23 +239,5 @@ public final class BridgeFaultVerifier {
             thread.setDaemon(true);
             return thread;
         });
-    }
-
-    private static long ms(long t0) {
-        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
-    }
-
-    private static String required(Map<String, String> opts, String key) {
-        String value = opts.get(key);
-        if (value == null || value.isBlank()) throw new IllegalArgumentException(usage());
-        return value;
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
-
-    private static String usage() {
-        return "Usage: --port <dedicated port> --output <report.json> [--scenario all|" + String.join("|", ALL) + "]";
     }
 }

@@ -544,15 +544,32 @@ public final class ActivityPage {
         return out.toString();
     }
 
-    /** What the banner says. */
+    /**
+     * What the banner says. An investigation the agent did not finish also says why, from the MCP server's record
+     * ("Finished by the MCP server: agent closed the MCP connection"), so it does not read like an error of the tool.
+     */
     static String statusLine(ActivityStore.Investigation inv) {
-        if (inv.finished()) return "FINISHED".equals(inv.outcome()) ? "Finished" : "Ended without the agent finishing it";
+        if (inv.finished()) {
+            if ("FINISHED".equals(inv.outcome())) return "Finished";
+            String why = endReason(inv);
+            return "Ended without the agent finishing it" + (why == null ? "" : ": " + why + ", so the MCP server finished it");
+        }
         ActivityStore.Step running = runningStep(inv);
         if (running != null) return "Running: " + running.title();
         if (inv.steps().isEmpty()) return "Investigation started";
         if (ActivityStore.PROGRAM_PAUSED.equals(inv.program()))
             return "The agent is looking at the paused program";
         return "The agent is thinking";
+    }
+
+    /** Why the MCP server finished an investigation for the agent, or null when not recorded. */
+    private static String endReason(ActivityStore.Investigation inv) {
+        String prefix = "Finished by the MCP server: ";
+        if (inv.cleanup() != null)
+            for (String line : inv.cleanup())
+                if (line != null && line.startsWith(prefix) && line.length() > prefix.length())
+                    return line.substring(prefix.length()).strip();
+        return null;
     }
 
     /** "Debugging OrdersApplication" from the first launch step, as in the report; "Debugging session" before it. */

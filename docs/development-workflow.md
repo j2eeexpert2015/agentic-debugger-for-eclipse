@@ -15,8 +15,8 @@ Claude Code → MCP stdio server → authenticated localhost Eclipse bridge → 
 | `eclipse-plugin/` | JDT execution control, bridge, investigation ownership, Agent Activity view, perspective handling, Claude Code registration (Preferences) |
 | `mcp-server/` | MCP tools, investigation tracking, session report and live events (`SessionReport`, `ActivityForwarder`), test-only fixture HTTP tools |
 | `report/` | Report events and isolation rules (ADR-009), shared escaping/Markdown/colours/JSON, the Agent Activity store and page (embedded in the plugin as `lib/report.jar`), the HTML report writer (the same page as a file) |
-| `dev-e2e/` | `DevE2E` (build, deploy, test), Claude trials (`ClaudeSymptomTrial`), grader launcher |
-| `testing/` | Claude transcript grader and its unit tests; the direct bridge verifiers (package `e2e`, run by `DevE2E`); the 32-check ownership harness (`ownership-tests/`) |
+| `dev-e2e/` | `DevE2E` (prepares the test Eclipse: config, build, deploy, start, report-replay), grader launcher |
+| `testing/` | Claude transcript grader and its unit tests, the Claude trial runner (`src/main`); the integration tests and Claude end-to-end tests as JUnit 5 classes (`src/test/java/.../e2e`, profile `integration-tests`, [list](integration-tests.md)); the 32-check ownership harness (`ownership-tests/`) |
 | `examples/` | Intentionally buggy fixtures the tests are written against; **never changed** |
 | `skills/eclipse-debugger/` | Optional agent guidance, separate from code-enforced safety |
 | `docs/` | Decisions (ADRs), capabilities and SB scenarios, feature catalog, this workflow, designs |
@@ -64,26 +64,27 @@ Configuration lives in **untracked** `dev-e2e/e2e.properties` (template: `dev-e2
 | Fixture/oracle | Verify deliberate test defect and fixture sync; relevant direct/negative tests | Depends on imported workspace state |
 | Ownership, auth, consent, HTTP reproduction | Positive **and negative** tests (wrong workspace, borrowed JVM, expired owner, unauthorized POST); ensure cleanup | As affected modules require |
 
-**Canonical commands, run from repository root** (check `dev-e2e/README.md` for current group names):
+**Canonical commands, run from repository root** (every group and scenario: [integration tests](integration-tests.md)):
 
 ```cmd
 java dev-e2e/DevE2E.java list
-java dev-e2e/DevE2E.java test --tests boot-gaps:junit-invalid-method
-java dev-e2e/DevE2E.java test --groups boot-gaps
-java dev-e2e/DevE2E.java test --approve-fixture-post
+java dev-e2e/DevE2E.java start
+mvn -pl testing verify -Pintegration-tests -Dit.test=ProgramStartTests#rejectsUnknownJunitMethod
+mvn -pl testing verify -Pintegration-tests -Dit.test=ProgramStartTests
+mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 ```
 
 To **build, deploy, and test**, first **close the dedicated Eclipse instance**; the tool intentionally refuses to overwrite a running installation or kill Eclipse:
 
 ```cmd
-java dev-e2e/DevE2E.java all --approve-fixture-post
+java dev-e2e/DevE2E.java all
 ```
 
-`test` reuses or starts the verified dedicated Eclipse workspace but **does not rebuild or deploy** the plugin. If an integration test requires HTTP POST, the explicit `--approve-fixture-post` flag is mandatory; it is not blanket permission to call arbitrary services. Do not use destructive workspace resets or terminate other JVMs to clear an error. Follow `dev-e2e/README.md` for safe fixture refresh; automatic fixture synchronization is not universally available.
+`start` reuses or starts the verified dedicated Eclipse workspace but **does not rebuild or deploy** the plugin. If an integration test requires HTTP POST, the explicit `-Dfixture.post.approved=true` is mandatory (without it those tests are skipped); it is not blanket permission to call arbitrary services. Do not use destructive workspace resets or terminate other JVMs to clear an error. Follow `dev-e2e/README.md` for safe fixture refresh; automatic fixture synchronization is not universally available.
 
 ## 5. Test progression and failure analysis
 
-Use a short feedback loop: **compile/static checks → smallest affected direct scenario → relevant suite → full direct regression → opt-in Claude acceptance only when needed**. The direct suite consists of six groups (`phase1`, `phase2`, `boot`, `boot-quote`, `acceptance`, `boot-gaps`) totaling **23 scenarios** in the 23 November 2026 baseline. A successful result from separate groups is not proof of one uninterrupted full-suite run.
+Use a short feedback loop: **compile/static checks → smallest affected direct scenario → relevant suite → full direct regression → opt-in Claude acceptance only when needed**. The regression suite consists of seven groups named by feature (`program-start`, `breakpoints`, `execution-control`, `stops-and-variables`, `spring-boot-http`, `spring-boot-startup`, `investigation-isolation`) totaling **21 scenarios** since 25 November 2026 (23 in six differently named groups before; [integration tests](integration-tests.md)). A successful result from separate groups is not proof of one uninterrupted full-suite run.
 
 If a test fails:
 
@@ -98,9 +99,9 @@ If a test fails:
 Opt-in trials may spend Claude usage and must **never** be triggered by an ordinary documentation or deterministic test change. Example:
 
 ```cmd
-java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude
-java dev-e2e/DevE2E.java test --tests claude:boot-quote --approve-claude --approve-fixture-post
-java dev-e2e/DevE2E.java test --tests claude:validation --approve-claude --approve-fixture-post
+mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#junitWrongDiscount -Dclaude.approved=true
+mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true
+mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootValidation400 -Dclaude.approved=true -Dfixture.post.approved=true
 ```
 
 **Trial needed? (OPEN-39, token use).** A Claude trial costs Claude usage (about $0.19 for one boot-quote run on
@@ -108,14 +109,14 @@ Sonnet, 25 Nov 2026), so every delivery says *Trial needed: yes* or *no* with th
 
 - **Yes** when anything the agent reads or does changes: the skill (`skills/eclipse-debugger/`), tool names,
   descriptions or arguments (`DebugMcpServer`), tool replies (the plugin's JSON, `SessionReport`, `ReportingTools`),
-  value text, the trial prompt or the grader's rules. One `claude:boot-quote` run is enough for routine changes;
-  `--repeat 3` or the other scenarios only for changes to the skill's method or a new scenario.
+  value text, the trial prompt or the grader's rules. One `ClaudeAgentEndToEndTests#springBootWrongQuote` run is enough for routine changes;
+  repeated runs or the other scenarios only for changes to the skill's method or a new scenario.
 - **No** for the report's look or layout (`FlowPage`, `ActivityPage`, CSS), the Agent Activity window, docs, the
   build, and direct-test or unit-test changes. Check the report with the last trial's recorded events instead:
   `java dev-e2e/DevE2E.java report-replay` writes `<report>.replayed.html` from the newest `*.events.jsonl` (kept by
-  every `--report` trial) and runs the same REPORT CHECK, without Eclipse and without Claude.
+  every trial with `-Dclaude.report=true`) and runs the same REPORT CHECK, without Eclipse and without Claude.
 
-The trial uses a test-scoped MCP configuration, dedicated bridge, restricted tools and an explicit approved fixture POST mechanism—not arbitrary Bash or global Claude registration edits. Read `dev-e2e/ClaudeSymptomTrial.java` for the exact *current* implementation; this page is procedural, not a guarantee the runner has every desired grader feature.
+The trial uses a test-scoped MCP configuration, dedicated bridge, restricted tools and an explicit approved fixture POST mechanism—not arbitrary Bash or global Claude registration edits. Read `testing/src/main/java/.../testing/trial/ClaudeSymptomTrial.java` for the exact *current* implementation; this page is procedural, not a guarantee the runner has every desired grader feature.
 
 Review the actual `.claude.jsonl` tool events plus manifest and prompt (when present), verifying: selected launch/JUnit method; begun `NORMAL` investigation; relevant breakpoints and stop on **correct target/thread**; inspected application frames and values; exact response and request ID if applicable; source-vs-runtime distinction; resume; successful `finish_debug_investigation` response; and ideally post-cleanup session/breakpoint inventory. A tool response of `completed=true` does **not** independently prove empty resource inventories. Capture permission denials, timeouts and costs if supplied. **Do not equate `exitCode=0` or `REVIEW_REQUIRED` with pass.** Classify `PASS`, `PARTIAL`, `FAIL`, `UNSAFE`, `BLOCKED`, or `NOT RUN` with the evidence limitation.
 

@@ -7,14 +7,15 @@
 
     <!--
       Test tooling, not shipped with the plugin:
-        - the Claude transcript grader (EVAL-05/06), package testing.grading; its unit tests (EV-U1..EV-U18) run in the
-          normal build ("mvn clean package");
-        - the direct bridge verifiers, package e2e (moved here from the e2e-runner module, OPEN-38 step 6): Maven only
-          compiles them, so a broken verifier fails the build; dev-e2e/DevE2E.java compiles and runs them against a live
-          Eclipse;
+        - src/main/java: the Claude transcript grader (testing.grading, EVAL-05/06) and the Claude trial runner
+          (testing.trial); the grader's unit tests (EV-U1..EV-U19, src/test/java/.../grading) run in the normal build;
+        - src/test/java/.../e2e: the integration tests as JUnit 5 classes, one per product feature, and the Claude
+          end-to-end tests. They need the running test Eclipse, so the normal build only compiles them (a broken test
+          fails the build) and never runs them. They run with the profile below:
+              mvn -pl testing verify -Pintegration-tests                         (regression suite)
+              mvn -pl testing verify -Pintegration-tests -Dit.test=FullSuite     (or ExtendedSuite, BreakpointTests, ...)
+          See docs/integration-tests.md;
         - ownership-tests/: the 32-check ownership harness (OPEN-03), built and started by its own run.ps1.
-      Integration tests against a live Eclipse and Claude trials are NOT run by Maven; they run only through
-      dev-e2e/DevE2E.java.
     -->
     <groupId>org.learningfromexperience</groupId>
     <artifactId>agentic-debugger-testing</artifactId>
@@ -35,6 +36,13 @@
             <version>5.14.1</version>
             <scope>test</scope>
         </dependency>
+        <!-- @Suite classes (RegressionSuite, ExtendedSuite, FullSuite) of the integration tests -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <version>1.14.1</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -48,7 +56,50 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.4</version>
+                <configuration>
+                    <!-- Unit tests only: the integration tests (package e2e) need the test Eclipse. -->
+                    <excludes>
+                        <exclude>**/e2e/**</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          The integration tests against the running test Eclipse (java dev-e2e/DevE2E.java start or deploy first).
+          Default: the regression suite. -Dit.test=NAME runs another suite, one class or one test (Class#method).
+          Options given with -D (fixture.post.approved, claude.approved, claude.model, claude.report, claude.skill) reach
+          the tests as system properties by themselves; unset means not approved / default.
+        -->
+        <profile>
+            <id>integration-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>3.5.4</version>
+                        <configuration>
+                            <includes>
+                                <include>**/e2e/RegressionSuite.java</include>
+                            </includes>
+                            <!-- Full stack traces in failures. The tests share one Eclipse: they run one after the other
+                                 (JUnit's default); never configure parallel execution here. -->
+                            <trimStackTrace>false</trimStackTrace>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

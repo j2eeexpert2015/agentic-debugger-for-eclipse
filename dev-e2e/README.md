@@ -1,4 +1,4 @@
-# Java E2E runner — developer guide
+# Test environment and integration tests — developer guide
 
 [Project status and priorities](../README.md) · [Test fixtures](../examples/README.md)
 
@@ -8,39 +8,38 @@
 
 - Java 21+ and Maven; Eclipse IDE with Java/JDT/JUnit (m2e for supplied Maven fixtures). The direct tests **do not require Claude or Python**.
 - Copy `e2e.properties.example` to **untracked** `dev-e2e/e2e.properties` (on every machine: it is not in git). `java dev-e2e/DevE2E.java config` only checks it. Specify `repository`, `eclipse`, `workspace`, `bridgePort` once. The workspace **must be disposable and dedicated**; the bridge port must not be default `8765`.
-- The runner checks the running Eclipse identity before reuse. `test` does not install/rebuild the Eclipse plugin. `all`/`deploy` require the dedicated Eclipse instance to be **closed first**. Never point deployment at an IDE containing important work.
+- `DevE2E` prepares the test Eclipse: `all` (build, install, start), `deploy` (install the last build, start), `start` (start only, or check the running one). It checks the running Eclipse identity before reuse. `all`/`deploy` require the dedicated Eclipse instance to be **closed first**. Never point deployment at an IDE containing important work.
 - The failure fixtures are snapshots in the workspace. If the repository changes, close the dedicated Eclipse instance and run `java dev-e2e/SyncFailureFixtures.java` for the two failure fixtures, or rebuild a new disposable workspace. General automatic fixture synchronization remains to be implemented.
 
 ## Commands (repository root)
 
 ```cmd
-java dev-e2e/DevE2E.java list
-java dev-e2e/DevE2E.java test --approve-fixture-post
-java dev-e2e/DevE2E.java test --suite full --approve-fixture-post
-java dev-e2e/DevE2E.java test --feature spring-boot,ownership --approve-fixture-post
-java dev-e2e/DevE2E.java test --groups phase1,boot-gaps
-java dev-e2e/DevE2E.java test --tests boot-gaps:startup-failure,boot-gaps:port-conflict
-java dev-e2e/DevE2E.java all --approve-fixture-post
-java dev-e2e/DevE2E.java test --groups bridge
+:: Prepare the test Eclipse
+java dev-e2e/DevE2E.java config
+java dev-e2e/DevE2E.java all
+java dev-e2e/DevE2E.java deploy
+java dev-e2e/DevE2E.java start
+
+:: Run the integration tests (JUnit 5, testing module)
+mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
+mvn -pl testing verify -Pintegration-tests -Dit.test=FullSuite -Dfixture.post.approved=true
+mvn -pl testing verify -Pintegration-tests -Dit.test=SpringBootStartupTests
+mvn -pl testing verify -Pintegration-tests -Dit.test=AgentEclipseConnectionTests
 ```
 
-`--suite`, `--feature`, `--groups` and `--tests` are alternative selectors (one at a time; none = the 23-scenario regression). Features and suites are defined in `DevE2E.java` (`FEATURES`, `SUITES`) on top of the verifier groups below; every regression scenario belongs to exactly one feature, which `DevE2E` checks before each run. The feature table is in the [main README](../README.md#integration-tests-dedicated-test-eclipse). `--approve-fixture-post` explicitly authorizes the local test fixture HTTP requests. Tests record JSON under ignored `evaluation/reports/`.
+The integration tests are JUnit 5 classes in `testing/src/test/java/.../e2e`, one per product feature (base class `EclipseIntegrationTest`), each test method named after the behaviour it checks. `-Dit.test` picks a suite (`RegressionSuite` is the default, `ExtendedSuite`, `FullSuite`), a class or `Class#method`. `-Dfixture.post.approved=true` explicitly authorizes the local test fixture HTTP requests; without it the HTTP tests are reported as skipped. **Every test, option and the old names: [Integration tests](../docs/integration-tests.md).** Each class writes a JSON report to ignored `evaluation/reports/<group>.json`, with the evidence of every test, its duration and every bridge call; JUnit's own result files are in `testing/target/failsafe-reports/`.
 
-| Group | Direct tests |
-|---|---|
-| `phase1` | 7: conditional, exception, junit, variables, trace, pause-restart, filters |
-| `phase2` | 2: validation, ownership |
-| `boot` | 2: discovery, readiness |
-| `boot-quote` | 1: quote |
-| `acceptance` | 4: sb01-target-selection, sb09-expired-owner, sb09-borrowed-session, core-step-into-out |
-| `boot-gaps` | 7: two-mains, junit-invalid-method, two-services, startup-failure, readiness-timeout, port-conflict, owned-isolation |
-| **Total** | **23** |
+| Suite | Classes | Tests |
+|---|---|---:|
+| `RegressionSuite` (default) | ProgramStartTests, BreakpointTests, ExecutionControlTests, StopsAndVariablesTests, SpringBootHttpTests, SpringBootStartupTests, InvestigationIsolationTests | 21 |
+| `ExtendedSuite` | AbandonedSessionCleanupTests, AgentEclipseConnectionTests | 9 |
+| `FullSuite` | both | 30 |
 
-The opt-in `bridge` group (4 scenarios) and `stops` group (6 scenarios) are run separately; see [Bridge stability tests](#bridge-stability-tests-core-13) and [Stop event tests](#stop-event-and-output-tests-core-14-core-15).
+Before 25 Nov 2026 the tests ran with `java dev-e2e/DevE2E.java test` and groups named `phase1`, `phase2`, `boot`, `boot-quote`, `acceptance`, `boot-gaps`, `stops`, `lease`, `bridge`, `claude`; `DevE2E test` now says what replaced it. The acceptance records below keep the names used at the time.
 
 ## Bridge stability tests (CORE-13)
 
-Two levels, both separate from the 23-scenario regression (the `bridge` group is **not** included in a plain `test` run):
+Two levels, both separate from the regression (`AgentEclipseConnectionTests` is in `ExtendedSuite`, **not** in the default run):
 
 ```cmd
 :: 1. Unit tests — JUnit 5, run by the normal build, no Eclipse needed
@@ -54,18 +53,18 @@ Two levels, both separate from the 23-scenario regression (the `bridge` group is
 mvn clean package
 
 :: 2. Fault injection against the installed bridge in the dedicated Eclipse (about 45 s)
-java dev-e2e/DevE2E.java test --groups bridge
-java dev-e2e/DevE2E.java test --tests bridge:busy
+mvn -pl testing verify -Pintegration-tests -Dit.test=AgentEclipseConnectionTests
+mvn -pl testing verify -Pintegration-tests -Dit.test=AgentEclipseConnectionTests#busyCommandReported
 ```
 
-The `bridge` group uses the test-only `BRIDGE_TEST_SLEEP` command. The bridge accepts it only when the dedicated Eclipse was started **by DevE2E**, which sets `AGENTDEBUG_E2E=1`; a normal Eclipse never enables it. If the group reports *"Test hook disabled"*, close the dedicated Eclipse and rerun so DevE2E starts it. It launches nothing and changes no project, breakpoint or launch configuration.
+The `agent-eclipse-connection` group uses the test-only `BRIDGE_TEST_SLEEP` command. The bridge accepts it only when the dedicated Eclipse was started **by DevE2E**, which sets `AGENTDEBUG_E2E=1`; a normal Eclipse never enables it. If the group reports *"Test hook disabled"*, close the dedicated Eclipse and rerun so DevE2E starts it. It launches nothing and changes no project, breakpoint or launch configuration.
 
 | Scenario | Checks | Pass if |
 |---|---|---|
-| `slow-command` | BR-E1, E2, E4, E5 | PING / `LIST_DEBUG_SESSIONS` / `GET_E2E_INFO` / `LIST_BREAKPOINTS` answer in < 1 s while a 27 s state change runs; `BRIDGE_TIMEOUT` with an operation ID after ~25 s; `GET_OPERATION` returns the real result; diagnostics list the command; log has `SLOW`/`TIMEOUT` lines and never the token |
-| `busy` | BR-E3 | A real `BEGIN_INVESTIGATION` gets `BRIDGE_BUSY` naming the running command after ~5 s, then succeeds once the lane is free; its investigation is cleaned up |
-| `parallel-load` | BR-E9 | 20 parallel reads all succeed |
-| `auth` | BR-E7 | Missing and wrong tokens are rejected exactly as before |
+| `slow-command-does-not-block` | BR-E1, E2, E4, E5 | PING / `LIST_DEBUG_SESSIONS` / `GET_E2E_INFO` / `LIST_BREAKPOINTS` answer in < 1 s while a 27 s state change runs; `BRIDGE_TIMEOUT` with an operation ID after ~25 s; `GET_OPERATION` returns the real result; diagnostics list the command; log has `SLOW`/`TIMEOUT` lines and never the token |
+| `busy-command-reported` | BR-E3 | A real `BEGIN_INVESTIGATION` gets `BRIDGE_BUSY` naming the running command after ~5 s, then succeeds once the lane is free; its investigation is cleaned up |
+| `parallel-requests-succeed` | BR-E9 | 20 parallel reads all succeed |
+| `wrong-token-rejected` | BR-E7 | Missing and wrong tokens are rejected exactly as before |
 
 **Manual (BR-E8):** close Eclipse while a slow command runs → clean shutdown; after restart the bridge starts and `BRIDGE_START` appears in the log.
 
@@ -73,11 +72,11 @@ The `bridge` group uses the test-only `BRIDGE_TEST_SLEEP` command. The bridge ac
 
 ### Go / no-go checklist for bridge changes
 
-Record a **baseline before deploying** a bridge change: 3 full `test --approve-fixture-post` runs on the current build, keeping the reports. Then, on the new build:
+Record a **baseline before deploying** a bridge change: 3 full `RegressionSuite` runs on the current build, keeping the reports. Then, on the new build:
 
 - [ ] `mvn clean package` — all unit tests pass (surefire reports 41 in eclipse-plugin, 8 in mcp-server)
-- [ ] `test --groups bridge` — 4/4, plus the manual shutdown check
-- [ ] **3 consecutive uninterrupted 23/23 runs**, all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
+- [ ] `AgentEclipseConnectionTests` — 4/4, plus the manual shutdown check
+- [ ] **3 consecutive uninterrupted regression runs** (21/21; 23/23 before 25 Nov), all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
 - [ ] Every scenario that passed in the baseline still passes; no scenario more than ~20 % slower
 - [ ] Ownership checks 32/32 (`testing/ownership-tests/run.ps1`; Eclipse closed after a `DevE2E` deploy)
 - [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass
@@ -92,11 +91,11 @@ Rollback: install the previous plugin build (the single-threaded `legacy` bridge
 
 ## Stop event and output tests (CORE-14, CORE-15)
 
-The opt-in `stops` group checks `WAIT_FOR_STOP` and `GET_PROCESS_OUTPUT` on the installed bridge (about 1 minute). It uses only the existing `phase-one-debugging` fixture classes, runs every scenario in its own `NORMAL` investigation and cleans up its launches and breakpoints. It needs a deployed build that contains `WAIT_FOR_STOP`; otherwise it stops at once with *"Bridge has no WAIT_FOR_STOP"*.
+Since 25 Nov 2026 these checks are part of the regression: `stops-and-variables` (`stop-reports-location-and-variables`, `program-end-reported`, `program-output-read`), `execution-control/step-over-to-next-line`, `execution-control/pause-and-restart` (pause) and `breakpoints/exception-stops-where-thrown` (exception, blocking dialog). The table keeps the original scenario names. Until then the opt-in `stops` group checked `WAIT_FOR_STOP` and `GET_PROCESS_OUTPUT` on the installed bridge (about 1 minute). It uses only the existing `phase-one-debugging` fixture classes, runs every scenario in its own `NORMAL` investigation and cleans up its launches and breakpoints. It needs a deployed build that contains `WAIT_FOR_STOP`; otherwise it stops at once with *"Bridge has no WAIT_FOR_STOP"*.
 
 ```cmd
-java dev-e2e/DevE2E.java test --groups stops
-java dev-e2e/DevE2E.java test --tests stops:step
+mvn -pl testing verify -Pintegration-tests -Dit.test=StopsAndVariablesTests
+mvn -pl testing verify -Pintegration-tests -Dit.test=ExecutionControlTests#stepOverToNextLine
 ```
 
 | Scenario | Checks | Pass if |
@@ -112,30 +111,30 @@ java dev-e2e/DevE2E.java test --tests stops:step
 
 ## Abandoned-investigation tests (CORE-17)
 
-The opt-in `lease` group (about 1.5 minutes) uses 5-second leases (`BEGIN_INVESTIGATION NORMAL 5`) so expiry can be observed; normal sessions keep the 10-minute default. `mcp-disconnect` and `mcp-several` start the built MCP server JAR as a real stdio process, so run `all` (build) first.
+The `abandoned-session-cleanup` group (extended suite, about 1.5 minutes; `lease` before 25 Nov) uses 5-second leases (`BEGIN_INVESTIGATION NORMAL 5`) so expiry can be observed; normal sessions keep the 10-minute default. `agent-disconnect-cleans-up` and `ambiguous-call-rejected` start the built MCP server JAR as a real stdio process, so run `all` (build) first.
 
 ```cmd
-java dev-e2e/DevE2E.java test --groups lease
+mvn -pl testing verify -Pintegration-tests -Dit.test=AbandonedSessionCleanupTests
 ```
 
 | Scenario | Check | Pass if |
 |---|---|---|
-| `idle-expiry` | LE-E1 | Stopped at a breakpoint, then no calls: within 30 s Eclipse removed the investigation's breakpoint and ended its JVM; a late finish reports "expired" |
-| `wait-keeps-alive` | LE-E2 | A 12 s `WAIT_FOR_STOP` on a 5 s lease does not expire it; finish then succeeds |
-| `controlled-kept` | LE-E3 | A CONTROLLED investigation expires, but its suspended session and breakpoint are kept (the test removes them) |
-| `mcp-disconnect` | LE-E4 | Through a real MCP server: breakpoint and launch sent **without** `investigationId` come back with `attachedToInvestigation`; after closing the MCP connection the breakpoint is removed and the JVM ended |
-| `mcp-several` | LE-E5 | With two open investigations, a breakpoint without `investigationId` is rejected ("Several investigations are open") |
+| `idle-session-cleaned-up` | LE-E1 | Stopped at a breakpoint, then no calls: within 30 s Eclipse removed the investigation's breakpoint and ended its JVM; a late finish reports "expired" |
+| `long-wait-keeps-session` | LE-E2 | A 12 s `WAIT_FOR_STOP` on a 5 s lease does not expire it; finish then succeeds |
+| `controlled-mode-keeps-session` | LE-E3 | A CONTROLLED investigation expires, but its suspended session and breakpoint are kept (the test removes them) |
+| `agent-disconnect-cleans-up` | LE-E4 | Through a real MCP server: breakpoint and launch sent **without** `investigationId` come back with `attachedToInvestigation`; after closing the MCP connection the breakpoint is removed and the JVM ended |
+| `ambiguous-call-rejected` | LE-E5 | With two open investigations, a breakpoint without `investigationId` is rejected ("Several investigations are open") |
 
 **CORE-17 acceptance record (24 November 2026, Windows, JDK 25.0.5, Eclipse 2026-09):** unit 30/30; `lease` 5/5 (idle-expiry cleanup after 7 s, wait-keeps-alive, controlled-kept, mcp-disconnect immediate, mcp-several rejected); regression 23/23 after the startup cleanup removed a real leftover exception breakpoint that had failed phase2 on the previous build; `stops` 6/6.
 
-## Claude trial captures — separate from direct regression
+## Claude end-to-end tests — separate from the regression
 
 ```cmd
-java dev-e2e/DevE2E.java test --tests claude:junit --approve-claude
-java dev-e2e/DevE2E.java test --groups claude --approve-claude --approve-fixture-post
+mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#junitWrongDiscount -Dclaude.approved=true
+mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests -Dclaude.approved=true -Dfixture.post.approved=true
 ```
 
-`claude` runs `boot-quote`, `junit` and `validation` as **opt-in real CLI trials** and captures evidence under `evaluation/reports/claude-trials/`. Trials may consume Claude usage. For each trial the runner also reads the Eclipse sessions and breakpoints **directly from the bridge** before and after Claude runs (`<stem>.inventory.json`), then grades the run automatically (`<stem>.verdict.json`, printed as a `VERDICT` line).
+`ClaudeAgentEndToEndTests` runs `springBootWrongQuote`, `junitWrongDiscount` and `springBootValidation400` (file names `boot-quote-*`, `junit-*`, `validation-*`; runner `testing/.../testing/trial/ClaudeSymptomTrial.java`) as **opt-in real CLI trials**; a test passes when the verdict is PASS. Options: `-Dclaude.model=haiku`, `-Dclaude.report=true`, `-Dclaude.skill=false` and captures evidence under `evaluation/reports/claude-trials/`. Trials may consume Claude usage. For each trial the runner also reads the Eclipse sessions and breakpoints **directly from the bridge** before and after Claude runs (`<stem>.inventory.json`), then grades the run automatically (`<stem>.verdict.json`, printed as a `VERDICT` line).
 
 ### Automatic Claude verdicts (EVAL-05)
 
@@ -160,18 +159,18 @@ java dev-e2e/ClaudeTranscriptEvaluator.java
 ### Repeated trials and skill comparison (EVAL-06)
 
 ```cmd
-:: 3 runs of each Claude scenario, skill allowed (9 runs, roughly 10-15 min, about $1; uses Claude usage)
-java dev-e2e/DevE2E.java test --groups claude --repeat 3 --approve-claude --approve-fixture-post
+:: The three Claude scenarios, skill allowed (about 5 min, about $0.45; uses Claude usage). Run it again for more runs.
+mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests -Dclaude.approved=true -Dfixture.post.approved=true
 
 :: The same with every skill disabled (Claude CLI --disallowedTools Skill) for the comparison
-java dev-e2e/DevE2E.java test --groups claude --repeat 3 --no-skill --approve-claude --approve-fixture-post
+mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests -Dclaude.approved=true -Dfixture.post.approved=true -Dclaude.skill=false
 
 :: Summary of all graded runs, or of one batch (also written as summary-<batch>.md)
 java dev-e2e/ClaudeTranscriptEvaluator.java --summary
 java dev-e2e/ClaudeTranscriptEvaluator.java --summary --batch 20261123-170000-skill
 ```
 
-Before each run the harness stops any fixture JVM left over from an earlier run (found with `jps`, main class in `org.learningfromexperience.bootfixture` / `debugfixtures` only), removes agent-owned breakpoints left behind (user breakpoints are never touched) and requires Eclipse to show no live `Agentic Debugger - ` session; otherwise the run stops with `DIRTY_START` before any Claude usage (for example while a dialog is open in the test Eclipse). The grader identifies sessions per JVM (`launchName @ targetName`), so a session from an earlier run is never blamed on the next one. All runs of one command share a batch ID (`<UTC time>-skill` or `-noskill`), printed in the closing summary table: runs, PASS/PARTIAL/FAIL/BLOCKED/UNSAFE, pass rate, how many runs actually used a skill (invoked it **or** opened its files with Read/Grep/Glob), `wait_for_stop` use, independently verified cleanup, average debugger calls, turns, time and total cost. A failed run does not stop the batch, and every run with a transcript is graded, including runs where the `claude` command itself failed or timed out (they count as `FAIL`, with the reason from the final event, e.g. `subtype=error_max_turns`). Compare the two arms only with the same model and fixture revision, and treat a handful of runs as an indication, not a statistic.
+Before each run the harness stops any fixture JVM left over from an earlier run (found with `jps`, main class in `org.learningfromexperience.bootfixture` / `debugfixtures` only), removes agent-owned breakpoints left behind (user breakpoints are never touched) and requires Eclipse to show no live `Agentic Debugger - ` session; otherwise the run stops with `DIRTY_START` before any Claude usage (for example while a dialog is open in the test Eclipse). The grader identifies sessions per JVM (`launchName @ targetName`), so a session from an earlier run is never blamed on the next one. All runs of one command share a batch ID (`<UTC time>-skill` or `-noskill`, plus `-<model>` with `-Dclaude.model`), printed in the closing summary table: runs, PASS/PARTIAL/FAIL/BLOCKED/UNSAFE, pass rate, how many runs actually used a skill (invoked it **or** opened its files with Read/Grep/Glob), `wait_for_stop` use, independently verified cleanup, average debugger calls, turns, time and total cost. A failed run does not stop the batch, and every run with a transcript is graded, including runs where the `claude` command itself failed or timed out (they count as `FAIL`, with the reason from the final event, e.g. `subtype=error_max_turns`). Compare the two arms only with the same model and fixture revision, and treat a handful of runs as an indication, not a statistic.
 
 Checks report `PASS`, `FAIL` or `NOT_CAPTURED`. Older transcripts without an inventory can still be `PASS`, with `independentCleanupVerified=false`. A final-result-only `.claude.json` (no tool events) is never better than `PARTIAL`. Metrics (tool calls, wait calls, `usedWaitForStop`, turns, duration, cost) support later with/without-skill comparisons.
 
@@ -186,9 +185,9 @@ The updated installation passed all 23 direct scenarios **across separate runs**
 
 ## Retained test infrastructure
 
-Keep the Java verifiers in `testing/src/main/java/` (package `e2e`, compiled by every build; `DevE2E` compiles and starts them), the 32-check ownership harness in `testing/ownership-tests/` (started by its own `run.ps1`, which starts the test Eclipse itself), the Maven fixture modules and the optional skill under `skills/eclipse-debugger/`. The older Windows batch and PowerShell runners, the `integrate`/`cleanup` migration modes and the one-off `dev-e2e` updaters were removed on 25 Nov 2026 (OPEN-38 step 1); the top-level README records current progress.
+Keep the integration test classes in `testing/src/test/java/` (package `e2e`, one JUnit class per product feature, compiled by every build, run only with the `integration-tests` Maven profile), the 32-check ownership harness in `testing/ownership-tests/` (started by its own `run.ps1`, which starts the test Eclipse itself), the Maven fixture modules and the optional skill under `skills/eclipse-debugger/`. The older Windows batch and PowerShell runners, the `integrate`/`cleanup` migration modes and the one-off `dev-e2e` updaters were removed on 25 Nov 2026 (OPEN-38 step 1); the top-level README records current progress.
 
-For a release gate, record the exact source revision, Eclipse bundle identity, JDK, command and all six direct-suite JSON reports, rerun against a clean build and distinguish direct JDT evidence from Claude agent behavior.
+For a release gate, record the exact source revision, Eclipse bundle identity, JDK, command and the JSON reports of every regression group, rerun against a clean build and distinguish direct JDT evidence from Claude agent behavior.
 
 ## Checks before running, and failure messages
 
@@ -203,7 +202,6 @@ Every command first checks this machine's setup and lists **all** problems at on
 | Java 21 or newer | always |
 | Maven starts (`mvn -v`) | `build`, `all` |
 | A finished build to deploy (`eclipse-update-site/target/repository`); a WARNING when sources changed after it | `deploy` |
-| The `claude` command starts (`claude --version`), started the same way as the trial starts it | Claude trials |
 
 Any other failure is one line, `FAILED: <what failed>` (exit code 1), for example a missing file or a test Eclipse
 that cannot be reached. Add `--trace` to the command to see the Java stack trace as well.

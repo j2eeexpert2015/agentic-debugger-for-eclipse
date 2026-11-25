@@ -10,8 +10,8 @@ $jars = Get-ChildItem $plugins -Filter '*.jar' | Where-Object {
     $_.Name -match '^org\.eclipse\.(core\.|equinox\.(common|registry|preferences)_|jdt\.(core|launching)_|debug\.core_|ui[._]|osgi_|jface_)'
 }
 $classpath = (@($jdt.FullName) + @($jars.FullName)) -join ';'
-$verifier = Join-Path $PSScriptRoot '../src/main/java/org/learningfromexperience/agentdebug/e2e/PhaseOneBridgeVerifier.java'
-& javac -proc:none --release 21 -cp $classpath -d $classes $verifier "$PSScriptRoot/OwnershipChecks.java"
+$e2e = Join-Path $PSScriptRoot '../src/test/java/org/learningfromexperience/agentdebug/e2e'
+& javac -proc:none --release 21 -cp $classpath -d $classes (Join-Path $e2e 'Bridge.java') (Join-Path $e2e 'Json.java') "$PSScriptRoot/OwnershipChecks.java"
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 & jar cfm "$OutputDirectory/ownership-tests.jar" "$PSScriptRoot/MANIFEST.MF" -C $classes org/learningfromexperience/agentdebug/e2e -C $PSScriptRoot plugin.xml
 exit $LASTEXITCODE

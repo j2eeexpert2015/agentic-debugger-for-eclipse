@@ -1,3 +1,5 @@
+package org.learningfromexperience.agentdebug.testing.trial;
+
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Instant;
@@ -50,7 +52,7 @@ public final class ClaudeSymptomTrial {
         Path jar = root.resolve("mcp-server/target/agentic-debugger-mcp-1.0.0-SNAPSHOT.jar")
                 .toAbsolutePath().normalize();
         require(Files.isRegularFile(jar), "Missing built MCP JAR: " + jar
-                + ". Close Eclipse, then run java dev-e2e/DevE2E.java all --approve-fixture-post");
+                + ". Close Eclipse, then run java dev-e2e/DevE2E.java all");
         try (java.util.jar.JarFile archive = new java.util.jar.JarFile(jar.toFile())) {
             String base = "org/learningfromexperience/eclipse/agentdebug/mcp/";
             require(archive.getEntry(base + "DebugMcpServer.class") != null,
@@ -285,22 +287,38 @@ public final class ClaudeSymptomTrial {
         return String.join(", ", live);
     }
 
+    /**
+     * Command line: {@code REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post] [--batch ID] [--no-skill]
+     * [--report] [--model NAME]}. The JUnit class {@code ClaudeAgentEndToEndTests} calls {@link #run} directly.
+     */
     public static void main(String[] args) throws Exception {
-        require(args.length>=3,"Usage: ClaudeSymptomTrial REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post] [--batch ID] [--no-skill] [--report]");
-        Path root=Path.of(args[0]).toRealPath();
-        String scenario=args[1];
-        Path reports=Path.of(args[2]).toAbsolutePath();
+        require(args.length>=3,"Usage: ClaudeSymptomTrial REPO SCENARIO OUTPUT_FOLDER --approve-claude [--approve-fixture-post] [--batch ID] [--no-skill] [--report] [--model NAME]");
+        List<String> list=Arrays.asList(args);
+        int modelAt=list.indexOf("--model");
+        int batchAt=list.indexOf("--batch");
+        require(list.contains("--approve-claude"),"Claude CLI execution requires --approve-claude (may consume tokens)");
+        run(Path.of(args[0]), args[1], Path.of(args[2]), list.contains("--approve-fixture-post"), list.contains("--no-skill"),
+                list.contains("--report"), modelAt >= 0 && modelAt + 1 < args.length ? args[modelAt + 1] : null,
+                batchAt >= 0 && batchAt + 1 < args.length ? args[batchAt + 1] : "single");
+    }
+
+    /**
+     * Runs one Claude trial and grades it. Returns the verdict (its "verdict" is PASS, PARTIAL, FAIL, BLOCKED or
+     * UNSAFE), or null when Claude produced no transcript; throws when the Claude CLI run itself did not complete.
+     *
+     * @param post          HTTP requests to the test application approved (needed by every scenario but junit)
+     * @param noSkill       Claude may not use any skill (comparison run)
+     * @param sessionReport the MCP server also writes the debugging session report next to the transcript
+     * @param model         the Claude model (for example haiku); null for the Claude CLI's default
+     * @param batch         the batch ID that groups runs in the summary
+     */
+    public static Map<String,Object> run(Path repository, String scenario, Path reportFolderRoot, boolean post, boolean noSkill,
+                                         boolean sessionReport, String model, String batch) throws Exception {
+        Path root=repository.toRealPath();
+        Path reports=reportFolderRoot.toAbsolutePath();
         require(PROMPTS.containsKey(scenario),"Unknown Claude scenario: " + scenario);
-        boolean consent=Arrays.asList(args).contains("--approve-claude");
-        boolean post=Arrays.asList(args).contains("--approve-fixture-post");
-        // --no-skill: Claude may not invoke any skill (the Skill tool is disallowed), giving a controlled baseline.
-        boolean noSkill=Arrays.asList(args).contains("--no-skill");
-        // --report: the MCP server also writes its debugging session report (OPEN-30) next to the transcript.
-        boolean sessionReport=Arrays.asList(args).contains("--report");
-        int batchAt=Arrays.asList(args).indexOf("--batch");
-        String batch=batchAt >= 0 && batchAt + 1 < args.length ? args[batchAt + 1] : "single";
-        require(consent,"Claude CLI execution requires --approve-claude (may consume tokens)");
-        require(post || scenario.equals("junit"),"Fixture HTTP trial requires --approve-fixture-post");
+        require(model == null || model.matches("[a-z0-9][a-z0-9.-]{0,60}"), "Invalid model name: " + model);
+        require(post || scenario.equals("junit"),"This trial sends an HTTP request to the test application: approval needed (-Dfixture.post.approved=true)");
         require(Files.isRegularFile(root.resolve("pom.xml")),"Not a repository checkout");
         int port = configuredPort(root);
         Properties e2eProperties = new Properties();
@@ -323,7 +341,7 @@ public final class ClaudeSymptomTrial {
             socket.connect(new InetSocketAddress("127.0.0.1", port), 1500);
         } catch (java.io.IOException e) {
             throw new IllegalStateException("Dedicated Eclipse bridge not listening on 127.0.0.1:" + port
-                    + ". Start the E2E Eclipse instance via DevE2E.java. " + e.getMessage(), e);
+                    + ". Start the test Eclipse: java dev-e2e/DevE2E.java start " + e.getMessage(), e);
         }
         // Fail closed rather than replace a previous trial or silently overwrite evidence.
         Files.createDirectories(reports);
@@ -349,6 +367,7 @@ public final class ClaudeSymptomTrial {
                 "--allowedTools","mcp__eclipse-debugger__*",
                 "--output-format","stream-json","--verbose","--max-turns","25"));
         if (noSkill) command.addAll(List.of("--disallowedTools","Skill"));
+        if (model != null) command.addAll(List.of("--model", model));
         // Start from a clean Eclipse: no fixture JVM left over from an earlier trial.
         List<String> leftoversStopped = clearLeftoverFixtures(port);
         if (!leftoversStopped.isEmpty())
@@ -416,11 +435,12 @@ public final class ClaudeSymptomTrial {
         System.out.println(scenario+" => "+outcome+"; transcript="+transcript+"; manifest="+metadata);
         // Grade every run that produced a transcript, including CLI failures and timeouts: a failed
         // run must count as FAIL in the batch summary, never silently disappear from it.
+        Map<String,Object> verdict=null;
         if (Files.isRegularFile(transcript) && Files.size(transcript) > 0) {
             // Automatic grade from the debugger's actual results plus the independent inventory.
             var expectations = ClaudeTranscriptEvaluator.Json.obj(ClaudeTranscriptEvaluator.Json.parse(
                     Files.readString(root.resolve("evaluation/claude-grading/expectations.json"), StandardCharsets.UTF_8)));
-            var verdict = ClaudeTranscriptEvaluator.gradeFile(transcript, scenario, expectations);
+            verdict = ClaudeTranscriptEvaluator.gradeFile(transcript, scenario, expectations);
             verdict.put("batch", batch);
             verdict.put("skillMode", noSkill ? "disabled" : "allowed");
             Path verdictFile = reports.resolve(stem + ".verdict.json");
@@ -431,5 +451,6 @@ public final class ClaudeSymptomTrial {
                     + " (" + ClaudeTranscriptEvaluator.Json.str(((java.util.List<?>) verdict.get("checks")).get(0)) + ")");
         }
         if(!outcome.equals("REVIEW_REQUIRED")) throw new IllegalStateException("Claude trial not captured successfully: "+outcome+" "+failure);
+        return verdict;
     }
 }

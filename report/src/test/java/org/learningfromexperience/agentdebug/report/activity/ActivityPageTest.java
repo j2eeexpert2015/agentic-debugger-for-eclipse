@@ -129,6 +129,16 @@ class ActivityPageTest {
         finish(ended, "ENDED_WITHOUT_FINISH", null);
         assertTrue(ActivityPage.banner(ended.current()).contains("class=\"banner ended\""));
         assertTrue(ActivityPage.banner(ended.current()).contains("Ended without the agent finishing it"));
+        assertEquals("Ended without the agent finishing it", ActivityPage.statusLine(ended.current()), "no reason recorded");
+
+        // The agent's connection closed: the banner says so, so it does not read like an error of the tool.
+        ActivityStore closed = started("Why?");
+        closed.accept(enc("{\"type\":\"investigationFinished\",\"investigationId\":\"3b80cb03-1111\","
+                + "\"at\":\"2026-11-24T10:00:45Z\",\"outcome\":\"ENDED_WITHOUT_FINISH\",\"conclusion\":null,"
+                + "\"cleanup\":[\"Finished by the MCP server: agent closed the MCP connection\","
+                + "\"Removed own breakpoint StepFilterApplication:9\"],\"reportFile\":null}"));
+        assertEquals("Ended without the agent finishing it: agent closed the MCP connection, so the MCP server finished it",
+                ActivityPage.statusLine(closed.current()));
     }
 
     @Test @DisplayName("AP-U3 header: short title from the launch, request cut to a preview that expands, local start time")
