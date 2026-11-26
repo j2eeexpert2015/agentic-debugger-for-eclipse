@@ -13,10 +13,11 @@ The workflow is `.github/workflows/ci.yml` ("Build and unit tests"). It runs on 
 
 | Phase / step | What | Tracking | Status |
 |---|---|---|---|
-| 1.1 | **Windows only**, JDK 25 (same as Ayan's machine): `mvn -B -ntp clean package`, unit tests of `report`, `mcp-server`, `testing`, `eclipse-plugin`; a test-count table on the run page; test reports kept when the build fails; the update-site zip kept | OPEN-54 | Delivered 27 Nov, first run pending |
-| 1.2 | Add Linux (`ubuntu-latest`) and macOS (`macos-latest`) on JDK 25, and Windows on JDK 21 (the README promises JDK 21+): only new rows in the `matrix` of `ci.yml` | OPEN-54 | After 1.1 is green |
-| 1.3 | When CP-U7 (runs the real launcher script) passes on Linux and macOS: switch the Copilot launcher on there (`CopilotMcpProvider`) | OPEN-54 | After 1.2 |
-| 2 | Integration tests with a real test Eclipse: download Eclipse 2025-12, write `dev-e2e/e2e.properties` in the job, deploy, start, run `RegressionSuite`. Windows first (no virtual display needed, same as Ayan's setup; not yet checked that a GitHub Windows machine runs the Eclipse UI), then Linux with Xvfb, then macOS | OPEN-55 | Not started |
+| 1.1 | **Windows only**, JDK 25 (same as Ayan's machine): `mvn -B -ntp clean package`, unit tests of `report`, `mcp-server`, `testing`, `eclipse-plugin`; a test-count table on the run page; test reports kept when the build fails; the update-site zip kept | OPEN-54 | **Done, checked 27 Nov 00:47** (run #1, 2 min 51 s): report 54, mcp-server 34, testing 23, eclipse-plugin 84, total 195, 0 failures; both p2 sites reached from GitHub's machine; update-site zip kept (6.3 MB) |
+| 1.2 | Add **Windows, JDK 21** (the README promises JDK 21+): build and unit tests run on a Java 21 JVM. One new value in the `matrix` of `ci.yml`; `upload-artifact` v4 → v5 (Node 20 warning) | OPEN-54 | Delivered 27 Nov, run pending |
+| 1.3 | Add Linux (`ubuntu-latest`) and macOS (`macos-latest`): only new rows in the `matrix` | OPEN-54 | After 1.2 is green |
+| 1.4 | When CP-U7 (runs the real launcher script) passes on Linux and macOS: switch the Copilot launcher on there (`CopilotMcpProvider`) | OPEN-54 | After 1.3 |
+| 2 | Integration tests with a real test Eclipse, **Windows first** (Ayan, 27 Nov: Windows first, then the other systems): download Eclipse 2025-12 (Java developers package: JDT, JUnit, m2e) and cache it, write `dev-e2e/e2e.properties` with the job's paths, `java dev-e2e/DevE2E.java deploy`, then `mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true` (`RegressionSuite`, 21 tests); keep test reports and the Eclipse log on failure. Unknowns: whether a GitHub Windows machine shows the Eclipse window (I think yes, not checked), `DevE2E` with other paths, run time. Then Linux with Xvfb, then macOS. Claude and Copilot runs stay manual (accounts, usage) | OPEN-55 | Not started |
 | 3 | Releases: on a version tag build, create a GitHub Release with the update-site zip, publish the update site on GitHub Pages; signing (OPEN-45) later with the certificate as a GitHub secret | OPEN-56 | Not started |
 
 ## Branches
@@ -27,7 +28,7 @@ The workflow is `.github/workflows/ci.yml` ("Build and unit tests"). It runs on 
 
 ## Reading a run
 
-GitHub → **Actions** → the run → the job (`windows-latest / JDK 25`):
+GitHub → **Actions** → the run → a job (`windows-latest / JDK 25`, `windows-latest / JDK 21`):
 
 - the job's page (**Summary**) shows the table "Unit tests" per module; expected today: report 54, mcp-server 34,
   testing 23, eclipse-plugin 84, 0 failures;
@@ -38,5 +39,5 @@ GitHub → **Actions** → the run → the job (`windows-latest / JDK 25`):
 
 - Tycho reaching the p2 sites from GitHub's machines (`download.eclipse.org` and the Copilot update site on Azure).
 - Windows line endings: the repository has no `.gitattributes`, so GitHub's Windows machine checks out with CRLF, the
-  same as Ayan's GitHub Desktop checkout. Linux and macOS (step 1.2) check out with LF; text-comparing tests may differ.
+  same as Ayan's GitHub Desktop checkout. Linux and macOS (step 1.3) check out with LF; text-comparing tests may differ.
 - The first run downloads all Maven and p2 dependencies (slow); later runs use the Maven cache.

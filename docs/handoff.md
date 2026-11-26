@@ -55,13 +55,14 @@ the delivery says "Trial needed: yes":
 
 ## 4. In flight (waiting for Ayan)
 
-**A. CI phase 1, step 1.1 (OPEN-54): Windows only, first run pending.** Ayan decided (27 Nov 00:39) to start CI on
-Windows only and add the other systems once that works. `ci-phase1-windows.zip` (replaces the earlier
-`ci-phase1.zip`, which was never extracted or pushed) holds `.github/workflows/ci.yml` (one job: `windows-latest`,
-JDK 25, `mvn -B -ntp clean package`, test-count table, reports on failure, update-site zip) and `docs/ci.md` (the
-step plan). Branch `ci/github-actions` exists on GitHub (same commit as `main`); Ayan extracts the zip on that
-branch, commits and pushes in GitHub Desktop, and sends the run result. When green: step 1.2 (Linux, macOS, JDK 21,
-only new matrix rows), then merge into `main`. Phase 2 (OPEN-55): proposed in `docs/ci.md` to start on Windows too; Ayan to confirm.
+**A. CI phase 1 (OPEN-54), step 1.2: Windows JDK 21, run pending.** Windows first, then the other systems (Ayan,
+27 Nov). Work happens on branch `ci/github-actions`; `main` stays for development. **Step 1.1 done, checked 27 Nov
+00:47:** run #1 (Windows, JDK 25) green in 2 min 51 s, unit tests 54/34/23/84 = 195, 0 failures, both p2 sites
+reached, update-site zip kept. `ci-phase1-2-jdk21.zip` adds JDK 21 to the matrix (two jobs: `windows-latest / JDK 25`
+and `/ JDK 21`) and moves `upload-artifact` to v5 (Node 20 deprecation warning in run #1). Ayan extracts it on the
+branch, commits, pushes, sends both jobs' tables. Next: step 1.3 (Linux, macOS), then merge into `main`, then 1.4
+(launcher on Linux/macOS when CP-U7 passes there). Phase 2 (OPEN-55, integration tests) also Windows first; plan in
+`docs/ci.md`.
 
 **B. OPEN-23 (d) check, not run yet.** Question: offer the agent once per user in `%USERPROFILE%\.copilot\agents\`
 (Copilot's language server reads it for every workspace) instead of a copy in each project (each open project's copy
@@ -85,7 +86,7 @@ Check prompt for Copilot (Agentic Debugger mode, new chat):
 
 ## 5. Next, in this order
 
-1. Finish 4A (CI first run) and 4B (d check), one at a time.
+1. Finish 4A (CI steps 1.2, 1.3) and 4B (d check), one at a time.
 2. OPEN-23 (d) implementation, if the check supports it.
 3. OPEN-23 (b): neutral wording in tool descriptions and skill for Copilot's Agent mode ("starts the test itself,
    no running session needed"), not forbidding Copilot's own tools; check with Copilot runs and one Claude batch.
@@ -104,14 +105,20 @@ Check prompt for Copilot (Agentic Debugger mode, new chat):
 | Skill for Copilot | `integration/CopilotSkill.java`, preferences page; source `skills/eclipse-debugger/` (v0.1.5) |
 | Agent Activity banner | `report/src/main/java/.../report/activity/ActivityPage.java` (`phase()`, `where()`), `FlowPage.java` (dark CSS), `eclipse-plugin/.../ui/AgentStatusControl.java` |
 | Quiet server | `mcp-server/.../DebugMcpServer.java`, `SessionReport.java` (`ENV_VERBOSE`, `verbose(env)`) |
-| CI | `.github/workflows/ci.yml`, `docs/ci.md` (on branch `ci/github-actions` once pushed) |
+| CI | `.github/workflows/ci.yml`, `docs/ci.md` (branch `ci/github-actions` until merged into `main`) |
 
 ## 7. Last delivery
 
-`ci-phase1-windows.zip` (27 Nov 2026): new `.github/workflows/ci.yml`, new `docs/ci.md`, README OPEN-54 status,
-this file (section 4A, this section). Not checked by the assistant: any GitHub Actions run (no access to the Actions
-tab; the workflow YAML only parsed locally), the PowerShell summary step, whether the update-site zip name matches.
+`ci-phase1-2-jdk21.zip` (27 Nov 2026): `.github/workflows/ci.yml` (header comment, `java: [ '25', '21' ]`,
+`upload-artifact@v5` twice), `docs/ci.md` (plan table: 1.1 done with evidence, 1.2 JDK 21, 1.3 Linux/macOS, 1.4
+launcher, phase 2 Windows first), README OPEN-54 and OPEN-55, this file (4A, 5, 6, 7, 8). Not checked by the
+assistant: the GitHub run (no access to the Actions tab; YAML only parsed locally), whether the build runs on JDK 21
+(the assistant did not build).
 
 ## 8. Noticed, not started
 
+- `SessionReportTest` (mcp-server unit tests) writes report files into the user's home folder
+  (`%USERPROFILE%\.eclipse-agentdebug\reports\...`, seen in CI run #1); unit tests should use a temporary folder.
+- `dev-e2e/e2e.properties` is tracked in git although `.gitignore` lists it and the working agreement says it is never
+  committed (it was added before the ignore rule); removing it from git needs a commit that deletes it from the index.
 - `examples/README.md` has two dead links to deleted documents; left unchanged (examples/ rule) until Ayan decides.
