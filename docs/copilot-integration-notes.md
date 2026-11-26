@@ -81,3 +81,23 @@ README OPEN-58 (consent from the user, asked by the plugin).
 **Terminal.** Copilot's `run_in_terminal` opens its own tab "Copilot" and works. Other PowerShell tabs showed
 `. $env:COPILOT_POWERSHELL_INTEGRATION_SCRIPT` failing (variable empty); not caused by our plugin, cause not checked
 (handoff, Noticed).
+
+## 6. The "Confirm MCP Server Registration" dialog
+
+Copilot opens it only when the user clicks: the tool button (wrench) in the chat bar, its menu item for new MCP
+registrations, or Preferences → GitHub Copilot → Model Context Protocol → Edit MCP Servers from Plug-ins
+(`McpExtensionPointManager.approveExtMcpRegistration`, called only from `ActionBar` and `McpPreferencePage`, commit
+`6dc0170`). At a start Copilot only compares the stored and the current server JSON (`detectChangesInMcpContribs`) and,
+when they differ or the server is new, marks it Denied and puts a red dot on the wrench button. So the dialog seen on
+27 Nov 01:37 (showing Approved) came from a click, not from a start. Whether our JSON changes between starts shows as
+that red dot: [release checks](release-checks.md) E. Our JSON is built only from the launcher path and the bridge
+port (`CopilotRegistration.json`), both stable.
+
+## 7. Tool annotations and server instructions (OPEN-58, OPEN-23 b)
+
+Since 27 Nov our server declares MCP tool annotations (`ToolSafety`): read-only tools `readOnlyHint=true`,
+`evaluate_expression` and `set_tracepoint` `destructiveHint=true`, the rest neither. With "Trust MCP tool annotations"
+on, Copilot can approve the read-only ones itself and ask for the others. Independent of that, the plugin asks the
+user in Eclipse before code runs in the program (`EvaluationConsent`). The server also sends MCP "instructions" at
+connection saying that the tools start the program or test themselves; whether Copilot shows them to the model is not
+checked (release checks B).

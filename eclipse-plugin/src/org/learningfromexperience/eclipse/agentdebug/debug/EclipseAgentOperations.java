@@ -42,6 +42,7 @@ import org.eclipse.jdt.debug.eval.EvaluationManager;
 import org.eclipse.jdt.debug.eval.IAstEvaluationEngine;
 import org.eclipse.jdt.debug.eval.IEvaluationResult;
 import org.learningfromexperience.eclipse.agentdebug.ui.AgentDebugUiCoordinator;
+import org.learningfromexperience.eclipse.agentdebug.ui.EvaluationConsentDialog;
 
 /**
  * Exposes authenticated Eclipse Java debugging operations to the local MCP bridge.
@@ -51,6 +52,8 @@ import org.learningfromexperience.eclipse.agentdebug.ui.AgentDebugUiCoordinator;
 public final class EclipseAgentOperations {
     private final EclipseBreakpointService breakpoints = new EclipseBreakpointService();
     private final AgentDebugUiCoordinator ui = new AgentDebugUiCoordinator();
+    /** OPEN-58: the user decides in Eclipse before an agent runs code in the debugged program (90 s to answer). */
+    private final EvaluationConsent consent = new EvaluationConsent(new EvaluationConsentDialog(), 90_000);
     private final DebugInvestigationPolicy investigations = new DebugInvestigationPolicy();
     /** Records real debugger stops for WAIT_FOR_STOP (event-based, no polling). */
     private final DebugStopTracker stops = new DebugStopTracker();
@@ -146,6 +149,10 @@ public final class EclipseAgentOperations {
                 case "TEST_DELETE_SOURCE" -> TEST_SUPPORT ? TestWorkspaceFiles.execute(p) : testOnly(p[0]);
                 case "TEST_DELETE_CLASS_FILE" -> TEST_SUPPORT ? TestWorkspaceFiles.execute(p) : testOnly(p[0]);
                 case "TEST_BUILD_PROJECT" -> TEST_SUPPORT ? TestWorkspaceFiles.execute(p) : testOnly(p[0]);
+                // OPEN-58: unattended tests preset the answer to the consent question (allow, deny, ask).
+                case "TEST_SET_CONSENT" -> TEST_SUPPORT
+                        ? ok(",\"consent\":" + q(consent.preset(require(p, 1)).name().toLowerCase(java.util.Locale.ROOT)))
+                        : testOnly(p[0]);
                 default -> error("Unknown command");
             };
         } catch (Exception e) {
@@ -487,6 +494,12 @@ public final class EclipseAgentOperations {
         var investigation = id == null ? null : investigations.require(id);
         if (tracepoint && expression.length() > 200) {
             throw new IllegalArgumentException("Trace expression must be at most 200 characters");
+        }
+        if (tracepoint) {
+            // OPEN-58: a tracepoint runs the expression in the program each time the line runs; the user decides.
+            var decision = consent.decide(new EvaluationConsent.Request(true, expression,
+                    type.substring(type.lastIndexOf('.') + 1) + " line " + line, investigation));
+            if (!decision.allowed()) return error(decision.message());
         }
         var bp = breakpoints.setBreakpoint(type, line, id, expression, tracepoint);
         if (investigation != null && bp.created()) investigation.recordBreakpoint(bp.typeName(), bp.lineNumber());
@@ -1059,19 +1072,42 @@ public final class EclipseAgentOperations {
 
     private static ILaunch launch(String name) {
         ILaunch match = activeLaunch(name);
-        if (match == null) throw new IllegalArgumentException("Active debug launch not found: " + name);
+        if (match == null) {
+            // OPEN-12: say plainly when the program has already ended (the message keeps its old start for callers).
+            throw new IllegalArgumentException("Active debug launch not found: " + name + (endedLaunch(name)
+                    ? " (this program has ended; nothing is left to inspect or control - start it again to debug further)"
+                    : ""));
+        }
         return match;
+    }
+
+    /** True when a debug launch of that name exists and has terminated (OPEN-12). */
+    private static boolean endedLaunch(String name) {
+        for (var current : manager().getLaunches()) {
+            var c = current.getLaunchConfiguration();
+            if (current.isTerminated() && c != null && c.getName().equals(name)
+                    && ILaunchManager.DEBUG_MODE.equals(current.getLaunchMode())) return true;
+        }
+        return false;
     }
 
     private static IDebugTarget target(ILaunch l) {
         IDebugTarget chosen = null;
+        boolean ended = false;
         for (var t : l.getDebugTargets()) {
-            if (!t.isTerminated() && t instanceof IJavaDebugTarget) {
-                if (chosen != null) throw new IllegalArgumentException("Multiple Java targets; operation is ambiguous");
-                chosen = t;
+            if (!(t instanceof IJavaDebugTarget)) continue;
+            if (t.isTerminated()) {
+                ended = true;
+                continue;
             }
+            if (chosen != null) throw new IllegalArgumentException("Multiple Java targets; operation is ambiguous");
+            chosen = t;
         }
-        if (chosen == null) throw new IllegalArgumentException("No active Java debug target yet");
+        // OPEN-12: the program's JVM has ended although Eclipse has not closed the launch yet (seen 27 Nov 02:33).
+        // "No active Java debug target yet" stays for a program that is still starting: the MCP server waits on it.
+        if (chosen == null) throw new IllegalArgumentException(ended
+                ? "This program has ended; nothing is left to inspect or control - start it again to debug further"
+                : "No active Java debug target yet");
         return chosen;
     }
 
@@ -1216,7 +1252,17 @@ public final class EclipseAgentOperations {
 
     private static IThread thread(ILaunch launch, int index) throws CoreException {
         IThread[] all = target(launch).getThreads();
-        if (index < 0 || index >= all.length) throw new IllegalArgumentException("Thread index out of range; call get_threads again");
+        if (index < 0 || index >= all.length) {
+            // OPEN-12: the JVM is ending: its process has ended, or its target has no threads left, before Eclipse marks
+            // the target terminated (seen 27 Nov 02:40 right after wait_for_stop reported TERMINATED).
+            boolean ending = all.length == 0;
+            for (IProcess process : launch.getProcesses()) if (process.isTerminated()) ending = true;
+            if (ending) throw new IllegalArgumentException("This program has ended; nothing is left to inspect or control"
+                    + " - start it again to debug further");
+            throw new IllegalArgumentException("Thread index out of range; call get_threads again");
+        }
+        // OPEN-12: a thread that ended between the agent's last look and this call.
+        if (all[index].isTerminated()) throw new IllegalArgumentException("Thread " + index + " has ended; call get_threads again");
         return all[index];
     }
 
@@ -1311,11 +1357,23 @@ public final class EclipseAgentOperations {
 
     private String evaluateExpression(String[] p) throws Exception {
         String name = require(p, 1);
-        IStackFrame f = frame(thread(launch(name), number(p, 2)), number(p, 3));
+        ILaunch evaluated = launch(name);
+        IStackFrame f = frame(thread(evaluated, number(p, 2)), number(p, 3));
         if (!(f instanceof IJavaStackFrame javaFrame)) throw new IllegalArgumentException("Java stack frame required");
         String expression = require(p, 4);
         if (expression.length() > 300 || expression.isBlank()) throw new IllegalArgumentException("Expression must be 1-300 characters");
-        // Evaluation can invoke methods and therefore have side effects; the agent must request consent.
+        // OPEN-58: evaluation runs code in the program; the user decides in Eclipse ("Allow for this debugging session"
+        // covers this launch only).
+        String declaring = javaFrame.getDeclaringTypeName();
+        var decision = consent.decide(new EvaluationConsent.Request(false, expression,
+                declaring.substring(declaring.lastIndexOf('.') + 1) + "." + javaFrame.getMethodName() + ":"
+                        + javaFrame.getLineNumber() + " (thread " + f.getThread().getName() + ")", evaluated));
+        if (!decision.allowed()) return error(decision.message());
+        // The question may have taken a while: the frame must still be the suspended one (OPEN-12).
+        if (f.isTerminated() || !f.getThread().isSuspended())
+            throw new IllegalArgumentException("The thread is no longer suspended at that frame; nothing was evaluated."
+                    + " Call wait_for_stop, then evaluate again");
+        // Evaluation can invoke methods and therefore have side effects: allowed by the user above (OPEN-58).
         IJavaDebugTarget debugTarget = (IJavaDebugTarget) f.getDebugTarget();
         IJavaProject project = null;
         for (IProject candidate : ResourcesPlugin.getWorkspace().getRoot().getProjects()) {
@@ -1371,6 +1429,34 @@ public final class EclipseAgentOperations {
             target(l).terminate();
         } else {
             IThread t = thread(l, number(p, 2));
+            // OPEN-12: Eclipse silently ignores a step or resume it cannot do (a running thread, a thread still held by
+            // Eclipse at the program's start, STEP_RETURN in the outermost frame), so the agent would get "accepted" and
+            // then wait for a stop that never comes. Refuse instead, and say what to do.
+            String which = "thread " + number(p, 2) + " (" + t.getName() + ")";
+            if ("PAUSE".equals(action)) {
+                if (t.isSuspended() && t.canResume()) {
+                    ui.showSuspended(l, false);
+                    return ok(",\"action\":\"PAUSE\",\"accepted\":true,\"alreadySuspended\":true");
+                }
+                if (!t.canSuspend())
+                    throw new IllegalArgumentException("PAUSE is not possible on " + which + " right now (it may still be"
+                            + " starting); nothing was changed. Call wait_for_stop, then try again");
+            } else {
+                boolean can = switch (action) {
+                    case "RESUME" -> t.canResume();
+                    case "STEP_INTO" -> t.canStepInto();
+                    case "STEP_OVER" -> t.canStepOver();
+                    case "STEP_RETURN" -> t.canStepReturn();
+                    default -> throw new IllegalArgumentException("Unknown control action");
+                };
+                if (!t.isSuspended())
+                    throw new IllegalArgumentException(action + " needs a suspended thread, but " + which + " is running;"
+                            + " nothing was changed. Call wait_for_stop (or PAUSE) first");
+                if (!can)
+                    throw new IllegalArgumentException(action + " needs a suspended thread stopped at a breakpoint, step"
+                            + " or pause, which " + which + " is not right now (for example it is still starting, or"
+                            + " STEP_RETURN in the outermost frame); nothing was changed. Call wait_for_stop first");
+            }
             switch (action) {
                 case "RESUME" -> t.resume();
                 case "PAUSE" -> t.suspend();

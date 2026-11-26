@@ -115,4 +115,33 @@ class StopsAndVariablesTests extends EclipseIntegrationTest {
         for (Object local : arr(stop.get("locals"))) if (name.equals(obj(local).get("name"))) return true;
         return false;
     }
+
+    /**
+     * OPEN-58: evaluating an expression runs code in the program, so the user decides. Denied: nothing is evaluated and
+     * the agent is told to read variables instead. Allowed: the value comes back. The answers are preset for the
+     * unattended test.
+     */
+    @Test
+    @DisplayName("An evaluation runs only when the user allows it")
+    void evaluationNeedsTheUsersConsent() throws Exception {
+        String investigation = investigation();
+        String type = JAVA_PKG + "StepFilterApplication";
+        int line = javaLine("StepFilterApplication", "values.add(20);");
+        bridge.call("SET_BREAKPOINT", false, type, line, investigation);
+        String launch = startJava("StepFilterApplication", investigation);
+        Frame stop = awaitStop(launch, type, "main", line, Duration.ofSeconds(25), null, null);
+        try {
+            bridge.call("TEST_SET_CONSENT", false, "deny");
+            Map<String, Object> refused = bridge.call("EVALUATE_EXPRESSION", true, launch, stop.thread(), 0, "values.size()");
+            put("refusal", refused.get("message"));
+            require("error".equals(refused.get("status")) && str(refused.get("message")).startsWith("Refused:")
+                    && str(refused.get("message")).contains("get_frame_variables"), "Denied evaluation: " + refused);
+            bridge.call("TEST_SET_CONSENT", false, "allow");
+            Map<String, Object> allowed = bridge.call("EVALUATE_EXPRESSION", false, launch, stop.thread(), 0, "values.size()");
+            put("allowedValue", allowed.get("value"));
+            require("1".equals(str(allowed.get("value"))), "values holds one element at line " + line + ": " + allowed);
+        } finally {
+            bridge.call("TEST_SET_CONSENT", true, "allow");
+        }
+    }
 }

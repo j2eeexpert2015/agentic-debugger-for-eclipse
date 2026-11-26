@@ -94,6 +94,11 @@ the application type and investigation requirements.
 - Do not modify unrelated project files.
 - Do not modify or remove user-owned breakpoints.
 - Do not control unrelated debug sessions.
+- Read values with get_frame_variables and
+  expand_frame_variable. evaluate_expression and
+  set_tracepoint run code in the program, so Eclipse
+  asks the user first; if the reply starts with
+  "Refused:", do not retry it.
 - Allow the investigation cleanup mechanism to remove
   its own breakpoints and terminate its own launches.
 - Finish every investigation that was successfully

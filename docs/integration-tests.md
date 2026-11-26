@@ -20,7 +20,7 @@ java dev-e2e/DevE2E.java start
 **2. Run the tests** with Maven (in a `cmd` chain write `call mvn`):
 
 ```cmd
-:: Regression suite (default, 21 tests); -Dfixture.post.approved=true allows the HTTP requests to the test application
+:: Regression suite (default, 27 tests); -Dfixture.post.approved=true allows the HTTP requests to the test application
 mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 
 :: Another suite, one class, or one test (Class#method)
@@ -66,7 +66,12 @@ of the run is printed at the end. To repeat a trial, run the command again;
    tests share one Eclipse and run one after the other; every class has a 6-minute limit per test (`@Timeout`), the
    Claude tests 10 minutes.
 
-## Regression suite: `RegressionSuite` (21 tests)
+**Consent (OPEN-58).** The plugin asks the user before an agent evaluates an expression or sets a tracepoint. The
+tests run unattended, so every test class presets the answer "allow" (`TEST_SET_CONSENT`, test Eclipse only) and
+resets it to "ask" at its end; the two consent tests switch to "deny" themselves. Claude trials preset "allow" too
+(`-Dclaude.consent=ask` shows the dialog in a watched run, `=deny` refuses).
+
+## Regression suite: `RegressionSuite` (27 tests)
 
 Class, then each test method as it appears in reports.
 
@@ -79,14 +84,20 @@ Class, then each test method as it appears in reports.
 | `BreakpointTests` (**breakpoints**) | `conditional-stops-only-on-match` | `orderId == 1057` stops only for that order (locals checked); a second condition on the line is refused; listed with its condition |
 | | `exception-stops-where-thrown` | Settings that never stop are refused; an existing one is not changed; listed as the agent's; Eclipse's blocking "Repeated exception occurrence" dialog stays off (CORE-16); the stop is `EXCEPTION` with its type in `processOrder`; the exception's message can be read |
 | | `tracepoint-prints-without-stopping` | `TRACE-ORDER 1057` appears in the program output and the program runs to its end |
+| | `tracepoint-refused-when-user-denies` | OPEN-58: with the answer "deny" preset, the tracepoint is refused (`Refused: ... tracepoint was not set`) and no breakpoint exists at that line |
 | `ExecutionControlTests` (**execution-control**): stepping, step filters, pause, restart | `step-into-and-return` | Step Into enters `sum`, Step Return comes back to `main`, same thread |
 | | `step-over-to-next-line` | Step Over is reported as `STEP_END` on the next line; after Resume the program's end is reported promptly |
 | | `step-filters-skip-jdk-code` | With filters `java.*, javax.*, sun.*`, Step Into stays in the program's code; an invalid filter is refused |
 | | `pause-and-restart` | A running program reports no stop; Pause is reported as `PAUSED` on the main thread; a restart is refused for another investigation and works for the owner |
+| | `refuses-steps-on-running-threads` | OPEN-12: Step Over, Step Into, Step Return and Resume on a running thread are refused ("needs a suspended thread") and change nothing; thread index 999 and frame index 999 are refused; a second Pause says `alreadySuspended` |
+| | `ended-program-is-reported-clearly` | OPEN-12: after the program has ended, control and variables say it "has ended" |
+| | `step-over-in-junit-test` | OPEN-12: Step Over in a JUnit debug run (`OrderServiceTest.calculatesDiscount`) stops on the next line of `OrderService.quote` with `rate=0` |
+| | `step-over-in-spring-boot-request` | OPEN-12: Step Over in the request thread of POST /orders/quote stops on the next line of the same thread; after Resume the request completes |
 | `StopsAndVariablesTests` (**stops-and-variables**): what the agent sees when the program stops or ends | `stop-reports-location-and-variables` | One `WAIT_FOR_STOP` call returns breakpoint, location, thread, frames and local variables; the same stop is never reported twice |
 | | `program-end-reported` | A program that ends without stopping is reported as `TERMINATED` well before the timeout |
 | | `nested-objects-expand` | `order.customer.address` expands level by level to its value; page size 0 is refused |
 | | `program-output-read` | Program output comes back with its total sizes; short output whole |
+| | `evaluation-needs-the-users-consent` | OPEN-58: with "deny" preset, `values.size()` is refused and the reply points to `get_frame_variables`; with "allow" it returns 1 |
 | `SpringBootHttpTests` (**spring-boot-http**): debugging a real HTTP request | `wrong-quote-value-found` | POST /orders/quote stops in `OrderService.quote` with `percent=10`, `rate=0` (the first wrong value); the response is HTTP 200 with the wrong total 120.00; the test HTTP client refuses to send without approval |
 | | `validation-error-returns-400` | Quantity 0 stops where `OrderService` throws and in the controller's error handler; the response is HTTP 400 "Quantity must be positive" from this launch's URL |
 | `SpringBootStartupTests` (**spring-boot-startup**): an application that fails to start | `startup-failure-detected` | The failure is seen, and the JVM is confirmed gone by its operating-system process ID |

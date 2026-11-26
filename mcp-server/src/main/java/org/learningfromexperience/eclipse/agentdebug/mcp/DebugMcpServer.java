@@ -247,7 +247,9 @@ public class DebugMcpServer {
 
         // Investigation lifecycle: NORMAL by default; CONTROLLED preserves suspended state.
         allTools.add(bridgeTool("begin_debug_investigation",
-                "Start a debugging investigation. Default mode NORMAL cleans up ONLY its own new session "
+                "Start a debugging investigation of a Java, Spring Boot or JUnit program in Eclipse. The launch tools "
+                        + "start the program or test themselves, so no debug session needs to be running. "
+                        + "Default mode NORMAL cleans up ONLY its own new session "
                         + "and its own breakpoints when finish_debug_investigation is called. "
                         + "Use CONTROLLED only when the user expressly requests a paused/step-by-step investigation. "
                         + "Pass the returned investigationId to set_breakpoint and the launch tool "
@@ -324,8 +326,10 @@ public class DebugMcpServer {
                 a -> "REMOVE_EXCEPTION_BREAKPOINT " + enc(arg(a,"exceptionName"))));
         allTools.add(bridgeTool("set_tracepoint",
                 "Log a Java expression at a line without suspending execution. Uses Eclipse's conditional "
-                + "breakpoint evaluation and System.out.println; evaluation may execute methods/side effects. "
-                + "Requires explicit user consent and allowSideEffects=true. Does not modify existing breakpoints.",
+                + "breakpoint evaluation and System.out.println; evaluation may execute methods/side effects, so "
+                + "Eclipse asks the user before the tracepoint is set (OPEN-58); allowSideEffects=true states that you "
+                + "know this. If the user refuses, do not retry; use a breakpoint instead. Does not modify existing "
+                + "breakpoints.",
                 Map.of("typeName",str(), "lineNumber",integer(),"expression",str(),
                         "allowSideEffects",bool(),"investigationId",str()),
                 List.of("typeName","lineNumber","expression","allowSideEffects"),
@@ -340,7 +344,8 @@ public class DebugMcpServer {
                 + "in open Java projects. Method candidates are not proof that a JUnit runner is installed.",
                 Map.of(),List.of(), a -> "LIST_JUNIT_TESTS"));
         allTools.add(bridgeTool("start_junit_test",
-                "Launch an Eclipse JUnit test class or method, in debug mode (default) or with mode=run: run "
+                "Start an Eclipse JUnit test class or method yourself (no running debug session needed), in debug "
+                + "mode (default) or with mode=run: run "
                 + "executes the test without the debugger (breakpoints do not stop it) and get_junit_results gives "
                 + "its outcome - use it only when the failing test or the failure is not known yet. In debug mode, "
                 + "wait_for_stop returns the test result when the run ends. "
@@ -401,14 +406,16 @@ public class DebugMcpServer {
                 "Discover Java main classes in open Eclipse Java source projects without creating configurations.",
                 Map.of(), List.of(), a -> "LIST_JAVA_APPLICATIONS"));
         allTools.add(bridgeTool("start_java_application",
-                "Start a Java main class in debug mode without a preexisting launch configuration. "
+                "Start a Java or Spring Boot main class in Eclipse's debugger yourself (no running debug session or "
+                        + "preexisting launch configuration needed). "
                         + "Validates the open Java project and fully qualified main class, reuses an existing matching "
                         + "configuration or creates one when absent. Returns launchName for subsequent debugger tools.",
                 Map.of("projectName", str(), "mainType", str(), "investigationId", str()),
                 List.of("projectName", "mainType"),
                 a -> "START_JAVA_APPLICATION " + enc(arg(a, "projectName")) + " "
                         + enc(arg(a, "mainType")) + ownedId(a)));
-        allTools.add(bridgeTool("start_debug_session", "Start or reuse a saved Eclipse debug launch configuration.",
+        allTools.add(bridgeTool("start_debug_session", "Start (or reuse) a saved Eclipse launch configuration in "
+                + "debug mode yourself; no running debug session needed.",
                 Map.of("launchName",str(),"investigationId",str()), List.of("launchName"),
                 a -> "START_DEBUG " + enc(arg(a,"launchName")) + ownedId(a)));
         allTools.add(bridgeTool("show_debug_location",
@@ -440,7 +447,10 @@ public class DebugMcpServer {
                 List.of("launchName","threadIndex","frameIndex"),
                 a -> "GET_VARIABLES " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
                         + " " + intArg(a,"frameIndex")));
-        allTools.add(bridgeTool("evaluate_expression", "Evaluate a Java expression. May invoke methods and change state: require explicit user consent and allowSideEffects=true.",
+        allTools.add(bridgeTool("evaluate_expression", "Evaluate a Java expression in a suspended frame. It runs code in"
+                + " the debugged program (it may invoke methods and change state), so Eclipse asks the user before it"
+                + " runs (OPEN-58); allowSideEffects=true states that you know this. If the user refuses, do not retry"
+                + " the same evaluation: use get_frame_variables or expand_frame_variable, which run no code.",
                 Map.of("launchName",str(),"threadIndex",integer(),"frameIndex",integer(),
                         "expression",str(),"allowSideEffects",Map.of("type","boolean"),"purpose",PURPOSE),
                 List.of("launchName","threadIndex","frameIndex","expression","allowSideEffects"),
@@ -519,13 +529,15 @@ public class DebugMcpServer {
         // Initialize MCP server.
         var server = McpServer.sync(transport)
                 .serverInfo("eclipse-debugger", "1.0.0")
+                .instructions(INSTRUCTIONS)
                 .capabilities(
                         McpSchema.ServerCapabilities.builder()
                                 .tools(false)
                                 .build()
                 )
                 // Every tool is also recorded in the session report; with reporting off the list is unchanged.
-                .tools(ReportingTools.wrap(allTools, REPORT))
+                // OPEN-58: read-only / changes state / runs code, for clients that approve tools by annotation.
+                .tools(ReportingTools.wrap(ToolSafety.annotate(allTools), REPORT))
                 .build();
 
         if (SessionReport.verbose(System.getenv()))
@@ -743,13 +755,27 @@ public class DebugMcpServer {
     }
 
     /**
-     * Commands that launch, restart or terminate JVMs. Eclipse gives these up to 120 s before
-     * replying BRIDGE_TIMEOUT, so the client waits slightly longer. Must match
-     * BridgeCommands.LONG_RUNNING in the Eclipse plugin.
+     * Sent to the MCP client at connection (MCP "instructions"); clients may show it to the model. OPEN-23 (b): says
+     * plainly that the tools start the program or test themselves, so an agent does not hand the work to another
+     * debugger that needs a running session. It does not forbid the client's own tools.
+     */
+    static final String INSTRUCTIONS = "eclipse-debugger debugs Java, Spring Boot and JUnit 5 programs at runtime in"
+            + " the Eclipse IDE the user has open. Its tools start the program or test themselves in Eclipse's debugger"
+            + " (start_java_application, start_junit_test, start_debug_session): no debug session needs to be running"
+            + " and the user does not need to start one. Typical flow: begin_debug_investigation, set_breakpoint,"
+            + " start the program or test, wait_for_stop, get_frame_variables, finish_debug_investigation (cleans up"
+            + " only what the investigation created). Evaluating Java expressions or setting tracepoints runs code in"
+            + " the program; Eclipse asks the user first, and a refusal is final for that request.";
+
+    /**
+     * Commands that launch, restart or terminate JVMs, or that may wait for the user's answer in Eclipse before code
+     * runs in the debugged program (OPEN-58: EVALUATE_EXPRESSION, SET_TRACEPOINT). Eclipse gives these up to 120 s
+     * before replying BRIDGE_TIMEOUT, so the client waits slightly longer. Must match BridgeCommands.LONG_RUNNING in
+     * the Eclipse plugin.
      */
     private static final java.util.Set<String> LONG_RUNNING_COMMANDS = java.util.Set.of(
             "START_JUNIT_TEST", "START_JAVA_APPLICATION", "START_DEBUG",
-            "RESTART_DEBUG", "FINISH_INVESTIGATION");
+            "RESTART_DEBUG", "FINISH_INVESTIGATION", "EVALUATE_EXPRESSION", "SET_TRACEPOINT");
 
     /** Socket read timeout: always longer than the matching Eclipse-side deadline. */
     static int readTimeoutMillis(String command) {

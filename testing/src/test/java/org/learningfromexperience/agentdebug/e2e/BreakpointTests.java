@@ -116,13 +116,37 @@ class BreakpointTests extends EclipseIntegrationTest {
         throw new AssertionError("Trace line TRACE-ORDER 1057 missing from the program output");
     }
 
+    /**
+     * OPEN-58: when the user denies, the tracepoint is not set and the agent is told why and what to do instead (the
+     * test presets the answer "deny", as the unattended tests cannot click the dialog).
+     */
+    @Test
+    @DisplayName("A tracepoint is not set when the user denies it")
+    void tracepointRefusedWhenUserDenies() throws Exception {
+        String investigation = investigation();
+        int line = javaLine("OrderCalculator", "double discountRate =");
+        try {
+            bridge.call("TEST_SET_CONSENT", false, "deny");
+            Map<String, Object> refused = bridge.call("SET_TRACEPOINT", true, JAVA_PKG + "OrderCalculator", line,
+                    "\"TRACE-DENIED \" + orderId", investigation);
+            put("refusal", refused.get("message"));
+            require("error".equals(refused.get("status")) && str(refused.get("message")).startsWith("Refused:")
+                    && str(refused.get("message")).contains("tracepoint was not set"), "Denied tracepoint: " + refused);
+            for (Map<String, Object> bp : rows(bridge.call("LIST_BREAKPOINTS", false).get("breakpoints")))
+                require(!(str(bp.get("typeName")).endsWith("OrderCalculator") && num(bp.get("lineNumber")) == line),
+                        "A denied tracepoint was set anyway: " + bp);
+        } finally {
+            bridge.call("TEST_SET_CONSENT", true, "allow");
+        }
+    }
+
     /** The launch has ended (terminated, or already removed from the debug view). */
     private void awaitProgramEnd(String launch, Duration timeout) throws Exception {
         long deadline = System.nanoTime() + timeout.toNanos();
         while (System.nanoTime() < deadline) {
             Map<String, Object> state = bridge.call("GET_DEBUG_STATE", true, launch);
             if (Boolean.TRUE.equals(state.get("terminated"))
-                    || ("IllegalArgumentException: Active debug launch not found: " + launch).equals(state.get("message"))) return;
+                    || str(state.get("message")).startsWith("IllegalArgumentException: Active debug launch not found: " + launch)) return;
             Thread.sleep(200);
         }
         throw new AssertionError("The program did not end: " + launch);

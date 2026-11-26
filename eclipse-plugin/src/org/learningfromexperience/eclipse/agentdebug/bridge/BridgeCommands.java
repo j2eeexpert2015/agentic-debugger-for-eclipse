@@ -80,15 +80,22 @@ public final class BridgeCommands {
             "TEST_WRITE_SOURCE",
             "TEST_DELETE_SOURCE",
             "TEST_DELETE_CLASS_FILE",
-            "TEST_BUILD_PROJECT");
+            "TEST_BUILD_PROJECT",
+            // Test Eclipse only (OPEN-58): preset the answer to the evaluation consent question for unattended tests.
+            "TEST_SET_CONSENT");
 
-    /** Commands that launch, restart or terminate JVMs and may legitimately take long. */
+    /**
+     * Commands that launch, restart or terminate JVMs, or that may wait for the user's answer before code runs in the
+     * debugged program (OPEN-58, {@code EvaluationConsent}), and may legitimately take long.
+     */
     static final Set<String> LONG_RUNNING = Set.of(
             "START_JUNIT_TEST",
             "START_JAVA_APPLICATION",
             "START_DEBUG",
             "RESTART_DEBUG",
-            "FINISH_INVESTIGATION");
+            "FINISH_INVESTIGATION",
+            "EVALUATE_EXPRESSION",
+            "SET_TRACEPOINT");
 
     /**
      * Read-only commands that deliberately wait (up to 60 s). They run in the READ lane but get a

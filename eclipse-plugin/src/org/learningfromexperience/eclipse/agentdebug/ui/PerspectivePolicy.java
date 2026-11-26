@@ -132,6 +132,23 @@ public final class PerspectivePolicy {
         return viewId.endsWith(".TerminalsView") || viewId.equals("org.eclipse.tm.terminal.view.TerminalView");
     }
 
+    /** GitHub Copilot's Chat view (Copilot for Eclipse, {@code com.microsoft.copilot.eclipse.ui} plugin.xml). */
+    static final String COPILOT_CHAT_VIEW = "com.microsoft.copilot.eclipse.ui.chat.ChatView";
+
+    /**
+     * Whether a view is GitHub Copilot's Chat view (OPEN-59): the conversation in which Copilot runs the agent.
+     * Copilot does not add it to the Debug perspective, so without carrying it the chat disappeared when Eclipse
+     * switched to Debug for the investigation (Ayan, 27 Nov 02:53).
+     */
+    public static boolean copilotChatView(String viewId) {
+        return COPILOT_CHAT_VIEW.equals(viewId);
+    }
+
+    /** Views carried into the Debug perspective for an investigation: terminal views and Copilot's Chat view. */
+    public static boolean carriedView(String viewId) {
+        return terminalView(viewId) || copilotChatView(viewId);
+    }
+
     /** JDK code that the editor skips when choosing which frame to show (the Debug view still shows it). */
     public static boolean jdkType(String typeName) {
         if (typeName == null) return false;

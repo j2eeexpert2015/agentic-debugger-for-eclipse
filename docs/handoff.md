@@ -1,4 +1,4 @@
-# Handoff for a new chat (27 Nov 2026, 02:00 IST)
+# Handoff for a new chat (27 Nov 2026, 03:00 IST)
 
 Read [working-agreement.md](working-agreement.md) first (how we work), then this file (where the work stands), then
 the README section **Status and tracking** (the single list of all items). The repository is the truth; earlier
@@ -30,8 +30,9 @@ java dev-e2e/DevE2E.java deploy && ^
 call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 ```
 
-Expected today: BUILD SUCCESS with unit tests **report 54, mcp-server 34, testing 23, eclipse-plugin 84**; deploy
-ends with "The test Eclipse is ready"; `RegressionSuite` 21 tests, 0 failures. A Claude trial (costs usage) only when
+Expected today: BUILD SUCCESS with unit tests **report 54, mcp-server 38, testing 23, eclipse-plugin 91**; deploy
+ends with "The test Eclipse is ready"; `RegressionSuite` 27 tests, 0 failures (from `open-58-23b-12.zip`; before it
+mcp-server 34, eclipse-plugin 84, regression 21). A Claude trial (costs usage) only when
 the delivery says "Trial needed: yes":
 `call mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true -Dclaude.report=true`.
 
@@ -60,26 +61,34 @@ the CI rows are on that branch (`main` stays for development). State 27 Nov 01:0
 and JDK 21; integration tests on a GitHub Windows machine (`integration-windows.yml`, step 2.1) delivered, first run
 pending. When merging into `main`: README and this file were changed on both branches (different sections), check them.
 
-**B. OPEN-23 (d) check: done 27 Nov 01:15-01:37** (details in the README OPEN-23 row). One agent file in
+**B. Release items (27 Nov).** Checked by Ayan: build, unit tests and regression **27/27** (02:48, with fix1 and
+fix2): OPEN-12 done; release checks **A passed** (02:50-02:58): OPEN-58 done. Delivered, waiting: `open-59-chat.zip`
+(Copilot's Chat comes along to the Debug perspective, OPEN-59). Still to run: [release-checks.md](release-checks.md)
+B, C, D (with D6 for OPEN-59), E, then one Claude trial (tool descriptions and skill changed).
+
+**C. OPEN-23 (d) check: done 27 Nov 01:15-01:37** (details in the README OPEN-23 row). One agent file in
 `%USERPROFILE%\.copilot\agents\` is enough: listed once (empty Project column), our tools run, right cause found,
 still in the mode list after a restart. The user file is still on Ayan's machine (keep it until (d) is built).
 
 ## 5. Next, in this order
 
-1. **OPEN-23 (d) implementation:** opt-in Install/Remove of the agent in `~/.copilot/agents/` on the preferences page
+1. Results of 4B: build, regression 27, release checks A to E; fix what they show.
+2. **OPEN-23 (d) implementation:** opt-in Install/Remove of the agent in `~/.copilot/agents/` on the preferences page
    (same checksum protection as the project file), project menu stays, a warning when the agent exists in several
    places; Remove also deletes the `.github/agents` and `.github` folders it created when they are left empty.
-2. **OPEN-58** (Ayan, 27 Nov: right after (d)): user consent in Eclipse for side-effecting evaluation, plus MCP tool
-   annotations. Demo of the dialog first.
-3. **OPEN-46** (moved up, proposed 27 Nov, Ayan to confirm): a short manual protocol for Copilot runs (fixed prompts, fields per run, results table in
-   `docs/copilot-integration-notes.md`), used by 4 and 5.
-4. OPEN-23 (b): neutral wording in tool descriptions and skill for Copilot's Agent mode ("starts the test itself,
-   no running session needed"), not forbidding Copilot's own tools; check with the OPEN-46 protocol and one Claude batch.
+3. Remaining release must-haves (agreed 27 Nov): report location (reports not written into the user's project by
+   default; switch and folder in Preferences, part of OPEN-30 R2b); OPEN-04 launch keeps profile, arguments,
+   environment and working directory, and `@SpringBootTest` method debugging; remove `dev-e2e/e2e.properties` from
+   git. Ayan chose for now: OPEN-58, OPEN-23 (b) + Copilot scenarios, OPEN-36 check, OPEN-12, approval dialog.
+4. **OPEN-46** (moved up, proposed 27 Nov, Ayan to confirm): a short manual protocol for Copilot runs; release checks
+   C is a first version of it.
 5. OPEN-57: exact names and parameters (`lineNumber`, `investigationId`, `allowSideEffects`, reference file paths)
-   in SKILL.md and the agent file; measured with the OPEN-46 protocol before and after.
+   in SKILL.md and the agent file; measured before and after.
 6. CI on its branch: 2.1 first run, then 1.3 (Linux, macOS), merge into `main`, 1.4, 2.2 (`docs/ci.md` there).
+   Open release question: first release Windows only, or wait for Linux/macOS evidence.
 7. Later: OPEN-45 signing (only changes the "Signed" label in Copilot; needs a certificate), OPEN-43 console,
    OPEN-51 upstream report (draft in `docs/copilot-mode-list-bug.md`), OPEN-53 `DevE2E stop`, OPEN-56 releases.
+   OPEN-22 demo apps: parked (Ayan, 27 Nov 02:02).
 
 ## 6. Where the recent code is
 
@@ -87,16 +96,31 @@ still in the mode list after a restart. The user file is still on Ayan's machine
 |---|---|
 | Copilot server offer and launcher | `eclipse-plugin/src/.../integration/CopilotMcpProvider.java`, `CopilotRegistration.java` (`json`, `jsonDirect`, `launcherText`, `writeLauncher`, `runtimeFolder`); tests `CopilotRegistrationTest` CP-U1..U7 |
 | Copilot agent file | template `eclipse-plugin/copilot/agentic_debugger.agent.md`; `integration/CopilotAgentInstaller.java` (`AGENT_FILE`), `ui/AddCopilotAgentHandler.java`, Remove handler; tests CA-U* |
-| Skill for Copilot | `integration/CopilotSkill.java`, preferences page; source `skills/eclipse-debugger/` (v0.1.5) |
+| Skill for Copilot | `integration/CopilotSkill.java`, preferences page; source `skills/eclipse-debugger/` (v0.1.6) |
+| Consent before code runs (OPEN-58) | `eclipse-plugin/.../debug/EvaluationConsent.java` (policy, tests EC-U1..U6), `ui/EvaluationConsentDialog.java`, used in `EclipseAgentOperations` (`evaluateExpression`, `setConditionalBreakpoint`, `TEST_SET_CONSENT`); `mcp-server/.../ToolSafety.java` (annotations, TS-U1..U4); `DebugMcpServer.INSTRUCTIONS` |
+| Execution-control refusals (OPEN-12) | `EclipseAgentOperations.control`, `thread`, `launch`/`endedLaunch`; tests in `ExecutionControlTests` |
 | Agent Activity banner | `report/src/main/java/.../report/activity/ActivityPage.java` (`phase()`, `where()`), `FlowPage.java` (dark CSS), `eclipse-plugin/.../ui/AgentStatusControl.java` |
 | Quiet server | `mcp-server/.../DebugMcpServer.java`, `SessionReport.java` (`ENV_VERBOSE`, `verbose(env)`) |
 | CI | `.github/workflows/ci.yml`, `integration-windows.yml`, `docs/ci.md` (branch `ci/github-actions` until merged) |
 
 ## 7. Last delivery
 
-`open-23-d-check.zip` (27 Nov 2026, docs only, on `main`): README (OPEN-23 (d) check result, OPEN-57 more cases, new
-OPEN-58), this file (header, 4, 5, 7, 8), `docs/working-agreement.md` §4 (no continued line starting with `(`),
-`docs/copilot-integration-notes.md` (new §5). Nothing to build.
+`open-59-chat.zip` (27 Nov 03:05, on `main`): Copilot's Chat view carried into the Debug perspective (OPEN-59), README
+(OPEN-12 and OPEN-58 done, OPEN-57 cases, OPEN-59 new), release checks D6, this file. PP-U1..U8 ran with a JUnit
+stand-in; the carrier itself and plugin.xml in Eclipse not checked.
+
+Before it, `open-58-23b-12-fix2.zip` (27 Nov 02:45): `thread()` says "This program has ended" when the launch's
+process has ended or its target has no threads.
+
+Before it, `open-58-23b-12-fix1.zip` (27 Nov 02:40): after Ayan's run 02:33 (build and unit tests passed, regression 25/27),
+`EclipseAgentOperations.control` and `target` messages, `ExecutionControlTests.refusesStepsOnRunningThreads` waits
+until the program runs. Details in the README OPEN-12 row.
+
+Before it, `open-58-23b-12.zip` (27 Nov 2026, on `main`): see the README rows OPEN-58, OPEN-23, OPEN-12, OPEN-36 and
+`docs/release-checks.md` (new). Not checked by the assistant: the build (Maven Central and the Eclipse p2 sites are
+not reachable from its machine; `EvaluationConsent` and its test ran with a JUnit stand-in, the testing module
+compiled against stand-ins, the plugin and MCP server code did not compile there), the dialog, every integration test,
+any Copilot run.
 
 ## 8. Noticed, not started
 
@@ -106,10 +130,15 @@ OPEN-58), this file (header, 4, 5, 7, 8), `docs/working-agreement.md` §4 (no co
   committed (added before the ignore rule); removing it from git needs a commit that deletes it from the index.
 - After the project menu **Remove Agentic Debugger Agent**, `spring-boot-debugging` still has a `.github` folder
   (27 Nov); Remove should delete the folders it created when empty (planned with (d), section 5).
-- The "Confirm MCP Server Registration" dialog appeared at a test-Eclipse start although our server was already
-  Approved (27 Nov 01:37); unclear whether at every start or only after `deploy`. Note at the next restarts.
+- The "Confirm MCP Server Registration" dialog (27 Nov 01:37): explained, Copilot opens it only on a click
+  (copilot-integration-notes §6); release checks E watches whether Copilot sees our server as changed at a start.
 - Red PowerShell tabs in the Terminal view at start: `. $env:COPILOT_POWERSHELL_INTEGRATION_SCRIPT` fails because the
   variable is empty. Copilot's own terminal (tab "Copilot") works. I think these are Copilot terminals from earlier
   chats restored by Eclipse without Copilot's variable; not checked (close them all, restart, see if they return). Our
   plugin only moves the Terminal view (`TerminalCarrier`), it never starts a shell.
+- Agent Activity banner while the consent dialog waits says "Running: Evaluated expression: ..." (past tense);
+  clearer: "Waiting for your answer in Eclipse" (27 Nov 02:50).
+- The report shows the source lines the agent names in `rootCause` even when its sentence is about another line
+  (27 Nov 02:58: `OrderService.java:22` for the code of line 23); the report could check that the quoted code is on
+  that line (OPEN-57/OPEN-37).
 - `examples/README.md` has two dead links to deleted documents; left unchanged (examples/ rule) until Ayan decides.

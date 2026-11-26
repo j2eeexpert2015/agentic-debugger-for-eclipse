@@ -31,7 +31,7 @@ The integration tests are JUnit 5 classes in `testing/src/test/java/.../e2e`, on
 
 | Suite | Classes | Tests |
 |---|---|---:|
-| `RegressionSuite` (default) | ProgramStartTests, BreakpointTests, ExecutionControlTests, StopsAndVariablesTests, SpringBootHttpTests, SpringBootStartupTests, InvestigationIsolationTests | 21 |
+| `RegressionSuite` (default) | ProgramStartTests, BreakpointTests, ExecutionControlTests, StopsAndVariablesTests, SpringBootHttpTests, SpringBootStartupTests, InvestigationIsolationTests | 27 |
 | `ExtendedSuite` | AbandonedSessionCleanupTests, AgentEclipseConnectionTests | 9 |
 | `FullSuite` | both | 30 |
 
@@ -76,7 +76,7 @@ Record a **baseline before deploying** a bridge change: 3 full `RegressionSuite`
 
 - [ ] `mvn clean package` — all unit tests pass (surefire reports 41 in eclipse-plugin, 8 in mcp-server)
 - [ ] `AgentEclipseConnectionTests` — 4/4, plus the manual shutdown check
-- [ ] **3 consecutive uninterrupted regression runs** (21/21; 23/23 before 25 Nov), all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
+- [ ] **3 consecutive uninterrupted regression runs** (27/27 since 27 Nov; 21/21 from 25 Nov; 23/23 before), all with cleanup (one overnight loop of 10+ runs before calling CORE-13 done)
 - [ ] Every scenario that passed in the baseline still passes; no scenario more than ~20 % slower
 - [ ] Ownership checks 32/32: `mvn -pl testing verify -Pintegration-tests -Dit.test=UserResourceSafetyTests` (8 tests)
 - [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass

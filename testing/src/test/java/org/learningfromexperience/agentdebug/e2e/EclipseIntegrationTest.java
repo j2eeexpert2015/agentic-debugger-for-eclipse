@@ -107,6 +107,9 @@ abstract class EclipseIntegrationTest {
                 + " Window > Show View > Breakpoints, Remove All Breakpoints, then run the tests again."
                 + " Owner 'agent' = left by an agent investigation that did not finish; 'user' = set by hand or by"
                 + " another tool (for example Copilot's own java_debugger).");
+        // OPEN-58: the plugin asks the user before code runs in the program (evaluation, tracepoints). The tests run
+        // unattended, so they preset "allow"; the consent tests switch to "deny" themselves. Reset to "ask" at the end.
+        bridge.call("TEST_SET_CONSENT", true, "allow");
     }
 
     /**
@@ -148,6 +151,7 @@ abstract class EclipseIntegrationTest {
     @AfterAll
     final void writeReport() throws IOException {
         if (env == null) return;
+        bridge.call("TEST_SET_CONSENT", true, "ask");
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("group", group());
         report.put("generatedAt", Instant.now().toString());

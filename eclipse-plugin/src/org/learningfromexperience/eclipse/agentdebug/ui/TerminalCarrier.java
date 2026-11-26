@@ -14,6 +14,8 @@ import org.eclipse.ui.IWorkbenchWindow;
 /**
  * Carries the open terminal views into the perspective Eclipse switches to for an agent investigation (OPEN-36, user
  * request 25 Nov 02:57): the Claude terminal no longer disappears when Eclipse switches to the Debug perspective.
+ * GitHub Copilot's Chat view is carried the same way (OPEN-59, 27 Nov): the same view with the same conversation,
+ * nothing restarted; a new or reset Debug perspective has a place for it to the right of the editors (plugin.xml).
  *
  * <p><b>Nothing is touched inside the terminal.</b> All terminal tabs live in Eclipse's Terminal view, and Eclipse
  * shares a view's content between perspectives: showing the same view (same ID and secondary ID) in the Debug
@@ -48,7 +50,7 @@ final class TerminalCarrier {
         try {
             IWorkbenchPart active = page.getActivePart();
             for (IViewReference reference : page.getViewReferences()) {
-                if (!PerspectivePolicy.terminalView(reference.getId())) continue;
+                if (!PerspectivePolicy.carriedView(reference.getId())) continue;
                 IViewPart part = reference.getView(false);
                 terminals.add(new Open(reference.getId(), reference.getSecondaryId(), part != null && part == active));
             }
@@ -70,11 +72,12 @@ final class TerminalCarrier {
         for (Open terminal : terminals) {
             try {
                 page.showView(terminal.id(), terminal.secondaryId(), IWorkbenchPage.VIEW_CREATE);
-                ActivityViewPlacement.giveTerminalItsArea(window, terminal.id(), terminal.secondaryId());
+                if (PerspectivePolicy.terminalView(terminal.id()))
+                    ActivityViewPlacement.giveTerminalItsArea(window, terminal.id(), terminal.secondaryId());
                 IViewPart shown = page.showView(terminal.id(), terminal.secondaryId(), IWorkbenchPage.VIEW_VISIBLE);
                 if (terminal.active() && shown != null) page.activate(shown);
             } catch (Exception | LinkageError failed) {
-                Platform.getLog(TerminalCarrier.class).warn("[Agentic Debugger] Could not show terminal view "
+                Platform.getLog(TerminalCarrier.class).warn("[Agentic Debugger] Could not show view "
                         + terminal.id() + " in the new perspective: " + failed);
             }
         }

@@ -23,10 +23,12 @@ class ReadTimeoutTest {
         assertEquals(30_000, DebugMcpServer.readTimeoutMillis("LIST_BREAKPOINTS"));
     }
 
-    @Test @DisplayName("TO-U2 launches, restarts and finish wait 125 s (Eclipse deadline 120 s)")
+    @Test @DisplayName("TO-U2 launches, restarts, finish and code that waits for the user's consent wait 125 s (Eclipse deadline 120 s)")
     void toU2() {
         for (String command : new String[]{"START_JAVA_APPLICATION a b", "START_JUNIT_TEST a b c", "START_DEBUG a",
-                "RESTART_DEBUG a b", "FINISH_INVESTIGATION a"})
+                "RESTART_DEBUG a b", "FINISH_INVESTIGATION a",
+                // OPEN-58: Eclipse may ask the user before the expression runs.
+                "EVALUATE_EXPRESSION a 0 0 x", "SET_TRACEPOINT a 12 x"})
             assertEquals(125_000, DebugMcpServer.readTimeoutMillis(command), command);
     }
 

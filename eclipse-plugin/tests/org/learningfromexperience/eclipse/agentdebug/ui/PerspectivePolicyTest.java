@@ -97,4 +97,15 @@ class PerspectivePolicyTest {
         assertFalse(PerspectivePolicy.terminalView("org.eclipse.debug.ui.VariableView"));
         assertFalse(PerspectivePolicy.terminalView(null));
     }
+
+    @Test @DisplayName("PP-U8 Copilot's Chat view is carried to Debug as well, the Console and other views are not (OPEN-59)")
+    void ppU8() {
+        assertTrue(PerspectivePolicy.copilotChatView("com.microsoft.copilot.eclipse.ui.chat.ChatView"));
+        assertTrue(PerspectivePolicy.carriedView("com.microsoft.copilot.eclipse.ui.chat.ChatView"), "chat carried");
+        assertTrue(PerspectivePolicy.carriedView("org.eclipse.terminal.view.ui.TerminalsView"), "terminal still carried");
+        assertFalse(PerspectivePolicy.copilotChatView("org.eclipse.terminal.view.ui.TerminalsView"), "a terminal is no chat");
+        assertFalse(PerspectivePolicy.carriedView("com.microsoft.copilot.eclipse.ui.jobs.JobsView"), "Copilot's Jobs view stays");
+        assertFalse(PerspectivePolicy.carriedView("org.eclipse.ui.console.ConsoleView"));
+        assertFalse(PerspectivePolicy.carriedView(null));
+    }
 }
