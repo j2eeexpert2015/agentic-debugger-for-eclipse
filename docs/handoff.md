@@ -24,7 +24,72 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 23:15 IST): docs only, OPEN-44/47/48/49/52 all checked
+## Last delivery (27 Nov, 00:30 IST): open-23-step4-done.zip (README and handoff only)
+
+OPEN-23 step 4 (e) checked by Ayan on Windows, 27 Nov 00:04 to 00:23:
+- step4d build 54/34/23/84 (CP-U5, CP-U2b fixed; CP-U7 ran the `.cmd`).
+- `%USERPROFILE%\.eclipse-agentdebug\port-21766\start-mcp-server.cmd`: `@echo off`, three `rem` lines, one line with
+  Eclipse's JustJ Java 25.0.4 and the staged jar, `%*`.
+- First Copilot run: tools "unavailable"; the Confirm MCP Server Registration dialog showed Denied with the new JSON
+  (`command` = the `.cmd`, `args` []): the expected one-time reset. Approved; next run used our tools (eclipse_ping,
+  begin, list_junit_tests, set_breakpoint, start_junit_test, wait_for_stop, control_debug_session, finish).
+- Tools page for the agent shows every box empty (also Copilot's own tools): only the display for an agent without a
+  `tools:` line; the agent got all tools without ticking anything. No user step needed.
+- Rebuild and redeploy (new plugin version 1846): Copilot asked nothing and ran eclipse_ping directly. Approval
+  survives updates: done.
+- Model guesses seen (`projectName`, `cleanup`, `references/spring-boot.md`): recorded as OPEN-57, nothing changed.
+
+Next: OPEN-23 (d) user-wide agent in `~/.copilot/agents/` (Ayan's check first), then (b). CI phase 1 waiting for the
+first run on GitHub.
+
+## Delivery before (27 Nov, 00:15 IST): CI phase 1 (two zips, two branches)
+
+Ayan (26 Nov 23:57): set up GitHub Actions in parallel on a branch of its own; the repository is public (free
+Windows, Linux and macOS machines).
+- `ci-phase1.zip` for a new branch `ci/github-actions` made from `main`: `.github/workflows/ci.yml` (push, pull
+  request, by hand; Windows/Linux/macOS JDK 21 plus Linux JDK 25; `mvn -B -ntp clean package`; per-system test-count
+  summary incl. the CopilotRegistrationTest line; test reports kept on failure; update-site zip from Linux JDK 21) and
+  `docs/ci.md` (phases 1 to 3). Only new files, so no conflict with the feature branch. Merge into `main` when green.
+- `ci-readme.zip` for the current feature branch: README (OPEN-54 phase 1 delivered, new OPEN-55 Linux integration
+  tests in CI, OPEN-56 releases) and this handoff. Kept off the CI branch so README is never edited on two branches.
+- Not checked here: the workflow itself (YAML parsed; the first real run is on GitHub). Maven on the macOS runner and
+  plugin tests on a headless Linux are the first things to watch.
+
+## Delivery before (27 Nov, 00:00 IST): open-23-step4d.zip, test fix on top of step4c
+
+Build of step4c on Windows 26 Nov 23:50: CopilotRegistrationTest 8 run, **CP-U7 passed (the .cmd launcher really ran
+through cmd.exe /d /s /c)**; CP-U5 and CP-U2b failed because `Path.of("/opt/...")` prints with backslashes on Windows
+(test bug, passed on Linux). Both now build the expected text from the same Path objects (and CP-U5 still checks the
+`'\''` quoting). Only `CopilotRegistrationTest.java` and this file changed.
+
+## Delivery before (26 Nov, 23:55 IST): open-23-step4c.zip (replaces step4 and step4b): launcher on Windows only, CP-U7
+
+Ayan: Linux/macOS cannot be tested here, so nothing untested ships there. `CopilotMcpProvider` writes the launcher and
+offers `json(launcher)` only on Windows; elsewhere `CopilotRegistration.jsonDirect(java, jar, port)` (the old form).
+New tests: CP-U2b (direct form), CP-U7 (compiles a tiny echo jar in a folder with a space and `%` on Windows / `'`
+elsewhere, writes the launcher for the build's system, runs it, on Windows through `cmd.exe /d /s /c` as cross-spawn
+does, checks stdin/stdout pass through and nothing else is on stdout; skipped without a compiler). Plugin tests 84.
+Checked here (Linux): CopilotRegistrationTest 8/8, CP-U7 ran the .sh for real. New README row OPEN-54 (GitHub Actions on
+Linux/macOS, then the launcher there). step4b.zip had these code files but the old docs (a script error), so 4c.
+
+## Delivery before (26 Nov, 23:45 IST): OPEN-23 step 4, stable launcher (e); findings for (a) and (d)
+
+Read Copilot for Eclipse (commit 6dc0170) and its language server (npm 1.541.0, read only); findings and decisions in
+the new `docs/copilot-integration-notes.md`. Ayan's decisions: (a) skip (exact per-tool names, Eclipse-only naming,
+breaks silently); (e) go ahead; (d) my recommendation, after his check of `~/.copilot/agents/`.
+- `integration/CopilotRegistration.java`: `launcherName(windows)`, `windows()`, `launcherText(java, jar, windows)`
+  (Windows: `@echo off`, CRLF, `%` doubled, `"java" -jar "jar" %*`; else `#!/bin/sh`, `exec 'java' -jar 'jar' "$@"`),
+  `writeLauncher(folder, java, jar, windows)` (writes only when the text differs, tmp + move, executable on Unix),
+  `json(launcher, port)` with `"args":[]` (was `json(java, jar, port)` with `-jar`). Class Javadoc explains why.
+- `integration/CopilotMcpProvider.java`: stages the jar, writes the launcher, offers `json(launcher, port)`.
+- `CopilotRegistrationTest`: CP-U1/U2 adjusted, CP-U4 (Windows text), CP-U5 (sh text, quote in a path), CP-U6 (new Java:
+  launcher changes, JSON identical; unchanged launcher not rewritten; no tmp left). Plugin tests 82.
+Checked here: CopilotRegistration compiled, CopilotRegistrationTest 6/6; a generated .sh launcher really started Java
+and passed stdin/stdout (quote in the jar path). Not here: the .cmd launcher with Copilot on Windows (Ayan's check).
+Expected once: Copilot shows eclipse-debugger as Denied after this deploy (the JSON changes from the Java path to the
+launcher); after approving, deploys and Eclipse updates should not ask again.
+
+## Delivery before (26 Nov, 23:15 IST): docs only, OPEN-44/47/48/49/52 all checked
 
 - OPEN-47: BreakpointTests 3/3 PASS at 23:05 after Remove All (the check found the leftover OrderService:22 (user) at
   23:02 first). OPEN-52: no popup at the end of a run (Ayan 23:10). README rows Done.
