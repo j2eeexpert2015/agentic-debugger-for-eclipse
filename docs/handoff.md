@@ -55,14 +55,15 @@ the delivery says "Trial needed: yes":
 
 ## 4. In flight (waiting for Ayan)
 
-**A. CI phase 1 (OPEN-54), step 1.2: Windows JDK 21, run pending.** Windows first, then the other systems (Ayan,
-27 Nov). Work happens on branch `ci/github-actions`; `main` stays for development. **Step 1.1 done, checked 27 Nov
-00:47:** run #1 (Windows, JDK 25) green in 2 min 51 s, unit tests 54/34/23/84 = 195, 0 failures, both p2 sites
-reached, update-site zip kept. `ci-phase1-2-jdk21.zip` adds JDK 21 to the matrix (two jobs: `windows-latest / JDK 25`
-and `/ JDK 21`) and moves `upload-artifact` to v5 (Node 20 deprecation warning in run #1). Ayan extracts it on the
-branch, commits, pushes, sends both jobs' tables. Next: step 1.3 (Linux, macOS), then merge into `main`, then 1.4
-(launcher on Linux/macOS when CP-U7 passes there). Phase 2 (OPEN-55, integration tests) also Windows first; plan in
-`docs/ci.md`.
+**A. CI (OPEN-54, OPEN-55) on branch `ci/github-actions`; `main` stays for development.** Windows first, then the other
+systems (Ayan, 27 Nov). **Done:** step 1.1 (Windows JDK 25, run #1 green 27 Nov 00:47, unit tests 54/34/23/84 = 195,
+0 failures, both p2 sites reached) and step 1.2 (Windows JDK 21, run #2 green 27 Nov 01:04, both jobs). **In flight:**
+step 2.1, integration tests on a GitHub Windows machine (`ci-phase2-1-windows.zip`: new
+`.github/workflows/integration-windows.yml`; Ayan chose at 01:04 to start phase 2 before step 1.3). It downloads
+Eclipse 2025-12 (Java package, cached), writes `dev-e2e/e2e.properties`, builds, `DevE2E deploy`, `RegressionSuite`
+(expected 21 tests); screenshots and logs kept as artifact `integration-windows-logs`. Ayan pushes and sends the
+summary table, or for a failure the failed step's log end and the screenshots. Then: 1.3 (Linux, macOS unit tests),
+merge into `main`, 1.4 (launcher on Linux/macOS), 2.2 (integration tests on Linux with Xvfb).
 
 **B. OPEN-23 (d) check, not run yet.** Question: offer the agent once per user in `%USERPROFILE%\.copilot\agents\`
 (Copilot's language server reads it for every workspace) instead of a copy in each project (each open project's copy
@@ -86,7 +87,7 @@ Check prompt for Copilot (Agentic Debugger mode, new chat):
 
 ## 5. Next, in this order
 
-1. Finish 4A (CI steps 1.2, 1.3) and 4B (d check), one at a time.
+1. Finish 4A (CI step 2.1 first run) and 4B (d check), one at a time.
 2. OPEN-23 (d) implementation, if the check supports it.
 3. OPEN-23 (b): neutral wording in tool descriptions and skill for Copilot's Agent mode ("starts the test itself,
    no running session needed"), not forbidding Copilot's own tools; check with Copilot runs and one Claude batch.
@@ -109,11 +110,11 @@ Check prompt for Copilot (Agentic Debugger mode, new chat):
 
 ## 7. Last delivery
 
-`ci-phase1-2-jdk21.zip` (27 Nov 2026): `.github/workflows/ci.yml` (header comment, `java: [ '25', '21' ]`,
-`upload-artifact@v5` twice), `docs/ci.md` (plan table: 1.1 done with evidence, 1.2 JDK 21, 1.3 Linux/macOS, 1.4
-launcher, phase 2 Windows first), README OPEN-54 and OPEN-55, this file (4A, 5, 6, 7, 8). Not checked by the
-assistant: the GitHub run (no access to the Actions tab; YAML only parsed locally), whether the build runs on JDK 21
-(the assistant did not build).
+`ci-phase2-1-windows.zip` (27 Nov 2026): new `.github/workflows/integration-windows.yml`; `docs/ci.md` (two workflows,
+1.2 done, 2.1 delivered, new 2.2, "Reading an integration run"); README OPEN-54 (1.2 done) and OPEN-55 (2.1 delivered);
+this file (4A, 7). Not checked by the assistant: any run (no access to the Actions tab; YAML only parsed locally),
+the Eclipse download URL (built from the release naming pattern), whether a GitHub Windows machine shows the Eclipse
+window, `DevE2E` with the job's paths, how long the first fixture import takes.
 
 ## 8. Noticed, not started
 

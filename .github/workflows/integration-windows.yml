@@ -1,0 +1,170 @@
+# CI phase 2, step 2.1 (OPEN-55): integration tests against a real test Eclipse on a GitHub Windows machine.
+# Does what Ayan does by hand: build, install the plugin into a test Eclipse, start it (DevE2E deploy), run
+# RegressionSuite. Claude and Copilot runs are not part of this (accounts, usage). See docs/ci.md.
+# Runs on pushes to ci/... branches and by hand (Actions tab -> Integration tests (Windows) -> Run workflow);
+# not on main until it is reliable.
+name: Integration tests (Windows)
+
+on:
+  push:
+    branches: [ 'ci/**' ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The release the plugin is built against (pom.xml eclipse.release): the oldest Eclipse we support.
+  ECLIPSE_RELEASE: '2025-12'
+  ECLIPSE_HOME: 'C:\ci\eclipse'
+  BRIDGE_PORT: '21766'
+
+jobs:
+  regression:
+    name: RegressionSuite / windows-latest / Eclipse 2025-12
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Restore the test Eclipse from the cache
+        id: eclipse-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: C:\ci\eclipse
+          key: eclipse-java-${{ env.ECLIPSE_RELEASE }}-R-win32-x86_64
+
+      - name: Download the test Eclipse (cache miss only)
+        if: steps.eclipse-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $name = "eclipse-java-$env:ECLIPSE_RELEASE-R-win32-x86_64.zip"
+          $url  = "https://download.eclipse.org/technology/epp/downloads/release/$env:ECLIPSE_RELEASE/R/$name"
+          Write-Host "Downloading $url"
+          New-Item -ItemType Directory -Force -Path C:\ci | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "C:\ci\$name" -MaximumRetryCount 3 -RetryIntervalSec 10
+          Expand-Archive -Path "C:\ci\$name" -DestinationPath C:\ci -Force
+          Remove-Item "C:\ci\$name"
+          if (-not (Test-Path "$env:ECLIPSE_HOME\eclipsec.exe")) { throw "No eclipsec.exe in $env:ECLIPSE_HOME after unzip" }
+
+      - name: Save the test Eclipse to the cache (before our plugin is installed)
+        if: steps.eclipse-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: C:\ci\eclipse
+          key: eclipse-java-${{ env.ECLIPSE_RELEASE }}-R-win32-x86_64
+
+      - name: Write dev-e2e/e2e.properties for this machine
+        shell: pwsh
+        run: |
+          $repo = "${{ github.workspace }}".Replace('\', '/')
+          $eclipse = $env:ECLIPSE_HOME.Replace('\', '/')
+          @(
+            "# Written by the CI job (integration-windows.yml); paths of the GitHub machine.",
+            "repository=$repo",
+            "eclipse=$eclipse",
+            'workspace=${LOCALAPPDATA}/AgenticDebugger/java-e2e-workspace',
+            "bridgePort=$env:BRIDGE_PORT"
+          ) | Set-Content -Path dev-e2e/e2e.properties -Encoding ascii
+          Get-Content dev-e2e/e2e.properties
+          java dev-e2e/DevE2E.java config
+
+      - name: Build (unit tests run in the other workflow)
+        shell: pwsh
+        run: mvn -B -ntp clean package -DskipTests
+
+      - name: Install the plugin and start the test Eclipse (DevE2E deploy)
+        shell: pwsh
+        run: java dev-e2e/DevE2E.java deploy --trace
+
+      - name: Screenshot after start
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ci-out | Out-Null
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          Write-Host "Screen: $($b.Width) x $($b.Height)"
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("ci-out/screen-after-start.png")
+
+      - name: Integration tests (RegressionSuite)
+        shell: pwsh
+        run: mvn -B -ntp -pl testing verify -Pintegration-tests "-Dfixture.post.approved=true"
+
+      - name: Integration test summary
+        if: always()
+        shell: pwsh
+        run: |
+          $lines = @('### Integration tests: RegressionSuite / windows-latest / Eclipse ${{ env.ECLIPSE_RELEASE }}', '')
+          $summary = 'testing/target/failsafe-reports/failsafe-summary.xml'
+          if (Test-Path $summary) {
+            $s = ([xml](Get-Content -Raw $summary)).'failsafe-summary'
+            $lines += '| Completed | Failures | Errors | Skipped |', '|---|---|---|---|'
+            $lines += "| $($s.completed) | $($s.failures) | $($s.errors) | $($s.skipped) |"
+            $lines += ''
+            $lines += '| Test class | Tests | Failures | Errors | Skipped |', '|---|---|---|---|---|'
+            foreach ($file in Get-ChildItem 'testing/target/failsafe-reports' -Filter 'TEST-*.xml') {
+              $suite = ([xml](Get-Content -Raw $file.FullName)).testsuite
+              $lines += "| $($suite.name) | $($suite.tests) | $($suite.failures) | $($suite.errors) | $($suite.skipped) |"
+            }
+          } else {
+            $lines += 'No failsafe summary: the tests did not run (see the failed step above).'
+          }
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          $lines | ForEach-Object { Write-Host $_ }
+
+      - name: Screenshot at the end
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ci-out | Out-Null
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("ci-out/screen-at-end.png")
+
+      - name: Collect logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ci-out | Out-Null
+          $ws = Join-Path $env:LOCALAPPDATA 'AgenticDebugger\java-e2e-workspace'
+          if (Test-Path "$ws\.metadata\.log") { Copy-Item "$ws\.metadata\.log" ci-out\eclipse-workspace.log }
+          Copy-Item dev-e2e\target\*.log ci-out\ -ErrorAction SilentlyContinue
+          if (Test-Path testing\target\failsafe-reports) { Copy-Item testing\target\failsafe-reports ci-out\failsafe-reports -Recurse }
+          Get-ChildItem ci-out -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Keep logs, test reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: integration-windows-logs
+          path: ci-out/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Close the test Eclipse
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: Get-Process eclipse -ErrorAction SilentlyContinue | Stop-Process -Force
