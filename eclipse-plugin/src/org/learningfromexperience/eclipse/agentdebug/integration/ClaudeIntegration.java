@@ -84,6 +84,18 @@ public final class ClaudeIntegration {
         return Path.of(System.getProperty("user.home"), ".claude", "skills", "eclipse-debugger");
     }
 
+    /**
+     * OPEN-23: stages the bundled MCP server jar into this instance's folder (copied only when it changed) and returns
+     * its path. Used for GitHub Copilot, which needs the jar without Claude being configured.
+     */
+    public Path stageRuntimeJar() throws Exception {
+        stageJar();
+        return jar().toAbsolutePath();
+    }
+
+    /** OPEN-23: the Java executable that runs the MCP server, Eclipse's own runtime (as for Claude). */
+    public static Path javaExecutable() throws IOException { return locateJava(); }
+
     private void stageJar() throws Exception {
         Bundle bundle = FrameworkUtil.getBundle(ClaudeIntegration.class);
         if (bundle == null) throw new IOException("Eclipse OSGi bundle is unavailable");

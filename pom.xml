@@ -35,6 +35,14 @@
             <layout>p2</layout>
             <url>https://download.eclipse.org/releases/${eclipse.release}</url>
         </repository>
+        <!-- OPEN-23: GitHub Copilot for Eclipse, only to compile against its MCP registration interface
+             (com.microsoft.copilot.eclipse.ui.extensions, an optional import). Copilot is not part of our feature or
+             update site. Official update site: https://github.com/microsoft/copilot-for-eclipse (README) -->
+        <repository>
+            <id>github-copilot</id>
+            <layout>p2</layout>
+            <url>https://azuredownloads-g3ahgwb5b8bkbxhd.b01.azurefd.net/github-copilot/</url>
+        </repository>
     </repositories>
     <build>
         <plugins>

@@ -24,6 +24,27 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
+## Last delivery (26 Nov, 09:45): OPEN-23 step 1, the plugin offers its MCP server to GitHub Copilot
+
+Branch `feature/open-23-copilot` from `main` (OPEN-25 merged). Copilot for Eclipse is open source
+(github.com/microsoft/copilot-for-eclipse, MIT; read at 0.22.0): extension point
+`com.microsoft.copilot.eclipse.ui.mcpRegistration`, interface `IMcpRegistrationProvider` (package
+`com.microsoft.copilot.eclipse.ui.extensions`, exported), answer `{"servers":{name:{...}}}`; Copilot shows its own
+approval dialog once per plugin and again when the JSON changes. Copilot reads skills from `.github/skills`,
+`.claude/skills`, `.agents/skills` in the project and `~/.copilot/skills`, `~/.claude/skills`, `~/.agents/skills`.
+- `integration/CopilotRegistration` (pure): `json(java, jar, port)` (stdio, `java -jar <jar>`, `env AGENTDEBUG_PORT`
+  only for a port other than 8765) and `runtimeFolder(home, port)` (`~/.eclipse-agentdebug`, or `port-<n>` below it,
+  so the test Eclipse on 21766 never replaces the jar the normal Eclipse uses). CP-U1..U3 (plugin 67).
+- `integration/CopilotMcpProvider` implements Copilot's interface: stages the jar, answers the JSON, null on failure
+  (console line). `ClaudeIntegration.stageRuntimeJar()`, `javaExecutable()` made public for it.
+- plugin.xml: the `mcpRegistration` extension. MANIFEST: `Import-Package:
+  com.microsoft.copilot.eclipse.ui.extensions;resolution:=optional` (without Copilot the extension is ignored, the
+  class never loaded). Root pom: Copilot's p2 update site, only to compile; not in our feature or update site.
+- Not decided yet: also installing the skill into `~/.copilot/skills` (today only Claude users get it, in
+  `~/.claude/skills`, which Copilot reads too).
+Not checked here: the build (Copilot's update site is not reachable from my copy); Copilot itself.
+Check: build (plugin 67); then the manual Copilot check (handoff of the next step). Trial needed: no (manual check).
+
 ## OPEN-25 done (26 Nov, 04:25)
 
 Batch `open25-haiku-6` (04:16-04:21, v0.1.4, $0.11): 8/9 PASS + 1 PARTIAL, 0 FAIL, 11.4 debugger calls, 20.2 turns;

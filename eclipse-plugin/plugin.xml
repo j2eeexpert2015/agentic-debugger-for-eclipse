@@ -4,6 +4,13 @@
    <extension point="org.eclipse.ui.startup">
       <startup class="org.learningfromexperience.eclipse.agentdebug.AgentDebugStartup"/>
    </extension>
+   <!-- OPEN-23: offers the eclipse-debugger MCP server to GitHub Copilot for Eclipse; Copilot asks the user once.
+        Without Copilot installed this extension point does not exist and the entry is ignored. -->
+   <extension point="com.microsoft.copilot.eclipse.ui.mcpRegistration">
+      <provider
+          id="org.learningfromexperience.eclipse.agentdebug.copilotMcp"
+          class="org.learningfromexperience.eclipse.agentdebug.integration.CopilotMcpProvider"/>
+   </extension>
    <extension point="org.eclipse.ui.preferencePages">
       <page
           id="org.learningfromexperience.eclipse.agentdebug.preferences"
