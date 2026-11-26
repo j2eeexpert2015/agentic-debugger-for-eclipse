@@ -159,6 +159,18 @@ public final class DebugStopTracker implements IDebugEventSetListener, AutoClose
      * Waits for the next unreported stop of {@code launch}. Returns immediately if one is already
      * pending. Returns {@link Outcome#TERMINATED} once the launch has ended and no stop is pending.
      */
+    /**
+     * OPEN-23: whether a launch with this configuration name ended (TERMINATE seen), even if Eclipse has removed it
+     * from its launch list since (Copilot run 26 Nov: wait_for_stop after the end answered "Debug launch not found").
+     */
+    public synchronized boolean endedByName(String name) {
+        for (var entry : terminated.entrySet()) {
+            var config = entry.getKey().getLaunchConfiguration();
+            if (Boolean.TRUE.equals(entry.getValue()) && config != null && config.getName().equals(name)) return true;
+        }
+        return false;
+    }
+
     /** OPEN-25: whether a TERMINATE event was seen for this launch's process or debug target. */
     public synchronized boolean ended(ILaunch launch) {
         return Boolean.TRUE.equals(terminated.get(launch));

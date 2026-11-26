@@ -357,6 +357,11 @@ class ActivityPageTest {
 
         assertEquals("Cursor", ActivityPage.agent("cursor 1.0")[0]);
         assertEquals("some-agent", ActivityPage.agent("some-agent 3")[0], "unknown clients as they are");
+        // OPEN-23: what GitHub Copilot for Eclipse sends as its MCP client name and version
+        String[] copilot = ActivityPage.agent("Eclipse/copilot-eclipse 4.41.0.v20260828-1142/0.22.0.202611251609_nightly");
+        assertEquals("GitHub Copilot", copilot[0]);
+        assertEquals("0.22.0 (nightly)", copilot[1]);
+        assertEquals("0.21.0", ActivityPage.agent("Eclipse/copilot-eclipse 4.41.0/0.21.0.202608060743")[1]);
         assertEquals("unknown agent", ActivityPage.agent(null)[0]);
         assertTrue(ActivityPage.afterFinish("CONTROLLED").contains("kept, so you can inspect them"));
     }

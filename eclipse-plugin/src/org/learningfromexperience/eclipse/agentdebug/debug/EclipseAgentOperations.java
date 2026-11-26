@@ -1103,7 +1103,16 @@ public final class EclipseAgentOperations {
         String name = require(p, 1);
         int timeout = number(p, 2);
         if (timeout < 0 || timeout > 60_000) throw new IllegalArgumentException("timeout must be 0-60000 ms");
-        ILaunch launch = launchForWait(name);
+        ILaunch launch;
+        try {
+            launch = launchForWait(name);
+        } catch (IllegalArgumentException notFound) {
+            // OPEN-23: the launch ended and Eclipse removed it from its list (a JUnit run, after the agent resumed it):
+            // the same answer as for an ended launch, not an error (Copilot run 26 Nov 17:35).
+            if (!stops.endedByName(name)) throw notFound;
+            return ok(",\"stopped\":false,\"reason\":\"TERMINATED\",\"launchName\":" + q(name)
+                    + ",\"note\":\"The launch has ended and is no longer listed in Eclipse.\"" + testResultOnEnd(name));
+        }
         DebugStopTracker.Outcome outcome = stops.waitForStop(launch, timeout);
         if (outcome.stop() == null) {
             return ok(",\"stopped\":false,\"reason\":" + q(outcome.terminated() ? "TERMINATED" : "TIMEOUT")

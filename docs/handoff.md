@@ -24,7 +24,46 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 09:45): OPEN-23 step 1, the plugin offers its MCP server to GitHub Copilot
+## Last delivery (26 Nov, 17:50): OPEN-23 step 2, the "Agentic Debugger" agent for GitHub Copilot
+
+Step 1 checked 26 Nov 09:35-17:31 (build: plugin 67, MCP 34; manual checks in the test Eclipse, Copilot Free):
+- Copilot lists eclipse-debugger as **Denied** (plugin unsigned); approved by hand in Preferences > GitHub Copilot >
+  Model Context Protocol (MCP) > Edit MCP Servers from Plug-ins. Copilot then started the server (stdio,
+  `port-21766` jar, `env AGENTDEBUG_PORT=21766`) and listed 36 tools ("CopilotMCP Refreshed 36 tools").
+- Copilot 0.21.0 (update site): "No model configuration found" for every chat (issue #443, Free + Auto; log:
+  "Failed to parse /models response", "No model configuration found for families: mai-code-…"). Fixed in 0.22.0;
+  Ayan installed the nightly `0.22.0.202611251609_nightly`. MCP client name: `Eclipse/copilot-eclipse
+  4.41.0.v20260828-1142/0.22.0.202611251609_nightly`.
+- Agent mode, plain sym-wrong-total prompt (MAI Code 2 Flash, Auto): reads SKILL.md and the references, hands off to
+  Copilot's built-in **Debugger** mode (a chat mode from Copilot's language server) which uses Copilot's own
+  `java_debugger` (no launch action: "No active Java debug session found"), then uses our tools: begin,
+  start_junit_test, wait_for_stop, control_debug_session, finish; percent = 10, rate = 0, OrderService.java:23, report.
+  Model chip showed "claude-sonnet-5-5 ◆" (stated by the agent, not verified).
+- Custom agent written by Ayan (`.github/agents/agentic_debugger.agent.md`, mode "Agentic Debugger", no `tools:`
+  line): ping, SKILL.md, begin, references, list_junit_tests, set_breakpoint, start_junit_test, wait_for_stop, steps,
+  finish; correct cause. No hand-off, no `java_debugger`. With a hand-made `tools:` list our tools were missing.
+- Nightly: Copilot's own `read_file` sometimes fails (TypeError in its language server).
+- Copilot's custom agents live per project in `.github/agents/*.agent.md` (Copilot's Custom Agents preference page).
+Step 2 (this delivery):
+- `eclipse-plugin/copilot/agentic_debugger.agent.md`: Ayan's agent with three corrections (eclipse_ping "succeeds"
+  instead of "PONG"; Spring Boot = start_java_application or list_run_configurations + start_debug_session; one line
+  that the user chose this agent). build.properties includes `copilot/`.
+- `integration/CopilotAgentInstaller`: writes it into a project; a checksum comment at the end; unedited older
+  versions replaced, edited files kept with `.new` next to them, CRLF ignored. CA-U1..U5 (plugin 72).
+- `ui/AddCopilotAgentHandler` + plugin.xml: project menu "Agentic Debugger > Add Agentic Debugger Agent for GitHub
+  Copilot", message with the next steps.
+- report `ActivityPage.agent`: "Eclipse/copilot-eclipse …/0.22.0…_nightly" shown as "GitHub Copilot 0.22.0
+  (nightly)" (AP-U11 extended).
+- README: OPEN-23 row, section "Use with GitHub Copilot", new OPEN-43 (console), OPEN-44 (quieter server output).
+- Fix from the 17:35 Copilot run: after the agent resumed a JUnit debug run to its end, Eclipse removed the launch,
+  and the next `wait_for_stop` answered `IllegalArgumentException: Debug launch not found: Agentic JUnit - … (118)`.
+  `DebugStopTracker.endedByName(name)` (TERMINATE seen for a launch of that configuration name);
+  `EclipseAgentOperations.waitForStop` then answers `stopped:false, reason:TERMINATED` with a note and `testResult`,
+  as for an ended launch that is still listed. Not covered by a unit test (needs Eclipse launches).
+Not checked here: the handler and plugin.xml (no Eclipse libraries in my copy). Check: build (plugin 72, report 52),
+deploy, menu on a project, Copilot run with the written agent. Trial needed: no (manual check).
+
+## Delivery before (26 Nov, 09:45): OPEN-23 step 1, the plugin offers its MCP server to GitHub Copilot, checked 17:31
 
 Branch `feature/open-23-copilot` from `main` (OPEN-25 merged). Copilot for Eclipse is open source
 (github.com/microsoft/copilot-for-eclipse, MIT; read at 0.22.0): extension point

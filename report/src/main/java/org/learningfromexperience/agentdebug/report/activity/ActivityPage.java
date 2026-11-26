@@ -504,7 +504,21 @@ public final class ActivityPage {
         int space = text.indexOf(' ');
         String id = space > 0 ? text.substring(0, space) : text;
         String version = space > 0 ? text.substring(space + 1).strip() : null;
+        // OPEN-23: GitHub Copilot for Eclipse sends "Eclipse/copilot-eclipse <eclipse version>/<plugin version>",
+        // such as "Eclipse/copilot-eclipse 4.41.0.v20260828-1142/0.22.0.202611251609_nightly" (26 Nov 2026).
+        if (id.toLowerCase(Locale.ROOT).endsWith("copilot-eclipse")) {
+            return new String[] {"GitHub Copilot", copilotVersion(version)};
+        }
         return new String[] {AGENT_NAMES.getOrDefault(id.toLowerCase(Locale.ROOT), id), version};
+    }
+
+    /** {@code "4.41.0.v20260828-1142/0.22.0.202611251609_nightly"} -> {@code "0.22.0 (nightly)"}; null stays null. */
+    static String copilotVersion(String version) {
+        if (version == null) return null;
+        String plugin = version.substring(version.lastIndexOf('/') + 1);
+        var number = java.util.regex.Pattern.compile("^(\\d+\\.\\d+\\.\\d+)").matcher(plugin);
+        String shown = number.find() ? number.group(1) : plugin;
+        return plugin.toLowerCase(Locale.ROOT).contains("nightly") ? shown + " (nightly)" : shown;
     }
 
     /** The mode in plain words: what the end of the investigation does to the debug state. */

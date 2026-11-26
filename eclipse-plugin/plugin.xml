@@ -11,6 +11,30 @@
           id="org.learningfromexperience.eclipse.agentdebug.copilotMcp"
           class="org.learningfromexperience.eclipse.agentdebug.integration.CopilotMcpProvider"/>
    </extension>
+   <!-- OPEN-23 step 2: project menu "Agentic Debugger > Add Agentic Debugger Agent for GitHub Copilot": writes the
+        custom agent .github/agents/agentic_debugger.agent.md into the selected project, only on request. -->
+   <extension point="org.eclipse.ui.commands">
+      <command
+          id="org.learningfromexperience.eclipse.agentdebug.addCopilotAgent"
+          name="Add Agentic Debugger Agent for GitHub Copilot"
+          description="Adds the Agentic Debugger custom agent for GitHub Copilot Chat to this project"
+          defaultHandler="org.learningfromexperience.eclipse.agentdebug.ui.AddCopilotAgentHandler"/>
+   </extension>
+   <extension point="org.eclipse.ui.menus">
+      <menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
+         <menu id="org.learningfromexperience.eclipse.agentdebug.projectMenu" label="Agentic Debugger">
+            <command commandId="org.learningfromexperience.eclipse.agentdebug.addCopilotAgent" style="push"/>
+            <visibleWhen checkEnabled="false">
+               <with variable="activeMenuSelection">
+                  <count value="1"/>
+                  <iterate ifEmpty="false">
+                     <adapt type="org.eclipse.core.resources.IProject"/>
+                  </iterate>
+               </with>
+            </visibleWhen>
+         </menu>
+      </menuContribution>
+   </extension>
    <extension point="org.eclipse.ui.preferencePages">
       <page
           id="org.learningfromexperience.eclipse.agentdebug.preferences"
