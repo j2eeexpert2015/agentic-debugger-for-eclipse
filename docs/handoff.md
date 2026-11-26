@@ -24,7 +24,15 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 23:00 IST): open-44-47-52b.zip = open-44-47-52 + quiet stderr
+## Last delivery (26 Nov, 23:15 IST): docs only, OPEN-44/47/48/49/52 all checked
+
+- OPEN-47: BreakpointTests 3/3 PASS at 23:05 after Remove All (the check found the leftover OrderService:22 (user) at
+  23:02 first). OPEN-52: no popup at the end of a run (Ayan 23:10). README rows Done.
+- Ready to commit together on Ayan's branch: OPEN-44, 47, 48, 49, 52 and the OPEN-53 row (not started).
+- Next agreed later: OPEN-23 remaining steps (a, b, d, e) and OPEN-45 (signing). Still open: OPEN-43 console, OPEN-46,
+  OPEN-50 (parked), OPEN-51 (report to Microsoft), OPEN-53 (`DevE2E stop`).
+
+## Delivery before (26 Nov, 23:00 IST): open-44-47-52b.zip = open-44-47-52 + quiet stderr
 
 open-44-47-52c.zip (23:05): build of b passed 22:56 (54/34/23/79); Copilot's log 22:58: only "Connection state:
 Running" [info] for eclipse-debugger (OPEN-44 checked). BreakpointTests 23:02: the OPEN-47 check stopped the class with
