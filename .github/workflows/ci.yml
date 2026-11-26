@@ -1,0 +1,89 @@
+# CI phase 1, step 1 (OPEN-54): build and unit tests on one Windows machine.
+# Same build as Ayan's machine (Windows, JDK 25, `mvn clean package`), on a clean GitHub machine.
+# When this is green, step 2 adds Linux and macOS (and JDK 21) to the matrix below. See docs/ci.md.
+name: Build and unit tests
+
+on:
+  push:
+    branches: [ main, 'ci/**' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / JDK ${{ matrix.java }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest ]
+        java: [ '25' ]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Show versions
+        shell: pwsh
+        run: |
+          java -version
+          mvn -v
+
+      - name: Build and unit tests (mvn clean package)
+        shell: pwsh
+        run: mvn -B -ntp clean package
+
+      - name: Test-count summary
+        if: always()
+        shell: pwsh
+        run: |
+          $lines = @('### Unit tests: ${{ matrix.os }} / JDK ${{ matrix.java }}', '',
+                     '| Module | Tests | Failures | Errors | Skipped |', '|---|---|---|---|---|')
+          $total = @{ t = 0; f = 0; e = 0; s = 0 }
+          foreach ($m in 'report', 'mcp-server', 'testing', 'eclipse-plugin') {
+            $files = Get-ChildItem -Path "$m/target/surefire-reports" -Filter 'TEST-*.xml' -ErrorAction SilentlyContinue
+            if (-not $files) { $lines += "| $m | no reports | | | |"; continue }
+            $t = 0; $f = 0; $e = 0; $s = 0
+            foreach ($file in $files) {
+              $suite = ([xml](Get-Content -Raw $file.FullName)).testsuite
+              $t += [int]$suite.tests; $f += [int]$suite.failures; $e += [int]$suite.errors; $s += [int]$suite.skipped
+            }
+            $lines += "| $m | $t | $f | $e | $s |"
+            $total.t += $t; $total.f += $f; $total.e += $e; $total.s += $s
+          }
+          $lines += "| **total** | **$($total.t)** | **$($total.f)** | **$($total.e)** | **$($total.s)** |"
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          $lines | ForEach-Object { Write-Host $_ }
+
+      - name: Keep test reports (only when the build fails)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.os }}-jdk${{ matrix.java }}
+          path: '*/target/surefire-reports/'
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Keep the update-site zip
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-site-${{ matrix.os }}-jdk${{ matrix.java }}
+          path: eclipse-update-site/target/*.zip
+          if-no-files-found: warn
+          retention-days: 14

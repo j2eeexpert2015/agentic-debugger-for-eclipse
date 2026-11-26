@@ -55,14 +55,13 @@ the delivery says "Trial needed: yes":
 
 ## 4. In flight (waiting for Ayan)
 
-**A. CI phase 1 (OPEN-54), not pushed yet.** `ci-phase1.zip` contains `.github/workflows/ci.yml` and `docs/ci.md`.
-Plan: in GitHub Desktop create branch `ci/github-actions` from `main`, extract the zip, commit, publish; watch the
-Actions tab ("Build and unit tests": Windows, Ubuntu, macOS on JDK 21, Ubuntu on JDK 25; `mvn -B -ntp clean package`;
-a test-count summary per system; test reports kept on failure; update-site zip kept). Free for a public repository
-(standard runners). First things to watch: Tycho resolving the Copilot p2 site from GitHub's machines, plugin tests
-on headless Linux, CP-U7 on macOS. When green: merge into `main`. When CP-U7 passes on Linux/macOS, the launcher can
-be switched on there (OPEN-54). Phases 2 (OPEN-55, integration tests on Linux with Xvfb) and 3 (OPEN-56, releases on
-GitHub Pages) are planned in `docs/ci.md`.
+**A. CI phase 1, step 1.1 (OPEN-54): Windows only, first run pending.** Ayan decided (27 Nov 00:39) to start CI on
+Windows only and add the other systems once that works. `ci-phase1-windows.zip` (replaces the earlier
+`ci-phase1.zip`, which was never extracted or pushed) holds `.github/workflows/ci.yml` (one job: `windows-latest`,
+JDK 25, `mvn -B -ntp clean package`, test-count table, reports on failure, update-site zip) and `docs/ci.md` (the
+step plan). Branch `ci/github-actions` exists on GitHub (same commit as `main`); Ayan extracts the zip on that
+branch, commits and pushes in GitHub Desktop, and sends the run result. When green: step 1.2 (Linux, macOS, JDK 21,
+only new matrix rows), then merge into `main`. Phase 2 (OPEN-55): proposed in `docs/ci.md` to start on Windows too; Ayan to confirm.
 
 **B. OPEN-23 (d) check, not run yet.** Question: offer the agent once per user in `%USERPROFILE%\.copilot\agents\`
 (Copilot's language server reads it for every workspace) instead of a copy in each project (each open project's copy
@@ -107,6 +106,12 @@ Check prompt for Copilot (Agentic Debugger mode, new chat):
 | Quiet server | `mcp-server/.../DebugMcpServer.java`, `SessionReport.java` (`ENV_VERBOSE`, `verbose(env)`) |
 | CI | `.github/workflows/ci.yml`, `docs/ci.md` (on branch `ci/github-actions` once pushed) |
 
-## 7. Noticed, not started
+## 7. Last delivery
+
+`ci-phase1-windows.zip` (27 Nov 2026): new `.github/workflows/ci.yml`, new `docs/ci.md`, README OPEN-54 status,
+this file (section 4A, this section). Not checked by the assistant: any GitHub Actions run (no access to the Actions
+tab; the workflow YAML only parsed locally), the PowerShell summary step, whether the update-site zip name matches.
+
+## 8. Noticed, not started
 
 - `examples/README.md` has two dead links to deleted documents; left unchanged (examples/ rule) until Ayan decides.
