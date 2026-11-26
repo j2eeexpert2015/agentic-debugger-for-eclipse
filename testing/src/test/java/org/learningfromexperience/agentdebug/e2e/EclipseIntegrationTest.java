@@ -35,7 +35,8 @@ import org.junit.jupiter.api.extension.TestWatcher;
  *
  * <p>One subclass per product feature; each test method is named after the behaviour it checks. A test that calls
  * {@link #investigation()} runs inside its own NORMAL investigation, which is finished after the test; the test fails
- * when that cleanup was incomplete (own breakpoints left, own JVM still running). Each class writes a JSON report with
+ * when that cleanup was incomplete (own breakpoints left, own JVM still running). Before the first test of a class, it
+ * fails when the test projects already have breakpoints (left by an earlier run or another tool, OPEN-47). Each class writes a JSON report with
  * the evidence and duration of every test and every bridge call to {@code evaluation/reports/<group>.json}, and prints
  * one line per test ({@code breakpoints/conditional-stops-only-on-match: PASS (2310 ms)}).
  *
@@ -100,6 +101,31 @@ abstract class EclipseIntegrationTest {
         for (String project : List.of(JAVA_PROJECT, BOOT_PROJECT))
             require(Files.isRegularFile(env.workspace.resolve(project).resolve(".agentdebug-fixture")),
                     "Missing disposable-fixture marker in " + project + "; refusing to test (run DevE2E deploy first)");
+        List<String> left = leftoverBreakpoints(rows(bridge.call("LIST_BREAKPOINTS", false).get("breakpoints")));
+        require(left.isEmpty(), "Leftover breakpoints in the test projects: " + String.join(", ", left)
+                + ". A test did not set them, and they change where the programs stop (OPEN-47). In the test Eclipse:"
+                + " Window > Show View > Breakpoints, Remove All Breakpoints, then run the tests again."
+                + " Owner 'agent' = left by an agent investigation that did not finish; 'user' = set by hand or by"
+                + " another tool (for example Copilot's own java_debugger).");
+    }
+
+    /**
+     * Line breakpoints in the two test projects, as "OrderService:23 (user)", in the order Eclipse lists them (OPEN-47).
+     * Each test sets its own breakpoints and removes them at its finish, so any breakpoint here before a test class
+     * starts was left behind: by an investigation that did not finish (owner agent), by hand or by another tool such as
+     * Copilot's java_debugger (owner user). Seen 26 Nov: seven at OrderService:23 made FullSuite fail 42/43.
+     */
+    static List<String> leftoverBreakpoints(List<Map<String, Object>> breakpoints) {
+        List<String> left = new ArrayList<>();
+        for (Map<String, Object> bp : breakpoints) {
+            String project = str(bp.get("projectName"));
+            if (!project.equals(JAVA_PROJECT) && !project.equals(BOOT_PROJECT)) continue;
+            String type = str(bp.get("typeName"));
+            // num(): the JSON reader gives numbers as doubles ("22.0" before, seen 26 Nov 23:02).
+            left.add(type.substring(type.lastIndexOf('.') + 1) + ":" + num(bp.get("lineNumber"))
+                    + " (" + (bp.get("owner") == null ? "user" : str(bp.get("owner"))) + ")");
+        }
+        return left;
     }
 
     @BeforeEach

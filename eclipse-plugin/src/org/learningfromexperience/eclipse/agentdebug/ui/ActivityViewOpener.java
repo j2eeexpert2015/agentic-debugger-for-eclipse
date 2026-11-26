@@ -10,12 +10,12 @@ import org.eclipse.ui.PerspectiveAdapter;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
-import org.learningfromexperience.agentdebug.report.activity.ActivityPage;
 import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 
 /**
- * Opens Agent Activity when an agent investigation starts, and shows an Eclipse notification when it ends (OPEN-36),
- * once per investigation each.
+ * Opens Agent Activity when an agent investigation starts (OPEN-36), once per investigation, and keeps it in view when
+ * it ends. No notification popup at the end (removed 26 Nov, OPEN-52): the Agent Activity banner, the status bar and
+ * the agent's own answer already say it.
  *
  * <p><b>Own window (default).</b> {@link ActivityWindow}: belongs to the Eclipse window, not to a perspective, so the
  * switch to the Debug perspective cannot hide it (user check 25 Nov 02:38: the floating view of the Java perspective
@@ -29,10 +29,6 @@ import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
  * Variables, so no other view can hide it); shown again in any perspective activated during an investigation.
  *
  * <p>In both cases: if the user closes it during an investigation, it is not opened again until the next one.
- *
- * <p>The notification (bottom right, fades out by itself) says how the investigation ended, how long it took and the
- * first line of the agent's analysis; it needs the {@code org.eclipse.jface.notifications} bundle, and without it
- * nothing is shown.
  *
  * @author Ayan Dutta
  */
@@ -58,7 +54,7 @@ public final class ActivityViewOpener {
         if (current.finished()) {
             if (!investigationId.equals(notified.getAndSet(investigationId))) {
                 Display display = Display.getDefault();
-                if (display != null && !display.isDisposed()) display.asyncExec(() -> notifyFinished(current));
+                if (display != null && !display.isDisposed()) display.asyncExec(ActivityViewOpener::keepInView);
             }
             return;
         }
@@ -69,7 +65,7 @@ public final class ActivityViewOpener {
         display.asyncExec(ActivityViewOpener::show);
     }
 
-    private static void notifyFinished(ActivityStore.Investigation inv) {
+    private static void keepInView() {
         try {
             // The perspective may have changed during the run (for example to Debug): keep the view clear there too.
             IWorkbenchWindow window = PlatformUI.isWorkbenchRunning() ? PlatformUI.getWorkbench().getActiveWorkbenchWindow() : null;
@@ -82,14 +78,6 @@ public final class ActivityViewOpener {
             }
         } catch (Exception | LinkageError ignored) {
             // Placement is a convenience.
-        }
-        try {
-            boolean finished = "FINISHED".equals(inv.outcome());
-            String title = finished ? "Agent investigation finished" : "Agent investigation ended without a finish";
-            org.eclipse.jface.notifications.NotificationPopup.forDisplay(Display.getDefault())
-                    .title(title, true).text(ActivityPage.notification(inv)).open();
-        } catch (Exception | LinkageError unavailable) {
-            // No notification bundle, or no display: the view and the status bar still say it.
         }
     }
 

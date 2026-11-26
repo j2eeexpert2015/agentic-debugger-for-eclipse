@@ -1034,28 +1034,6 @@ public final class ActivityPage {
         return out.toString();
     }
 
-    /** Text of the notification at the end: what was debugged, how long it took, the analysis's first line. */
-    public static String notification(ActivityStore.Investigation inv) {
-        StringBuilder out = new StringBuilder(title(inv));
-        long took = epoch(inv.finishedAt()) - epoch(inv.startedAt());
-        if (epoch(inv.startedAt()) > 0 && took >= 0) out.append(" · took ").append(duration(took));
-        String first = firstLine(inv.conclusion());
-        if (first != null) out.append("\n").append(first.length() > 140 ? first.substring(0, 140).stripTrailing() + "…" : first);
-        out.append("\nDetails in the Agent Activity view.");
-        return out.toString();
-    }
-
-    /** The first line of the analysis with content, headings skipped and Markdown marks removed. */
-    static String firstLine(String markdown) {
-        if (markdown == null) return null;
-        for (String line : markdown.split("\\R")) {
-            if (line.strip().startsWith("#") || line.strip().startsWith("```")) continue;
-            String plain = line.replaceFirst("^\\s*([-*]|\\d+[.)])\\s+", "").replace("**", "").replace("`", "").strip();
-            if (!plain.isEmpty() && !plain.matches("[|:\\-\\s]+")) return plain;
-        }
-        return null;
-    }
-
     /**
      * One line for the status bar: "Agent: thinking · 8 s", "Agent: running · 45 s", "Agent: paused",
      * "Agent: waiting for a stop", "Agent: finished · 1 min 05 s", or null when idle.

@@ -48,10 +48,9 @@ public class DebugMcpServer {
 
     public static void main(String[] args) throws InterruptedException {
 
-        // STDOUT is reserved exclusively for MCP protocol messages.
-        System.err.println(
-                "[Eclipse Agentic Debugger] Starting MCP server..."
-        );
+        // STDOUT is reserved exclusively for MCP protocol messages. OPEN-44: a normal start prints nothing on stderr,
+        // because GitHub Copilot shows every stderr line as a [warning]; problems are still printed, and
+        // AGENTDEBUG_VERBOSE=1 brings the informational lines back for troubleshooting.
 
         // OPEN-30: debugging session report. On by default; AGENTDEBUG_REPORT=off switches it off (ADR-009).
         // OPEN-36: the same events go to the Agent Activity view in Eclipse; AGENTDEBUG_LIVE=off switches it off.
@@ -529,9 +528,8 @@ public class DebugMcpServer {
                 .tools(ReportingTools.wrap(allTools, REPORT))
                 .build();
 
-        System.err.println(
-                "[Eclipse Agentic Debugger] MCP server initialized."
-        );
+        if (SessionReport.verbose(System.getenv()))
+            System.err.println("[Eclipse Agentic Debugger] MCP server ready (Eclipse bridge port " + ECLIPSE_PORT + ").");
 
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {

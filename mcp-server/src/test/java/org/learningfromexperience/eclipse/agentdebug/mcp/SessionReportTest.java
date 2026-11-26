@@ -65,7 +65,7 @@ class SessionReportTest {
     }
 
     @Test
-    @DisplayName("SR-U1 reporting is on by default and off with AGENTDEBUG_REPORT=off")
+    @DisplayName("SR-U1 reporting is on by default and off with AGENTDEBUG_REPORT=off; where reports go is printed only with AGENTDEBUG_VERBOSE (OPEN-44)")
     void srU1() {
         ByteArrayOutputStream err = new ByteArrayOutputStream();
         SessionReport off = SessionReport.fromEnvironment(Map.of("AGENTDEBUG_REPORT", "off"),
@@ -79,11 +79,21 @@ class SessionReportTest {
         SessionReport byDefault = SessionReport.fromEnvironment(Map.of(), new PrintStream(log, true, StandardCharsets.UTF_8));
         try {
             assertTrue(byDefault.active(), "reports must be on without any setting: " + log);
-            assertTrue(log.toString(StandardCharsets.UTF_8).contains("debug-reports folder of each launched Eclipse project"),
-                    log.toString(StandardCharsets.UTF_8));
+            assertEquals("", log.toString(StandardCharsets.UTF_8), "a normal start prints nothing (Copilot shows it as a warning)");
         } finally {
             byDefault.close();
         }
+        ByteArrayOutputStream verbose = new ByteArrayOutputStream();
+        SessionReport talkative = SessionReport.fromEnvironment(Map.of("AGENTDEBUG_VERBOSE", "1"),
+                new PrintStream(verbose, true, StandardCharsets.UTF_8));
+        try {
+            assertTrue(verbose.toString(StandardCharsets.UTF_8).contains("debug-reports folder of each launched Eclipse project"),
+                    verbose.toString(StandardCharsets.UTF_8));
+        } finally {
+            talkative.close();
+        }
+        assertTrue(SessionReport.verbose(Map.of("AGENTDEBUG_VERBOSE", " On ")));
+        assertFalse(SessionReport.verbose(Map.of("AGENTDEBUG_VERBOSE", "0")));
     }
 
     @Test

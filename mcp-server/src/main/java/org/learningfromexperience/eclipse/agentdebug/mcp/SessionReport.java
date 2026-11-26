@@ -65,6 +65,18 @@ final class SessionReport {
     static final String ENV_PROMPT = "AGENTDEBUG_REPORT_PROMPT";
     /** {@code off} switches the live Agent Activity events off (OPEN-36); on by default. */
     static final String ENV_LIVE = "AGENTDEBUG_LIVE";
+    /**
+     * {@code 1}, {@code true} or {@code on}: also print the informational lines on stderr (where reports go, each
+     * report's path). Off by default (OPEN-44): GitHub Copilot shows every stderr line of a server as a [warning], so
+     * a normal start and a normal finish print nothing there; problems are always printed.
+     */
+    static final String ENV_VERBOSE = "AGENTDEBUG_VERBOSE";
+
+    /** True when {@link #ENV_VERBOSE} asks for the informational stderr lines. */
+    static boolean verbose(Map<String, String> env) {
+        String value = env == null ? null : env.get(ENV_VERBOSE);
+        return value != null && List.of("1", "true", "on", "yes").contains(value.strip().toLowerCase(java.util.Locale.ROOT));
+    }
     /** Writer used when {@code AGENTDEBUG_REPORT} is not set: reports are on by default. */
     static final String DEFAULT_WRITER = "html";
     /** Folder created inside the Eclipse project for its reports. */
@@ -111,6 +123,8 @@ final class SessionReport {
     private final Set<Path> taken = new java.util.HashSet<>();
     private final Map<String, String> launchOwner = new HashMap<>();
     private final Map<String, List<String>> ownBreakpoints = new HashMap<>();
+    /** Print each report's path on stderr; on for directly built sessions (tests), from the environment otherwise. */
+    private boolean verbose = true;
 
     SessionReport(ReportRecorder recorder) {
         this(recorder, null, null, System.err);
@@ -161,20 +175,25 @@ final class SessionReport {
             String writer = env.get(ENV_WRITER) == null || env.get(ENV_WRITER).isBlank()
                     ? DEFAULT_WRITER : env.get(ENV_WRITER);
             ReportSettings probe = new ReportSettings(writer, Path.of("."), null);
-            if (probe.off()) return new SessionReport(ReportRecorder.off(), live, null, env.get(ENV_PROMPT), err);
+            if (probe.off()) return quiet(new SessionReport(ReportRecorder.off(), live, null, env.get(ENV_PROMPT), err), env);
             Path fixed = env.containsKey(ENV_DIR) && !env.get(ENV_DIR).isBlank()
                     ? Path.of(env.get(ENV_DIR)).toAbsolutePath().normalize() : null;
             Path writerFolder = fixed != null ? fixed
                     : Path.of(System.getProperty("user.home"), ".eclipse-agentdebug", "reports");
             ReportRecorder recorder = ReportRecorders.create(
                     new ReportSettings(writer, writerFolder, "Agentic Debugger for Eclipse"), err);
-            if (recorder.active()) err.println("[Eclipse Agentic Debugger] Debugging session reports go to "
+            if (recorder.active() && verbose(env)) err.println("[Eclipse Agentic Debugger] Debugging session reports go to "
                     + (fixed != null ? fixed : "the " + PROJECT_REPORTS + " folder of each launched Eclipse project"));
-            return new SessionReport(recorder, live, fixed, env.get(ENV_PROMPT), err);
+            return quiet(new SessionReport(recorder, live, fixed, env.get(ENV_PROMPT), err), env);
         } catch (Throwable failure) {
             err.println("[Eclipse Agentic Debugger] Session report disabled: " + failure);
-            return new SessionReport(ReportRecorder.off(), live, null, null, err);
+            return quiet(new SessionReport(ReportRecorder.off(), live, null, null, err), env);
         }
+    }
+
+    private static SessionReport quiet(SessionReport report, Map<String, String> env) {
+        report.verbose = verbose(env);
+        return report;
     }
 
     /** True when the report or the live view receives events. */
@@ -329,13 +348,16 @@ final class SessionReport {
         }
     }
 
-    /** The report file of an ending investigation; printed on stderr so it appears in the MCP server's log. */
+    /**
+     * The report file of an ending investigation; printed on stderr only when verbose (OPEN-44): the path is also in
+     * the finish reply and behind "Open HTML Report" in Agent Activity.
+     */
     private Path chooseReport(String id) {
         if (!recorder.active()) return null;
         Path file = org.learningfromexperience.agentdebug.report.ReportFiles.reserve(reportFolder(id), targets.get(id),
                 starts.getOrDefault(id, Instant.now()), ZoneId.systemDefault(), taken);
         reports.put(id, file);
-        log.println("[Eclipse Agentic Debugger] Debugging session report: " + file);
+        if (verbose) log.println("[Eclipse Agentic Debugger] Debugging session report: " + file);
         return file;
     }
 

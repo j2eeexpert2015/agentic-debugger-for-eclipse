@@ -52,6 +52,19 @@
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
 
+        <!--
+          OPEN-44: an SLF4J backend that discards the MCP SDK's log lines. Without any backend SLF4J prints
+          "No SLF4J providers were found" (three lines) on stderr at every start, and GitHub Copilot shows each stderr
+          line as a [warning]. The SDK's logging went nowhere before as well; the version matches the slf4j-api the
+          SDK brings (2.0.16, see the shade output).
+        -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-nop</artifactId>
+            <version>2.0.16</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Unit tests (src/test/java), run by "mvn clean package"; test scope, never shaded into the jar -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

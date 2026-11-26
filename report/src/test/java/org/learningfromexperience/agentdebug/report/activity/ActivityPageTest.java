@@ -291,7 +291,7 @@ class ActivityPageTest {
         assertEquals("", ActivityPage.warnings(store.current()), "it did stop");
     }
 
-    @Test @DisplayName("AP-U9 notification at the end and status bar line")
+    @Test @DisplayName("AP-U9 status bar line (the notification popup at the end was removed, OPEN-52)")
     void apU9() {
         ActivityStore store = started("Why?");
         step(store, "stepRecorded", "LAUNCH", "OK", "Started application in debug mode: OrdersApplication");
@@ -301,8 +301,6 @@ class ActivityPageTest {
         assertEquals("Agent: waiting for a stop · 1 min 05 s", ActivityPage.statusBar(store.current(), START + 65_000));
         finish(store, "FINISHED", "## Symptom\n**POST /orders/quote** returned `120.00`; expected 108.00.");
         assertEquals("Agent: finished · 45.0 s", ActivityPage.statusBar(store.current(), START + 999_000));
-        assertEquals("Debugging OrdersApplication · took 45.0 s\nPOST /orders/quote returned 120.00; expected 108.00.\n"
-                + "Details in the Agent Activity view.", ActivityPage.notification(store.current()));
     }
 
     @Test @DisplayName("AP-U10 the stop keeps the frame's variables when the agent expands one of them afterwards")

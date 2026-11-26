@@ -20,8 +20,7 @@ Require-Bundle: org.eclipse.core.runtime,
  org.eclipse.ui.ide,
  org.eclipse.e4.ui.model.workbench,
  org.eclipse.e4.ui.workbench,
- org.eclipse.e4.core.contexts,
- org.eclipse.jface.notifications;resolution:=optional
+ org.eclipse.e4.core.contexts
 Import-Package: com.microsoft.copilot.eclipse.ui.extensions;resolution:=optional
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Automatic-Module-Name: org.learningfromexperience.eclipse.agentdebug

@@ -24,7 +24,48 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 22:45): OPEN-48/49 with Ayan's colours (open-48-49c.zip, replaces open-48-49.zip and b)
+## Last delivery (26 Nov, 23:00 IST): open-44-47-52b.zip = open-44-47-52 + quiet stderr
+
+open-44-47-52c.zip (23:05): build of b passed 22:56 (54/34/23/79); Copilot's log 22:58: only "Connection state:
+Running" [info] for eclipse-debugger (OPEN-44 checked). BreakpointTests 23:02: the OPEN-47 check stopped the class with
+"Leftover breakpoints ... OrderService:22.0 (user)": works; the line printed as 22.0 (JSON number as double), fixed
+with `num()`. README row OPEN-53 (`DevE2E stop`), agreed 22:57, goes out in this zip. Until it exists, every command
+that needs the test Eclipse closed starts with the PowerShell close step (CloseMainWindow on the eclipse.exe of
+`C:\All_Softwares\eclipse`, wait 60 s, stop the chain if it is still open).
+
+Build of open-44-47-52 passed 22:48 (54/34/23/79, slf4j-nop in the shade list). Copilot's MCP log 22:50: only two of
+our lines, both [warning]; an [error] from GitHub's own MCP server (Authorization header) that turns Running. Ayan
+agreed: a normal start prints nothing.
+- `mcp/SessionReport.java`: `ENV_VERBOSE = "AGENTDEBUG_VERBOSE"`, `verbose(env)` (1/true/on/yes), field `verbose`
+  (true for directly built sessions, so the tests keep their output; from the environment in `fromEnvironment` via
+  `quiet()`); "reports go to" and "Debugging session report: <path>" only when verbose. Problems still printed.
+- `mcp/DebugMcpServer.java`: "MCP server ready" only when verbose; comment updated.
+- `SessionReportTest` SR-U1: default start prints nothing; with AGENTDEBUG_VERBOSE=1 the "reports go to" line;
+  `verbose()` values. Checked here: SessionReport compiled with the report module, SessionReportTest 17/17.
+- README: OPEN-44 row, Copilot FAQ (GitHub's [error] line, AGENTDEBUG_VERBOSE), report paragraph.
+
+## Delivery before (26 Nov, 22:45 IST): OPEN-44, OPEN-47 and OPEN-52 together (open-44-47-52.zip)
+
+Ayan: one zip for 44, 47 and 52 (open-52.zip was not applied); OPEN-23 and OPEN-45 later.
+- OPEN-44: `mcp-server/pom.xml` `org.slf4j:slf4j-nop:2.0.16` runtime (shaded); `DebugMcpServer.main` no
+  "Starting MCP server..." line; "MCP server initialized." became "MCP server ready (Eclipse bridge port N).". No code
+  or test waits for the old texts (grep). Not compiled here (no MCP SDK offline).
+- OPEN-47: `testing/.../e2e/EclipseIntegrationTest.connect()` calls `LIST_BREAKPOINTS` and requires none in
+  phase-one-debugging and spring-boot-debugging; `leftoverBreakpoints()` formats "Type:line (owner)". Part (2) was
+  already CORE-17 (`EclipseBreakpointService.removeOrphanedAgentBreakpoints` at start). Not compiled here.
+- OPEN-52: as in the section below.
+
+## Delivery before (26 Nov, 22:30 IST): OPEN-52 notification popup removed; OPEN-48/49 checked
+
+- OPEN-48/49 checked by Ayan 22:12 (build 54/34/23/79, Claude run watched): "it is fine". README rows Done.
+- OPEN-52 (Ayan: redundant, remove completely): `ui/ActivityViewOpener.java` `notifyFinished(inv)` renamed
+  `keepInView()`, the `NotificationPopup` call removed (the view placement at the end stays), class Javadoc updated,
+  unused `ActivityPage` import removed; `ActivityPage.notification()` and its private `firstLine()` removed
+  (`FlowPage.firstLine` is separate and stays); AP-U9 keeps only the status-bar assertions (report tests stay 54);
+  MANIFEST: `org.eclipse.jface.notifications;resolution:=optional` removed. README OPEN-36 text notes the removal.
+  Checked here: report module compiled, ActivityPageTest 13/13. Not here: the plugin (needs Eclipse).
+
+## Delivery before (26 Nov, 22:45 by file time): OPEN-48/49 with Ayan's colours (open-48-49c.zip)
 
 Colours decided by Ayan on the demo page `agent-activity-banner-demo.html` (generated from the code, not in the repo):
 thinking bright orange, debugging red, finished green, ended alarming bright yellow (strong border); the dot takes

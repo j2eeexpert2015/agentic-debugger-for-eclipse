@@ -124,6 +124,39 @@ and launches; run them for changes to cleanup, ownership or the bridge.
 | | `whole-class-counts-each-test` | The whole class in RUN mode: total 2, passed 1, failed 1; the failed test listed first |
 | | `debug-mode-result-after-resume` | In debug mode, stopped at the breakpoint: not finished, note "still in progress"; after removing the breakpoint and resuming, `WAIT_FOR_STOP` ends with TERMINATED and carries `testResult` (FAILED, first failure at `OrderServiceTest.calculatesDiscount:`...); `GET_JUNIT_RESULTS` says FAILED too; then a second debug run in the same investigation is allowed (the first has ended) and stops at the breakpoint |
 
+## Which check for which change (26 Nov 2026)
+
+`mvn clean package` always runs every unit test (report, MCP server, grader, plugin). The integration tests drive a
+real Eclipse; run the class for the area that changed, and `FullSuite` once before a branch is merged into `main`.
+
+| What changed | What to run |
+|---|---|
+| Docs only (README, handoff, docs/) | Nothing |
+| Report or Agent Activity display (`report` module) | Build; look at the view or report |
+| Skill text, MCP tool descriptions | Build; one Claude batch (`symptomPrompts`); for Copilot a manual run |
+| Copilot integration (`CopilotMcpProvider`, agent file, menu action) | Build, deploy; manual Copilot check |
+| Starting programs and tests | `ProgramStartTests`, `JUnitResultsTests` |
+| Breakpoints | `BreakpointTests`, `UserResourceSafetyTests` |
+| Stepping, pause, restart | `ExecutionControlTests` |
+| Stops, variables, `wait_for_stop` | `StopsAndVariablesTests`, `JUnitResultsTests` |
+| Investigation policy, cleanup, ownership | `InvestigationIsolationTests`, `AbandonedSessionCleanupTests`, `UserResourceSafetyTests` |
+| Bridge, tokens, timeouts | `AgentEclipseConnectionTests` |
+| Spring Boot start, HTTP | `SpringBootStartupTests`, `SpringBootHttpTests` |
+| Build check before a start | `BuildCheckTests` |
+| Code used by almost every test (`EclipseAgentOperations.waitForStop`, the bridge dispatcher) | `FullSuite` |
+| **Before merging a branch** | **`FullSuite`** |
+
+Run one class with `-Dit.test=<Class>`, for example
+`mvn -pl testing verify -Pintegration-tests -Dit.test=JUnitResultsTests -Dfixture.post.approved=true`.
+
+**Leftover breakpoints:** manual agent sessions in the test workspace (Copilot's own `java_debugger`, or an
+investigation cut off by closing Eclipse) can leave breakpoints. On 26 Nov seven breakpoints at `OrderService:23`
+made `spring-boot-http/wrong-quote-value-found` stop at line 23 instead of 24. Since OPEN-47 every test class checks
+this before its first test and fails with a clear message that lists them with their owner ("OrderService:23 (user)").
+Then: Breakpoints view → Remove All, and run again. Owner `agent`: an investigation that did not finish (the plugin
+removes those by itself at the next Eclipse start, CORE-17); owner `user`: set by hand or by another tool, for example
+Copilot's own `java_debugger`; the tests never remove those.
+
 ## Claude end to end: `ClaudeAgentEndToEndTests` (uses Claude usage)
 
 **Real Claude Code debugs a planted bug** with this tool and the skill, from the user's prompt to its final answer,
