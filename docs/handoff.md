@@ -24,7 +24,23 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 20:00): docs only, step 3 results, new items OPEN-48..50
+## Last delivery (26 Nov, 20:30): step 3 fully checked, Copilot mode-list workaround (OPEN-51)
+
+- Copilot run 2 (20:10, `~/.claude/skills/eclipse-debugger` renamed, skill installed in `~/.copilot` by Add): report
+  20-10-18: 5 calls, one stop at OrderService.quote:25 (rate = 0, subtotal = 120), cleanup terminated the JVM, 28 s,
+  model "GPT-5.2" (self-reported), skill 0.1.5 (the agent file has no version, so it came from SKILL.md; the renamed
+  `.off` folder was still under `~/.claude/skills`, so the source copy is likely but not proven). Breakpoints view empty
+  after both runs. Preferences page: status "Not installed", Install (6 files), Remove; `.copilot/skills` empty after.
+- Copilot bug found (OPEN-51): after a start (and after Remove/Add) the mode button is blank and the list lacks Agentic
+  Debugger, though Configure Agents lists it. Confirmed workaround: open Configure Agents... and close it. Add's message
+  (`AddCopilotAgentHandler`, `next` text) now says so; README FAQ too. Report to microsoft/copilot-for-eclipse pending.
+- New `docs/copilot-mode-list-bug.md` (asked by Ayan): the Copilot bug, cause in Copilot's source (`ActionBar` reloads
+  custom modes only on MouseDown, asynchronously; `DropdownButton` draws an empty label for an unknown ID), proposed
+  one-line fix, workarounds (Configure Agents confirmed; click twice not yet tried), draft issue and PR. Linked from the
+  OPEN-51 row and the FAQ. Work on it later, when there is time.
+- Step 3 is checked and ready to merge after this build.
+
+## Delivery before (26 Nov, 20:00): docs only, step 3 results, new items OPEN-48..50
 
 - Step 3 checks so far: build 79/52/34; InvestigationIsolationTests + UserResourceSafetyTests 10/10; Claude batch
   open23-haiku-1 9/9 PASS, 9.4 calls (haiku-6 8/9 + 1 partial, 11.4; purpose 16/18; test result read 2/9, to compare

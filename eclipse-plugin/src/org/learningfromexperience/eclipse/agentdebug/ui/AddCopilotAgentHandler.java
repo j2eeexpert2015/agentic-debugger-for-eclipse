@@ -47,6 +47,8 @@ public final class AddCopilotAgentHandler extends AbstractHandler {
             project.refreshLocal(IResource.DEPTH_INFINITE, null);
             String where = project.getName() + "/" + CopilotAgentInstaller.AGENT_FILE;
             String next = "\n\nIn Copilot Chat, choose \"Agentic Debugger\" in the mode list (next to Ask, Agent, Plan)."
+                    + " If it is missing there, or the mode button is blank, open Configure Agents... in that list"
+                    + " once and close it (Copilot then reloads its custom agents)."
                     + "\nCopilot must allow the eclipse-debugger server once: Preferences > GitHub Copilot >"
                     + " Model Context Protocol (MCP) > Edit MCP Servers from Plug-ins.";
             String message = switch (result) {
