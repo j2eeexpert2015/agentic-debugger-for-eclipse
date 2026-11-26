@@ -1,4 +1,4 @@
-# Handoff for a new chat (27 Nov 2026, 00:40 IST)
+# Handoff for a new chat (27 Nov 2026, 02:00 IST)
 
 Read [working-agreement.md](working-agreement.md) first (how we work), then this file (where the work stands), then
 the README section **Status and tracking** (the single list of all items). The repository is the truth; earlier
@@ -55,46 +55,31 @@ the delivery says "Trial needed: yes":
 
 ## 4. In flight (waiting for Ayan)
 
-**A. CI phase 1 (OPEN-54), not pushed yet.** `ci-phase1.zip` contains `.github/workflows/ci.yml` and `docs/ci.md`.
-Plan: in GitHub Desktop create branch `ci/github-actions` from `main`, extract the zip, commit, publish; watch the
-Actions tab ("Build and unit tests": Windows, Ubuntu, macOS on JDK 21, Ubuntu on JDK 25; `mvn -B -ntp clean package`;
-a test-count summary per system; test reports kept on failure; update-site zip kept). Free for a public repository
-(standard runners). First things to watch: Tycho resolving the Copilot p2 site from GitHub's machines, plugin tests
-on headless Linux, CP-U7 on macOS. When green: merge into `main`. When CP-U7 passes on Linux/macOS, the launcher can
-be switched on there (OPEN-54). Phases 2 (OPEN-55, integration tests on Linux with Xvfb) and 3 (OPEN-56, releases on
-GitHub Pages) are planned in `docs/ci.md`.
+**A. CI (OPEN-54, OPEN-55) lives on branch `ci/github-actions`** until merged; its own handoff text, `docs/ci.md` and
+the CI rows are on that branch (`main` stays for development). State 27 Nov 01:06: unit tests green on Windows JDK 25
+and JDK 21; integration tests on a GitHub Windows machine (`integration-windows.yml`, step 2.1) delivered, first run
+pending. When merging into `main`: README and this file were changed on both branches (different sections), check them.
 
-**B. OPEN-23 (d) check, not run yet.** Question: offer the agent once per user in `%USERPROFILE%\.copilot\agents\`
-(Copilot's language server reads it for every workspace) instead of a copy in each project (each open project's copy
-shows as a separate entry). Ayan's manual check, in order:
-1. copy `...\java-e2e-workspace\spring-boot-debugging\.github\agents\agentic_debugger.agent.md` to
-   `%USERPROFILE%\.copilot\agents\`;
-2. in Copilot's mode list open **Configure Agents...** once (reload, OPEN-51) and count the "Agentic Debugger" entries
-   (expected: one per project with the file plus one from the user folder);
-3. remove the agent from both projects (project menu **Remove Agentic Debugger Agent for GitHub Copilot**), reload,
-   expect exactly one entry; new chat, prompt below, tools must run;
-4. restart the test Eclipse (`java dev-e2e/DevE2E.java start` after the close step): is the entry there directly or
-   only after the reload?
-5. afterwards remove the user file (`del "%USERPROFILE%\.copilot\agents\agentic_debugger.agent.md"`) or keep it.
-
-The user file shows the agent in **every** Eclipse with Copilot on that machine, so if built it is an opt-in
-Install/Remove on the preferences page (with the same checksum protection as the project file), the project menu
-stays, and a warning when the agent exists in several places.
-
-Check prompt for Copilot (Agentic Debugger mode, new chat):
-`Use the eclipse-debugger tools to debug OrderService in phase-one-debugging and tell me why the total is wrong.`
+**B. OPEN-23 (d) check: done 27 Nov 01:15-01:37** (details in the README OPEN-23 row). One agent file in
+`%USERPROFILE%\.copilot\agents\` is enough: listed once (empty Project column), our tools run, right cause found,
+still in the mode list after a restart. The user file is still on Ayan's machine (keep it until (d) is built).
 
 ## 5. Next, in this order
 
-1. Finish 4A (CI first run) and 4B (d check), one at a time.
-2. OPEN-23 (d) implementation, if the check supports it.
-3. OPEN-23 (b): neutral wording in tool descriptions and skill for Copilot's Agent mode ("starts the test itself,
-   no running session needed"), not forbidding Copilot's own tools; check with Copilot runs and one Claude batch.
-4. OPEN-57: models guess names close to ours (`projectName` on `list_java_applications`, `cleanup` on
-   `finish_debug_investigation`, `references/spring-boot.md` instead of `spring-boot-debugging.md`); measure in the
-   next Copilot runs, then list exact file paths and parameters in SKILL.md and the agent file.
-5. Later: OPEN-45 signing (only changes the "Signed" label in Copilot; needs a certificate), OPEN-43 console,
-   OPEN-51 upstream report (draft in `docs/copilot-mode-list-bug.md`), OPEN-53 `DevE2E stop`, OPEN-55/56 CI phases.
+1. **OPEN-23 (d) implementation:** opt-in Install/Remove of the agent in `~/.copilot/agents/` on the preferences page
+   (same checksum protection as the project file), project menu stays, a warning when the agent exists in several
+   places; Remove also deletes the `.github/agents` and `.github` folders it created when they are left empty.
+2. **OPEN-58** (Ayan, 27 Nov: right after (d)): user consent in Eclipse for side-effecting evaluation, plus MCP tool
+   annotations. Demo of the dialog first.
+3. **OPEN-46** (moved up, proposed 27 Nov, Ayan to confirm): a short manual protocol for Copilot runs (fixed prompts, fields per run, results table in
+   `docs/copilot-integration-notes.md`), used by 4 and 5.
+4. OPEN-23 (b): neutral wording in tool descriptions and skill for Copilot's Agent mode ("starts the test itself,
+   no running session needed"), not forbidding Copilot's own tools; check with the OPEN-46 protocol and one Claude batch.
+5. OPEN-57: exact names and parameters (`lineNumber`, `investigationId`, `allowSideEffects`, reference file paths)
+   in SKILL.md and the agent file; measured with the OPEN-46 protocol before and after.
+6. CI on its branch: 2.1 first run, then 1.3 (Linux, macOS), merge into `main`, 1.4, 2.2 (`docs/ci.md` there).
+7. Later: OPEN-45 signing (only changes the "Signed" label in Copilot; needs a certificate), OPEN-43 console,
+   OPEN-51 upstream report (draft in `docs/copilot-mode-list-bug.md`), OPEN-53 `DevE2E stop`, OPEN-56 releases.
 
 ## 6. Where the recent code is
 
@@ -105,8 +90,26 @@ Check prompt for Copilot (Agentic Debugger mode, new chat):
 | Skill for Copilot | `integration/CopilotSkill.java`, preferences page; source `skills/eclipse-debugger/` (v0.1.5) |
 | Agent Activity banner | `report/src/main/java/.../report/activity/ActivityPage.java` (`phase()`, `where()`), `FlowPage.java` (dark CSS), `eclipse-plugin/.../ui/AgentStatusControl.java` |
 | Quiet server | `mcp-server/.../DebugMcpServer.java`, `SessionReport.java` (`ENV_VERBOSE`, `verbose(env)`) |
-| CI | `.github/workflows/ci.yml`, `docs/ci.md` (on branch `ci/github-actions` once pushed) |
+| CI | `.github/workflows/ci.yml`, `integration-windows.yml`, `docs/ci.md` (branch `ci/github-actions` until merged) |
 
-## 7. Noticed, not started
+## 7. Last delivery
 
+`open-23-d-check.zip` (27 Nov 2026, docs only, on `main`): README (OPEN-23 (d) check result, OPEN-57 more cases, new
+OPEN-58), this file (header, 4, 5, 7, 8), `docs/working-agreement.md` §4 (no continued line starting with `(`),
+`docs/copilot-integration-notes.md` (new §5). Nothing to build.
+
+## 8. Noticed, not started
+
+- `SessionReportTest` (mcp-server unit tests) writes report files into the user's home folder
+  (`%USERPROFILE%\.eclipse-agentdebug\reports\...`, seen in CI run #1); unit tests should use a temporary folder.
+- `dev-e2e/e2e.properties` is tracked in git although `.gitignore` lists it and the working agreement says it is never
+  committed (added before the ignore rule); removing it from git needs a commit that deletes it from the index.
+- After the project menu **Remove Agentic Debugger Agent**, `spring-boot-debugging` still has a `.github` folder
+  (27 Nov); Remove should delete the folders it created when empty (planned with (d), section 5).
+- The "Confirm MCP Server Registration" dialog appeared at a test-Eclipse start although our server was already
+  Approved (27 Nov 01:37); unclear whether at every start or only after `deploy`. Note at the next restarts.
+- Red PowerShell tabs in the Terminal view at start: `. $env:COPILOT_POWERSHELL_INTEGRATION_SCRIPT` fails because the
+  variable is empty. Copilot's own terminal (tab "Copilot") works. I think these are Copilot terminals from earlier
+  chats restored by Eclipse without Copilot's variable; not checked (close them all, restart, see if they return). Our
+  plugin only moves the Terminal view (`TerminalCarrier`), it never starts a shell.
 - `examples/README.md` has two dead links to deleted documents; left unchanged (examples/ rule) until Ayan decides.

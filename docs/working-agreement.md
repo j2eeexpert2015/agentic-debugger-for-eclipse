@@ -43,7 +43,10 @@ buggy fixtures stay unchanged), generated files, secrets.
 Plain Windows `cmd`, one block Ayan can paste at once:
 
 - First line: `cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && ^`
-- `&& ^` goes at the **end** of every line except the last. Never start a line with `&&` (cmd breaks).
+- `&& ^` goes at the **end** of every line except the last. Never start a line with `&&` (cmd breaks), and never
+  start a continued line with `(`: the `^` also escapes the first character of the next line, so `(if ...)` becomes
+  an unknown command (27 Nov). Create folders with
+  `powershell -Command "New-Item -ItemType Directory -Force -Path \"<folder>\" | Out-Null"` instead.
 - Maven as `call mvn ...` (without `call`, the chain stops after Maven). Deploy with
   `java dev-e2e/DevE2E.java deploy`, start with `java dev-e2e/DevE2E.java start`.
 - Extract a zip with

@@ -64,3 +64,20 @@ CP-U7 builds a tiny echo jar, writes the launcher for the system the build runs 
 
 See [copilot-mode-list-bug.md](copilot-mode-list-bug.md): the list misses custom agents until it is clicked or
 Configure Agents is opened.
+
+## 5. Checks in the test Eclipse, 27 Nov 2026 (Copilot 0.22 nightly, Auto model)
+
+**One agent for the user (OPEN-23 d), 01:15-01:37.** `agentic_debugger.agent.md` copied to
+`%USERPROFILE%\.copilot\agents\`: Preferences → GitHub Copilot → Custom Agents listed it with an empty Project
+column, next to the copy in `spring-boot-debugging`. After our project menu Remove, exactly one entry. A new
+Agentic Debugger chat ran only our tools and found `OrderService.quote` line 23; after a restart the agent was in the
+mode list. So the user file works like a project file, without writing into projects.
+
+**Tool approval.** Preferences → GitHub Copilot → Tool Auto Approve → MCP Server and Tool Approval had every tool of
+`Agentic Debugger for Eclipse IDE: eclipse-debugger` ticked, so Copilot asked for none of them, including
+`evaluate_expression`; "Trust MCP tool annotations" was off. Our server declares no tool annotations. Consequence:
+README OPEN-58 (consent from the user, asked by the plugin).
+
+**Terminal.** Copilot's `run_in_terminal` opens its own tab "Copilot" and works. Other PowerShell tabs showed
+`. $env:COPILOT_POWERSHELL_INTEGRATION_SCRIPT` failing (variable empty); not caused by our plugin, cause not checked
+(handoff, Noticed).
