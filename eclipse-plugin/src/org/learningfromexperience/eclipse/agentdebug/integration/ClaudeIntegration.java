@@ -57,26 +57,35 @@ public final class ClaudeIntegration {
      */
     void stageSkill() {
         try {
-            Bundle bundle = FrameworkUtil.getBundle(ClaudeIntegration.class);
-            if (bundle == null) return;
-            java.util.Enumeration<URL> entries = bundle.findEntries(SKILL_PAYLOAD, "*", true);
-            if (entries == null) return;
-            Map<String, byte[]> files = new java.util.TreeMap<>();
-            while (entries.hasMoreElements()) {
-                URL url = entries.nextElement();
-                String path = url.getPath();
-                int at = path.indexOf(SKILL_PAYLOAD + "/");
-                if (at < 0 || path.endsWith("/")) continue;
-                try (InputStream in = url.openStream()) {
-                    files.put(path.substring(at + SKILL_PAYLOAD.length() + 1), in.readAllBytes());
-                }
-            }
+            Map<String, byte[]> files = bundledSkillFiles();
             if (files.isEmpty()) return;
             List<String> done = SkillInstaller.install(files, skillFolder(), directory.resolve("skill-installed.properties"));
             for (String line : done) System.out.println("[Eclipse Agentic Debugger] Skill " + line);
         } catch (Exception | LinkageError failure) {
             System.err.println("[Eclipse Agentic Debugger] Skill update failed: " + failure.getMessage());
         }
+    }
+
+    /**
+     * The skill files packed into the plugin, by path relative to the skill folder ("SKILL.md",
+     * "references/java-debugging.md"); empty outside Eclipse. Also used for GitHub Copilot ({@link CopilotSkill}).
+     */
+    static Map<String, byte[]> bundledSkillFiles() throws IOException {
+        Map<String, byte[]> files = new java.util.TreeMap<>();
+        Bundle bundle = FrameworkUtil.getBundle(ClaudeIntegration.class);
+        if (bundle == null) return files;
+        java.util.Enumeration<URL> entries = bundle.findEntries(SKILL_PAYLOAD, "*", true);
+        if (entries == null) return files;
+        while (entries.hasMoreElements()) {
+            URL url = entries.nextElement();
+            String path = url.getPath();
+            int at = path.indexOf(SKILL_PAYLOAD + "/");
+            if (at < 0 || path.endsWith("/")) continue;
+            try (InputStream in = url.openStream()) {
+                files.put(path.substring(at + SKILL_PAYLOAD.length() + 1), in.readAllBytes());
+            }
+        }
+        return files;
     }
 
     /** {@code ~/.claude/skills/eclipse-debugger}; Claude Code reads user skills from there. */

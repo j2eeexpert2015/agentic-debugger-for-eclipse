@@ -4,7 +4,7 @@ description: Investigates Java, Spring Boot and JUnit 5 problems at runtime with
 argument-hint: "[debugging problem or failing test]"
 ---
 
-# Eclipse debugger — skill v0.1.4 (candidate)
+# Eclipse debugger — skill v0.1.5 (candidate)
 
 Use the existing `eclipse-debugger` MCP server to investigate **real JVM execution**, not just source-code symptoms. This skill contains guidance; it does not add tools or change the Eclipse plugin. It applies to Java, Spring Boot and JUnit 5; it is not a general Eclipse/CDT debugger.
 
@@ -20,7 +20,7 @@ Use the existing `eclipse-debugger` MCP server to investigate **real JVM executi
 
 1. **Define the problem.** Record actual symptom, expected behavior, reproducible inputs and a falsifiable hypothesis. For a generic performance or concurrency complaint, recognize that the current MCP tools may be insufficient for a full diagnosis.
 2. **Select the exact target.** Discover mains, saved launch configurations or JUnit tests. Inspect existing debug sessions and breakpoints before changing state if they might affect the investigation. Respect existing JVM args, Spring profiles and environment settings; do not create an inferior default config over an applicable saved config.
-3. **Begin** with `begin_debug_investigation` in `NORMAL` mode (default). Choose `CONTROLLED` only if the user explicitly asks to leave the debugging session/breakpoints for inspection. Pass `request`: the user's request in their own words (verbatim when it is short); it opens the debugging session report. Pass `skill`: `eclipse-debugger 0.1.4` (this skill and its version). Always pass `model`: your exact model ID as your system instructions state it (for example `claude-sonnet-5-5`). Pass `effort` (your effort or thinking level) only if your instructions state it. The report and the Agent Activity view show these as what ran the investigation. Keep the returned `investigationId`; pass it to supported breakpoint/launch/control operations.
+3. **Begin** with `begin_debug_investigation` in `NORMAL` mode (default). Choose `CONTROLLED` only if the user explicitly asks to leave the debugging session/breakpoints for inspection. Pass `request`: the user's request in their own words (verbatim when it is short); it opens the debugging session report. Pass `skill`: `eclipse-debugger 0.1.5` (this skill and its version). Always pass `model`: your exact model ID as your system instructions state it (for example `claude-sonnet-5-5`). Pass `effort` (your effort or thinking level) only if your instructions state it. The report and the Agent Activity view show these as what ran the investigation. Keep the returned `investigationId`; pass it to supported breakpoint/launch/control operations.
 4. **Choose one or a few precise stops.** Prefer a line breakpoint for straightforward flows, a conditional breakpoint for record-specific failures, or an exception breakpoint when throw origin is hidden. Put breakpoints **before** launching a short-lived main or test. Avoid tracepoints unless the user explicitly authorizes their potentially side-effecting evaluation. Give each breakpoint, evaluation and step a short `purpose` (one sentence: why this stop or call helps); the report shows it at that place, as your statement.
 5. **Launch or inspect** only the selected target using Eclipse. An HTTP request is an additional action requiring a known, explicitly authorized target and method; the Eclipse MCP server does **not** itself provide a general HTTP request tool.
 6. **Observe, then refine.** After launching, resuming or stepping, call `wait_for_stop` with a bounded timeout. One call returns the stop reason (breakpoint, exception, step end, pause), the exact thread, the top frames and the locals, or `TERMINATED`/`TIMEOUT`; call `get_stack_frames`/`get_frame_variables` only when you need deeper frames or other threads. Compare values at caller/callee boundaries to find the **first causal divergence**, not only the final wrong result. Use Step Into/Over/Return only to test a specific hypothesis; do not churn through hundreds of stops.
@@ -29,6 +29,9 @@ Use the existing `eclipse-debugger` MCP server to investigate **real JVM executi
 9. **Report** (a) reproduced symptom, (b) runtime evidence with frame/values, (c) causal chain/root cause or uncertainty, (d) reproduction context, (e) cleanup state, and (f) optional fix suggestion **without editing code unless separately authorized**. The finish reply already confirms the cleanup (`cleanup`, `ownBreakpointsLeft`) and, when reports are on, names the report file (`reportFile`): give the user that full path, and do not call `list_breakpoints`, `list_debug_sessions` or `get_investigation_report` again to check. Call `get_investigation_report` only if the reply has no `reportFile` and reports were not reported off; when reports are off, say nothing about reports. If the reply has a `warning` or `ownBreakpointsLeft` above 0, report that cleanup was incomplete.
 
 ## Before you conclude
+
+As soon as you have observed the wrong value and know where it first goes wrong, stop stepping and call
+`finish_debug_investigation`. Do not step through the rest of the method or the test.
 
 - Did you **see** the wrong value in the debugger (a stop, a variable), not only in the source or in a test result?
 - Is this the **first** place where the value goes wrong, not just where the failure shows?

@@ -19,11 +19,17 @@
           name="Add Agentic Debugger Agent for GitHub Copilot"
           description="Adds the Agentic Debugger custom agent for GitHub Copilot Chat to this project"
           defaultHandler="org.learningfromexperience.eclipse.agentdebug.ui.AddCopilotAgentHandler"/>
+      <command
+          id="org.learningfromexperience.eclipse.agentdebug.removeCopilotAgent"
+          name="Remove Agentic Debugger Agent for GitHub Copilot"
+          description="Removes the Agentic Debugger custom agent for GitHub Copilot Chat from this project"
+          defaultHandler="org.learningfromexperience.eclipse.agentdebug.ui.RemoveCopilotAgentHandler"/>
    </extension>
    <extension point="org.eclipse.ui.menus">
       <menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
          <menu id="org.learningfromexperience.eclipse.agentdebug.projectMenu" label="Agentic Debugger">
             <command commandId="org.learningfromexperience.eclipse.agentdebug.addCopilotAgent" style="push"/>
+            <command commandId="org.learningfromexperience.eclipse.agentdebug.removeCopilotAgent" style="push"/>
             <visibleWhen checkEnabled="false">
                <with variable="activeMenuSelection">
                   <count value="1"/>

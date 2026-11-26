@@ -74,7 +74,8 @@ the application type and investigation requirements.
    and stack frames.
 
 7. Use control_debug_session followed by wait_for_stop
-   to step or resume execution as necessary.
+   only until you have seen the first incorrect value.
+   Then stop stepping and go to step 9.
 
 8. Identify the first incorrect value or execution
    decision that explains the reported symptom.

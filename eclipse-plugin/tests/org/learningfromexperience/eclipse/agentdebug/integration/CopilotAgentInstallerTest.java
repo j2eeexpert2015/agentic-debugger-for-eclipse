@@ -73,6 +73,46 @@ class CopilotAgentInstallerTest {
     }
 
     @Test
+    @DisplayName("CA-U6 remove: an unedited agent and its .new copy go; empty .github folders go, other files stay")
+    void caU6() throws Exception {
+        CopilotAgentInstaller.install(project, V1);
+        Files.writeString(file().resolveSibling("agentic_debugger.agent.md.new"), "x", StandardCharsets.UTF_8);
+        assertEquals(CopilotAgentInstaller.Removal.REMOVED, CopilotAgentInstaller.remove(project, false));
+        assertFalse(Files.exists(file()));
+        assertFalse(Files.exists(project.resolve(".github")), "both folders were empty, so both are gone");
+
+        CopilotAgentInstaller.install(project, V1);
+        Path other = project.resolve(".github/agents/my-own.agent.md");
+        Path workflow = project.resolve(".github/workflows/build.yml");
+        Files.createDirectories(workflow.getParent());
+        Files.writeString(other, "mine", StandardCharsets.UTF_8);
+        Files.writeString(workflow, "on: push", StandardCharsets.UTF_8);
+        assertEquals(CopilotAgentInstaller.Removal.REMOVED, CopilotAgentInstaller.remove(project, false));
+        assertFalse(Files.exists(file()));
+        assertTrue(Files.exists(other), "another agent stays");
+        assertTrue(Files.exists(workflow), "other .github content stays");
+    }
+
+    @Test
+    @DisplayName("CA-U7 remove: an edited agent needs the user's confirmation; without it nothing is touched")
+    void caU7() throws Exception {
+        CopilotAgentInstaller.install(project, V1);
+        String edited = read(file()) + "\nMy own line.\n";
+        Files.writeString(file(), edited, StandardCharsets.UTF_8);
+        assertEquals(CopilotAgentInstaller.Removal.EDITED_NEEDS_CONFIRMATION, CopilotAgentInstaller.remove(project, false));
+        assertEquals(edited, read(file()), "untouched without confirmation");
+        assertEquals(CopilotAgentInstaller.Removal.REMOVED, CopilotAgentInstaller.remove(project, true));
+        assertFalse(Files.exists(file()));
+    }
+
+    @Test
+    @DisplayName("CA-U8 remove: no agent in the project changes nothing")
+    void caU8() throws Exception {
+        assertEquals(CopilotAgentInstaller.Removal.NOT_PRESENT, CopilotAgentInstaller.remove(project, false));
+        assertFalse(Files.exists(project.resolve(".github")));
+    }
+
+    @Test
     @DisplayName("CA-U5 CRLF line endings (editor, Git) do not count as an edit")
     void caU5() throws Exception {
         CopilotAgentInstaller.install(project, V1);

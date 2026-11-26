@@ -38,6 +38,9 @@ public final class CopilotAgentInstaller {
     /** What {@link #install} did. */
     public enum Result { CREATED, UPDATED, UNCHANGED, KEPT_EDITED }
 
+    /** What {@link #remove} did. */
+    public enum Removal { REMOVED, NOT_PRESENT, EDITED_NEEDS_CONFIRMATION }
+
     private CopilotAgentInstaller() { }
 
     /**
@@ -61,19 +64,58 @@ public final class CopilotAgentInstaller {
         return Result.KEPT_EDITED;
     }
 
+    /**
+     * Removes the agent from the project. A file the user changed (or wrote) is removed only with {@code force}
+     * (after the user confirmed); without it the answer is {@link Removal#EDITED_NEEDS_CONFIRMATION} and nothing is
+     * touched. A {@code .new} copy next to it goes too. The {@code .github/agents} and {@code .github} folders are
+     * removed only when they are then empty; other files in them always stay.
+     */
+    public static Removal remove(Path project, boolean force) throws IOException {
+        Path file = project.resolve(AGENT_FILE);
+        Path newer = file.resolveSibling(file.getFileName() + ".new");
+        if (!Files.exists(file)) {
+            if (!Files.exists(newer)) return Removal.NOT_PRESENT;
+            Files.delete(newer);
+            removeIfEmpty(file.getParent());
+            removeIfEmpty(file.getParent().getParent());
+            return Removal.REMOVED;
+        }
+        if (!force && !writtenByPluginUnedited(Files.readString(file, StandardCharsets.UTF_8))) {
+            return Removal.EDITED_NEEDS_CONFIRMATION;
+        }
+        Files.delete(file);
+        Files.deleteIfExists(newer);
+        removeIfEmpty(file.getParent());
+        removeIfEmpty(file.getParent().getParent());
+        return Removal.REMOVED;
+    }
+
+    private static void removeIfEmpty(Path folder) throws IOException {
+        if (!Files.isDirectory(folder)) return;
+        try (var children = Files.list(folder)) {
+            if (children.findAny().isPresent()) return;
+        }
+        Files.delete(folder);
+    }
+
     /** The template followed by the checksum comment, as written into the project. */
     static String withMark(String template) {
         String body = normalize(template).stripTrailing();
         return body + "\n\n" + MARK + sha(body) + MARK_END + "\n";
     }
 
-    /** True when the text ends with our checksum comment and the text before it still has that checksum. */
+    /**
+     * True when the text ends with our checksum comment (nothing but blanks after it) and the text before it still has
+     * that checksum.
+     */
     static boolean writtenByPluginUnedited(String text) {
         String normalized = normalize(text);
         int at = normalized.lastIndexOf(MARK);
         if (at < 0) return false;
         int end = normalized.indexOf(MARK_END, at);
         if (end < 0) return false;
+        // Anything the user added after our comment is an edit too (found by CA-U7).
+        if (!normalized.substring(end + MARK_END.length()).isBlank()) return false;
         String recorded = normalized.substring(at + MARK.length(), end).trim();
         String body = normalized.substring(0, at).stripTrailing();
         return recorded.equals(sha(body));

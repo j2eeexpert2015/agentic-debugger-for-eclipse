@@ -14,12 +14,15 @@ import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.learningfromexperience.eclipse.agentdebug.integration.CopilotAgentInstaller;
+import org.learningfromexperience.eclipse.agentdebug.integration.CopilotSkill;
 import org.osgi.framework.FrameworkUtil;
 
 /**
  * OPEN-23 step 2: project menu "Agentic Debugger &gt; Add Agentic Debugger Agent for GitHub Copilot". Writes the bundled
  * custom agent ({@code copilot/agentic_debugger.agent.md}) into the selected project through
- * {@link CopilotAgentInstaller}, refreshes the project and says what happened and what to do next.
+ * {@link CopilotAgentInstaller}, installs the eclipse-debugger skill for Copilot when Copilot does not already read it
+ * ({@link CopilotSkill}; user-wide, removed on the preferences page), refreshes the project and says what happened and
+ * what to do next.
  * Does not need GitHub Copilot to be installed: it only writes a file.
  *
  * @author Ayan Dutta
@@ -53,8 +56,14 @@ public final class AddCopilotAgentHandler extends AbstractHandler {
                 case KEPT_EDITED -> where + " was changed by you, so it was left as it is. The plugin's current version"
                         + " is next to it as agentic_debugger.agent.md.new (Copilot does not load that file).";
             };
-            System.out.println("[Eclipse Agentic Debugger] Copilot agent " + result + ": " + where);
-            MessageDialog.openInformation(shell, TITLE, message);
+            String skill;
+            try {
+                skill = CopilotSkill.install();
+            } catch (Exception skillFailure) {
+                skill = "Skill: could not be installed (" + skillFailure.getMessage() + "); the agent works without it.";
+            }
+            System.out.println("[Eclipse Agentic Debugger] Copilot agent " + result + ": " + where + ". " + skill);
+            MessageDialog.openInformation(shell, TITLE, message + "\n\n" + skill);
         } catch (Exception failure) {
             System.err.println("[Eclipse Agentic Debugger] Could not add the Copilot agent: " + failure);
             MessageDialog.openError(shell, TITLE, "Could not add the agent: " + failure.getMessage());
@@ -62,7 +71,7 @@ public final class AddCopilotAgentHandler extends AbstractHandler {
         return null;
     }
 
-    private static IProject selectedProject(ExecutionEvent event) {
+    static IProject selectedProject(ExecutionEvent event) {
         if (!(HandlerUtil.getCurrentSelection(event) instanceof IStructuredSelection selection)
                 || selection.size() != 1) {
             return null;
@@ -71,7 +80,7 @@ public final class AddCopilotAgentHandler extends AbstractHandler {
         return resource == null ? Adapters.adapt(selection.getFirstElement(), IProject.class) : resource.getProject();
     }
 
-    private static String template() throws Exception {
+    static String template() throws Exception {
         URL entry = FrameworkUtil.getBundle(AddCopilotAgentHandler.class).getEntry(TEMPLATE);
         if (entry == null) throw new IllegalStateException(TEMPLATE + " is missing from the plugin");
         try (InputStream in = entry.openStream()) {

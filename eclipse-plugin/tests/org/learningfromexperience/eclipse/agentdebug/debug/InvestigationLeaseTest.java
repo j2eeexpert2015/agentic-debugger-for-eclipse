@@ -71,7 +71,7 @@ class InvestigationLeaseTest {
         assertTrue(policy.namedBy(new String[]{"LIST_BREAKPOINTS"}).isEmpty(), "commands without arguments name none");
     }
 
-    @Test @DisplayName("LE-U5 an expired investigation answers with its reason; an unknown ID stays unknown")
+    @Test @DisplayName("LE-U5 an expired investigation answers with its reason; an unknown ID is refused, saying nothing changed and how to recover")
     void leU5() {
         var inv = policy.begin("NORMAL", 10_000);
         policy.expire(inv.id(), "Investigation expired after 10 s without calls");
@@ -79,6 +79,12 @@ class InvestigationLeaseTest {
         assertEquals("Investigation expired after 10 s without calls", expired.getMessage());
         var unknown = assertThrows(IllegalArgumentException.class, () -> policy.require("nope"));
         assertTrue(unknown.getMessage().startsWith("Unknown investigationId"));
+        assertTrue(unknown.getMessage().contains("nothing was changed"), "explains that nothing happened");
+        assertTrue(unknown.getMessage().contains("not a valid investigation ID"), "\"nope\" is not a UUID");
+        String mistyped = DebugInvestigationPolicy.unknownMessage("a1669a79-6d9c-416a-g5ff-c8d7e58ca144");
+        assertTrue(mistyped.contains("not a valid investigation ID"), "the Copilot typo of 26 Nov (\"g5ff\")");
+        String wellFormed = DebugInvestigationPolicy.unknownMessage("a1669a79-6d9c-416a-a5ff-c8d7e58ca144");
+        assertFalse(wellFormed.contains("not a valid"), "a well-formed but unknown ID is only unknown");
         assertTrue(policy.abandoned().isEmpty());
     }
 

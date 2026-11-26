@@ -15,6 +15,7 @@ import org.eclipse.swt.widgets.Label;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 import org.learningfromexperience.eclipse.agentdebug.integration.ClaudeIntegration;
+import org.learningfromexperience.eclipse.agentdebug.integration.CopilotSkill;
 
 /** Preferences -> Agentic Debugger: explicit, safe MCP configuration actions.
  *
@@ -77,7 +78,40 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
         button(root, "Configure Claude Code", "configure");
         button(root, "Verify registration", "verify");
         button(root, "Remove managed registration", "remove");
+        copilotSkill(root);
         return root;
+    }
+
+    /**
+     * OPEN-23: the eclipse-debugger skill for GitHub Copilot. Installed by "Add Agentic Debugger Agent for GitHub
+     * Copilot" (project menu) or here; removed only here. Never installed automatically.
+     */
+    private void copilotSkill(Composite root) {
+        Label heading = new Label(root, SWT.WRAP);
+        heading.setText("\nGitHub Copilot skill (eclipse-debugger)");
+        Label skillStatus = new Label(root, SWT.WRAP);
+        skillStatus.setText(CopilotSkill.status());
+        GridData statusLayout = new GridData(SWT.FILL, SWT.TOP, true, false);
+        statusLayout.widthHint = 500;
+        skillStatus.setLayoutData(statusLayout);
+        Composite buttons = new Composite(root, SWT.NONE);
+        buttons.setLayout(new GridLayout(2, false));
+        Button install = new Button(buttons, SWT.PUSH);
+        install.setText("Install skill for GitHub Copilot");
+        Button remove = new Button(buttons, SWT.PUSH);
+        remove.setText("Remove skill for GitHub Copilot");
+        install.addListener(SWT.Selection, event -> {
+            String message;
+            try { message = CopilotSkill.install(); } catch (Exception error) { message = "Failed: " + error.getMessage(); }
+            skillStatus.setText(message);
+            root.layout(true, true);
+        });
+        remove.addListener(SWT.Selection, event -> {
+            String message;
+            try { message = CopilotSkill.remove(); } catch (Exception error) { message = "Failed: " + error.getMessage(); }
+            skillStatus.setText(message);
+            root.layout(true, true);
+        });
     }
     private void button(Composite root, String title, String action) {
         Button button = new Button(root, SWT.PUSH); button.setText(title);

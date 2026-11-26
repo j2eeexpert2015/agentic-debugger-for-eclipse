@@ -24,7 +24,72 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 17:50): OPEN-23 step 2, the "Agentic Debugger" agent for GitHub Copilot
+## Last delivery (26 Nov, 20:00): docs only, step 3 results, new items OPEN-48..50
+
+- Step 3 checks so far: build 79/52/34; InvestigationIsolationTests + UserResourceSafetyTests 10/10; Claude batch
+  open23-haiku-1 9/9 PASS, 9.4 calls (haiku-6 8/9 + 1 partial, 11.4; purpose 16/18; test result read 2/9, to compare
+  with haiku-6). Add on the generated agent: "already up to date" + skill line (Copilot reads ~/.claude). Remove asked
+  because Ayan had edited the file ("Investigates Java, edit JUnit"): correct. A hand copy `agentic_debugger.agent.md.mine`
+  is in the test project's `.github/agents` (Ayan's; Remove leaves it, so the folder stays).
+- Copilot run 1 (19:46, Agentic Debugger mode, sym-wrong-total prompt): report OrderServiceTest.calculatesDiscount
+  19-46-35: 9 calls (list_junit_tests, set_breakpoint 23, start_junit_test, wait_for_stop, STEP_OVER, wait_for_stop with
+  rate = 0, RESUME, wait_for_stop TERMINATED with the test result, finish), cause correct, 1 min 22 s (2:41 before;
+  the report's time starts at the first tool call, the agent's thinking before it is not counted). Model "unknown"
+  (the agent did not report it). Skill 0.1.5 reported.
+- New items: OPEN-48 three banner colours in Agent Activity (thinking / debugging / finished), OPEN-49 current class and
+  method in the header, OPEN-50 the menu enablement prototype (step3b), parked by Ayan.
+- Still to check: Copilot run 2 with the skill only in `~/.copilot/skills`; preferences page install/remove.
+
+## Delivery before (26 Nov, 19:00): OPEN-23 step 3, remove the agent, skill on request, stop stepping, clearer refusal
+
+Same branch `feature/open-23-copilot` (Ayan continues on it). Agreed 26 Nov: nothing that changes how Copilot debugs
+is installed without a user action (approval, Add, preferences button).
+- `integration/CopilotAgentInstaller.remove(project, force)`: REMOVED / NOT_PRESENT / EDITED_NEEDS_CONFIRMATION;
+  removes `.new`; `.github/agents` and `.github` only when empty. `writtenByPluginUnedited` now also counts text
+  after the checksum comment as an edit (CA-U7 failed without it). CA-U6..U8.
+- `ui/RemoveCopilotAgentHandler` + plugin.xml: "Remove Agentic Debugger Agent for GitHub Copilot" in the same menu;
+  asks when the file was changed; the message says the skill stays and where to remove it.
+- `integration/CopilotSkill`: install (to `~/.copilot/skills/eclipse-debugger` unless `~/.claude/skills/
+  eclipse-debugger/SKILL.md` exists, via SkillInstaller, state `~/.eclipse-agentdebug/copilot-skill-installed.
+  properties`), remove (only unchanged files the plugin wrote; empty folders), status. CS-U1..U4.
+  `ClaudeIntegration.bundledSkillFiles()` extracted from `stageSkill()` for it. `AddCopilotAgentHandler` installs it
+  and adds the line to its message. Preferences page: "GitHub Copilot skill" status, Install, Remove.
+- Skill v0.1.5: "Before you conclude" starts with "As soon as you have observed the wrong value and know where it
+  first goes wrong, stop stepping and call finish_debug_investigation." Agent file step 7: step only until the first
+  incorrect value, then step 9. eclipse-mcp-tools.md: 0.1.5.
+- `DebugInvestigationPolicy.unknownMessage(id)`: "Unknown investigationId: <id>. Refused; nothing was changed. [This
+  is not a valid investigation ID (check for a copying mistake).] Use exactly the investigationId that
+  begin_debug_investigation returned." Prefix unchanged (InvestigationTracker matches it). LE-U5 extended.
+- README: plugin 79; OPEN-23 row (step 3, remaining a, b, d, e); Copilot section: Remove, skill, Tool Auto Approve,
+  no effect without approval, FAQ.
+Not checked here: the handlers and the preferences page (no Eclipse libraries). Check: build (plugin 79), deploy,
+FullSuite not needed (`InvestigationIsolationTests` + `UserResourceSafetyTests` for the refusal message), menu Add and
+Remove, preferences page, Claude batch `open23-haiku-1` (skill v0.1.5) against `open25-haiku-6` (8/9, 11.4 calls), two
+Copilot runs (time, calls, report from Agent Activity, Breakpoints view empty; one with `~/.claude/skills/
+eclipse-debugger` renamed). Trial needed: yes.
+
+## Delivery before (26 Nov, 18:30): docs only, OPEN-23 step 2 checked, new items OPEN-45..47
+
+Step 2 (with the "launch not found" fix) checked 26 Nov 17:41-18:14:
+- Build: report 52, MCP 34, grader 23, plugin 72. FullSuite 42/43: `spring-boot-http/wrong-quote-value-found`
+  stopped at OrderService:23 instead of 24 because of seven leftover breakpoints at line 23 (two conditional) from the
+  day's manual sessions; after Remove All, `SpringBootHttpTests` 2/2.
+- Menu "Agentic Debugger > Add Agentic Debugger Agent for GitHub Copilot" is near the bottom of the project menu
+  (JEE Eclipse, Project Explorer). It wrote `agentic_debugger.agent.md` (Ayan's own renamed to `.mine`).
+- First run with it: "eclipse-debugger MCP tools are unavailable". Cause: the fresh Eclipse install has another
+  JustJ JRE (25.0.4.v20260826 instead of 25.0.5.v20261030), so the offered command changed and Copilot showed the
+  server as Denied again. After Approve: only our tools, percent = 10, rate = 0, the right cause, report path, no
+  "Debug launch not found" at the end, Breakpoints view empty. Agent details "GitHub Copilot 0.22.0 (nightly)";
+  model stated as claude-sonnet-5-5 (Copilot's chat: MAI Code 2 Flash). One control_debug_session refused for the
+  mistyped ID `a1669a79-6d9c-416a-g5ff-...` (not hex); the next call used the right ID.
+This delivery:
+- README: OPEN-23 row (step 2 checked, remaining steps a-e), section "Use with GitHub Copilot" (menu position,
+  approve again after a Java change), new OPEN-45 (signed plugin), OPEN-46 (measuring Copilot runs), OPEN-47
+  (leftover breakpoints in the test workspace).
+- docs/integration-tests.md: "Which check for which change" table and the leftover-breakpoint note.
+Next: merge `feature/open-23-copilot` after this (FullSuite done above). Trial needed: no.
+
+## Delivery before (26 Nov, 17:50): OPEN-23 step 2, checked 18:14, the "Agentic Debugger" agent for GitHub Copilot
 
 Step 1 checked 26 Nov 09:35-17:31 (build: plugin 67, MCP 34; manual checks in the test Eclipse, Copilot Free):
 - Copilot lists eclipse-debugger as **Denied** (plugin unsigned); approved by hand in Preferences > GitHub Copilot >

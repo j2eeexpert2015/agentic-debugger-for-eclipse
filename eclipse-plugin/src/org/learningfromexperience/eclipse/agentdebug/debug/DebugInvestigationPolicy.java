@@ -203,13 +203,25 @@ public final class DebugInvestigationPolicy {
         return investigation;
     }
 
+    /**
+     * OPEN-23: "Unknown investigationId" explained, so the agent can recover and the user sees a refusal, not a fault
+     * (Copilot run 26 Nov: the model mistyped its own ID, "g5ff"). Starts as before (the MCP server and tests match the
+     * prefix). Names no other investigation.
+     */
+    static String unknownMessage(String id) {
+        boolean wellFormed = id != null && id.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+        return "Unknown investigationId: " + id + ". Refused; nothing was changed."
+                + (wellFormed ? "" : " This is not a valid investigation ID (check for a copying mistake).")
+                + " Use exactly the investigationId that begin_debug_investigation returned.";
+    }
+
     public Investigation require(String id) {
         Investigation result = investigations.get(id);
         if (result == null) {
             String reason;
             synchronized (expired) { reason = expired.get(id); }
             if (reason != null) throw new IllegalStateException(reason);
-            throw new IllegalArgumentException("Unknown investigationId: " + id);
+            throw new IllegalArgumentException(unknownMessage(id));
         }
         result.ensureActive();
         result.touch();
