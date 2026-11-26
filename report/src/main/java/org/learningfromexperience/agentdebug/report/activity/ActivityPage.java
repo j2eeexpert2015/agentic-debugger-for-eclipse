@@ -30,9 +30,15 @@ import org.learningfromexperience.agentdebug.report.format.ReportFormat;
  *   <li>pinned at the top while the page scrolls: a toolbar (Follow: keep the newest step in sight, pausing while the
  *       user scrolls up, with a "Newest" button to resume; Expand All; Collapse All; Open HTML Report, the same
  *       investigation as the standalone report file, in the browser) and the status banner;</li>
- *   <li>a banner: while running blue, breathing, with a pulsing red "live" dot, with what the agent is doing and a running timer; when finished
- *       green, when ended without the agent finishing it amber, with the time taken; below it what the program does
- *       (running, paused at Class.method:line, ended);</li>
+ *   <li>a banner, one colour per phase for the box and its dot (OPEN-48): while the agent works without the debugger
+ *       ("Thinking": before the launch, or after the program ended) bright orange, while it debugs ("Debugging": launch,
+ *       program running or paused, waiting for a stop) red, both with a breathing box and a pulsing "live" dot, what
+ *       the agent is doing and a running timer; when finished green, when ended without the agent finishing it
+ *       alarming bright yellow,
+ *       with the time taken.
+ *       While it runs, the banner also shows where the program is (OPEN-49): "Paused in OrderService.quote:24" or
+ *       "Last stop OrderService.quote:24", linked to the source and updated at every stop or step; below it what the
+ *       program does (running, paused, ended);</li>
  *   <li>warnings: the program ended without a stop; still waiting for a stop after 30 s; no agent activity for
  *       2 minutes (the agent may have stopped or lost its connection); live events dropped;</li>
  *   <li>the current stop, after the steps (the page reads in time order): where, the call chain, and the variables,
@@ -146,7 +152,7 @@ public final class ActivityPage {
             background:#f8fafc;color:#1f2937;cursor:pointer}
             #bar button:hover{background:#e2e8f0}
             #toast{color:#166534;font-weight:600}
-            .banner{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:7px;margin:0;
+            .banner{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:5px 10px;border-radius:7px;margin:0;
             font-weight:600}
             .banner .what{flex:1}
             .banner .timer{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
@@ -154,6 +160,22 @@ public final class ActivityPage {
             animation:ad-breathe 1.4s ease-in-out infinite,ad-glow 1.4s ease-in-out infinite}
             .banner.running .what{animation:ad-text 1.4s ease-in-out infinite}
             @keyframes ad-breathe{0%,100%{background:#dbeafe}50%{background:#bfdbfe}}
+            .banner.running.thinking{background:#fff7ed;color:#c2410c;
+            animation:ad-breathe-think 1.4s ease-in-out infinite,ad-glow-think 1.4s ease-in-out infinite}
+            @keyframes ad-breathe-think{0%,100%{background:#fff7ed}50%{background:#fed7aa}}
+            @keyframes ad-glow-think{0%,100%{box-shadow:0 0 0 0 rgba(249,115,22,.4)}50%{box-shadow:0 0 0 4px rgba(249,115,22,.18)}}
+            .banner.thinking .live::before,.banner.thinking .live::after{background:#f97316}
+            .banner.running.debugging{background:#fef2f2;color:#b91c1c;
+            animation:ad-breathe-debug 1.4s ease-in-out infinite,ad-glow-debug 1.4s ease-in-out infinite}
+            @keyframes ad-breathe-debug{0%,100%{background:#fef2f2}50%{background:#fecaca}}
+            @keyframes ad-glow-debug{0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4)}50%{box-shadow:0 0 0 4px rgba(220,38,38,.18)}}
+            .banner.debugging .live::before,.banner.debugging .live::after{background:#dc2626}
+            .banner .phase{flex:none;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+            border:1.5px solid currentColor;border-radius:9px;padding:0 7px}
+            .banner .where{flex:none;font:600 12px Consolas,'Cascadia Mono',monospace;white-space:nowrap;
+            background:rgba(255,255,255,.65);border-radius:5px;padding:1px 7px}
+            .banner .where .wl{font:600 11px 'Segoe UI',system-ui,sans-serif;opacity:.8;margin-right:4px}
+            .banner .where a.src{color:inherit}
             @keyframes ad-text{0%,100%{opacity:1}50%{opacity:.55}}
             .live{position:relative;width:12px;height:12px;flex:none;align-self:center}
             .live::before,.live::after{content:"";position:absolute;inset:0;border-radius:50%;background:#dc3545}
@@ -161,7 +183,8 @@ public final class ActivityPage {
             @keyframes ad-ripple{0%{transform:scale(1);opacity:.75}100%{transform:scale(2.8);opacity:0}}
             .live::before{animation:ad-blink 1s ease-in-out infinite}
             .banner.done{background:#dcfce7;color:#166534}
-            .banner.ended{background:#fef3c7;color:#92400e}
+            .banner.ended{background:#fde047;color:#713f12;box-shadow:0 0 0 2px #eab308}
+            .banner.ended .dot{background:#a16207}
             .banner.waiting{background:#f3f4f6;color:#4b5563}
             .prog{font-size:11.5px;color:#4b5563;margin:2px 2px 0}
             .prog b{color:#1f2937}
@@ -551,30 +574,41 @@ public final class ActivityPage {
     }
 
     static String banner(ActivityStore.Investigation inv) {
-        String cls;
-        if (!inv.finished()) cls = "running";
-        else if ("FINISHED".equals(inv.outcome())) cls = "done";
-        else cls = "ended";
+        String phase = phase(inv);
+        String cls = switch (phase) {
+            case PHASE_THINKING -> "running thinking";
+            case PHASE_DEBUGGING -> "running debugging";
+            case PHASE_FINISHED -> "done";
+            default -> "ended";
+        };
         long refused = inv.steps().stream().filter(s -> "FAILED".equals(s.status())).count();
         String extra = refused == 0 ? "" : " · " + refused + (refused == 1 ? " tool call" : " tool calls")
                 + " refused, retried by the agent";
         String timer = inv.finished() ? "took <span id=\"timer\"></span>" : "<span id=\"timer\"></span>";
         StringBuilder out = new StringBuilder("<div class=\"banner ").append(cls)
-                .append("\">").append(inv.finished() ? "<span class=\"dot\"></span>" : "<span class=\"live\"></span>")
-                .append("<span class=\"what\">").append(links(html(statusLine(inv) + extra)))
-                .append("</span><span class=\"timer\">").append(timer).append("</span></div>");
+                .append("\">").append(inv.finished() ? "<span class=\"dot\"></span>" : "<span class=\"live\"></span>");
+        if (!inv.finished())
+            out.append("<span class=\"phase\">").append(PHASE_THINKING.equals(phase) ? "Thinking" : "Debugging")
+                    .append("</span>");
+        out.append("<span class=\"what\">").append(links(html(statusLine(inv) + extra))).append("</span>");
+        String where = where(inv);
+        if (where != null)
+            out.append("<span class=\"where\" title=\"Where the program is: class, method and line\"><span class=\"wl\">")
+                    .append(ActivityStore.PROGRAM_PAUSED.equals(inv.program()) ? "Paused in" : "Last stop")
+                    .append("</span>").append(links(html(where))).append("</span>");
+        out.append("<span class=\"timer\">").append(timer).append("</span></div>");
         String program = programLine(inv);
         if (program != null) out.append("<div class=\"prog\">").append(program).append("</div>");
         return out.toString();
     }
 
-    /** "Program: <b>paused</b> at OrderService.quote:24" (with a link), or null before the launch. */
+    /** "Program: <b>paused</b>", "running" or "ended", or null before the launch. */
     static String programLine(ActivityStore.Investigation inv) {
         if (inv.program() == null) return null;
         return switch (inv.program()) {
             case ActivityStore.PROGRAM_RUNNING -> "Program: <b>running</b>";
-            case ActivityStore.PROGRAM_PAUSED -> "Program: <b>paused</b>"
-                    + (inv.programWhere() == null ? "" : " at " + links(html(inv.programWhere())));
+            // Where it is paused is shown in the banner itself (OPEN-49).
+            case ActivityStore.PROGRAM_PAUSED -> "Program: <b>paused</b>";
             case ActivityStore.PROGRAM_ENDED -> "Program: <b>ended</b>";
             default -> null;
         };
@@ -692,6 +726,50 @@ public final class ActivityPage {
         if (withReportPath && inv.reportFile() != null)
             out.append("<div class=\"note\">Report: ").append(html(inv.reportFile())).append("</div>");
         return out.toString();
+    }
+
+    /** {@link #phase}: the agent works without the debugger (before the launch, or after the program ended). */
+    public static final String PHASE_THINKING = "THINKING";
+    /** {@link #phase}: the debugger is in use (launch, program running or paused, waiting for a stop). */
+    public static final String PHASE_DEBUGGING = "DEBUGGING";
+    /** {@link #phase}: the agent finished the investigation. */
+    public static final String PHASE_FINISHED = "FINISHED";
+    /** {@link #phase}: the investigation ended without the agent finishing it. */
+    public static final String PHASE_ENDED = "ENDED";
+
+    /**
+     * The phase of an investigation, for the banner colour and the status bar (OPEN-48): {@link #PHASE_DEBUGGING} while
+     * a launch, a wait for a stop or a step is under way, or the program is running or paused (also when Eclipse has
+     * not reported the program's state yet after a successful launch); {@link #PHASE_THINKING} otherwise while it runs
+     * (before the launch; after the program ended, while the agent writes its answer); {@link #PHASE_FINISHED} or
+     * {@link #PHASE_ENDED} at the end. Null for no investigation.
+     */
+    public static String phase(ActivityStore.Investigation inv) {
+        if (inv == null) return null;
+        if (inv.finished()) return "FINISHED".equals(inv.outcome()) ? PHASE_FINISHED : PHASE_ENDED;
+        ActivityStore.Step running = runningStep(inv);
+        if (running != null && ("LAUNCH".equals(running.kind()) || "STOP".equals(running.kind())
+                || "STEP".equals(running.kind()))) return PHASE_DEBUGGING;
+        String program = inv.program();
+        if (ActivityStore.PROGRAM_RUNNING.equals(program) || ActivityStore.PROGRAM_PAUSED.equals(program))
+            return PHASE_DEBUGGING;
+        if (program == null)
+            for (ActivityStore.Step step : inv.steps())
+                if ("LAUNCH".equals(step.kind()) && "OK".equals(step.status())) return PHASE_DEBUGGING;
+        return PHASE_THINKING;
+    }
+
+    /**
+     * Where the program is, for the banner while the investigation runs (OPEN-49): "OrderService.quote:24" where it is
+     * paused (from Eclipse), otherwise the latest stop; null before the first stop, after the program ended and once
+     * the investigation finished (the report shows the last stop).
+     */
+    static String where(ActivityStore.Investigation inv) {
+        if (inv.finished() || ActivityStore.PROGRAM_ENDED.equals(inv.program())) return null;
+        if (ActivityStore.PROGRAM_PAUSED.equals(inv.program()) && inv.programWhere() != null
+                && !inv.programWhere().isBlank()) return inv.programWhere();
+        Stop stop = currentStop(inv);
+        return stop == null ? null : stop.where();
     }
 
     /**
@@ -978,7 +1056,10 @@ public final class ActivityPage {
         return null;
     }
 
-    /** One line for the status bar: "Agent: running · 45 s", "Agent: finished · 1 min 05 s", or null when idle. */
+    /**
+     * One line for the status bar: "Agent: thinking · 8 s", "Agent: running · 45 s", "Agent: paused",
+     * "Agent: waiting for a stop", "Agent: finished · 1 min 05 s", or null when idle.
+     */
     public static String statusBar(ActivityStore.Investigation inv, long nowMillis) {
         if (inv == null) return null;
         long start = epoch(inv.startedAt());
@@ -987,7 +1068,8 @@ public final class ActivityPage {
         if (!inv.finished()) {
             ActivityStore.Step running = runningStep(inv);
             String doing = running != null && "STOP".equals(running.kind()) ? "waiting for a stop"
-                    : ActivityStore.PROGRAM_PAUSED.equals(inv.program()) ? "paused" : "running";
+                    : ActivityStore.PROGRAM_PAUSED.equals(inv.program()) ? "paused"
+                    : PHASE_THINKING.equals(phase(inv)) ? "thinking" : "running";
             return "Agent: " + doing + time;
         }
         return ("FINISHED".equals(inv.outcome()) ? "Agent: finished" : "Agent: ended without finish") + time;

@@ -24,7 +24,38 @@ Attach this file (or point to the repository) and say which step comes next. The
 the README table, ask for the output of the last check if it was not given, and continue from "Next" below. It should
 not rebuild earlier work from memory: the files in the repository are the truth.
 
-## Last delivery (26 Nov, 20:30): step 3 fully checked, Copilot mode-list workaround (OPEN-51)
+## Last delivery (26 Nov, 22:45): OPEN-48/49 with Ayan's colours (open-48-49c.zip, replaces open-48-49.zip and b)
+
+Colours decided by Ayan on the demo page `agent-activity-banner-demo.html` (generated from the code, not in the repo):
+thinking bright orange, debugging red, finished green, ended alarming bright yellow (strong border); the dot takes
+the phase colour too (it was always red, the box always blue). Light CSS in `ActivityPage` (`.banner.running.thinking`,
+`.banner.running.debugging`, `.banner.thinking/.debugging .live`, `.banner.ended` + `.dot`; the old blue
+`.banner.running` rules stay as the base), dark CSS in `FlowPage` (`fl-breathe-orange`, `fl-breathe-red`, ended
+yellow, live dot colours, the location link in the banner colour), `AgentStatusControl` THINKING #c2410c,
+DEBUGGING #b91c1c (was RUNNING blue), ENDED #a16207. Everything else as in the 22:00 entry below.
+
+## Delivery before (26 Nov, 22:00): OPEN-48 phase colours and OPEN-49 location in the Agent Activity banner
+
+Step 3 of OPEN-23 checked and merged by Ayan (Add message with the Configure Agents workaround seen 21:40). New branch
+suggested: `feature/open-48-49-activity-header`.
+- `report/.../activity/ActivityPage.java`:
+  - `phase(inv)` and constants `PHASE_THINKING`, `PHASE_DEBUGGING`, `PHASE_FINISHED`, `PHASE_ENDED`. DEBUGGING: running
+    step of kind LAUNCH, STOP or STEP; program RUNNING or PAUSED; or program not reported yet after an OK launch.
+    THINKING otherwise while running (also after the program ended).
+  - `banner()`: classes `running thinking` / `running debugging`, a `phase` label ("Thinking" / "Debugging"), a `where`
+    chip ("Paused in" / "Last stop" + linked `Class.method:line`); `where(inv)`: programWhere when paused, else
+    `currentStop().where()`; null before a stop, after the program ended, when finished.
+  - `programLine()`: "Program: <b>paused</b>" without the location (it is in the banner).
+  - `statusBar()`: "Agent: thinking" in the thinking phase.
+  - CSS: violet breathing for thinking, phase label, where chip; `.banner` wraps on narrow windows.
+- `report/.../activity/FlowPage.java` (dark CSS): the running banner breathes (blue; violet for thinking) with a border.
+- `ui/AgentStatusControl.java`: colour by `ActivityPage.phase` (violet thinking, blue debugging, green, amber).
+- Tests: AP-U2 and AP-U8 adjusted, AP-U12 (phase), AP-U13 (where). Report tests 54.
+Checked here: report module compiled, ActivityPageTest 13/13, ActivityStoreTest 8/8, FlowPageTest 9/9; banner rendered in
+light and dark (headless Chrome). Not checked here: AgentStatusControl (needs SWT), the live view in Eclipse.
+Trial needed: yes (build; one Claude or Copilot run watching the banner and the status bar).
+
+## Earlier delivery (26 Nov, 20:30): step 3 fully checked, Copilot mode-list workaround (OPEN-51)
 
 - Copilot run 2 (20:10, `~/.claude/skills/eclipse-debugger` renamed, skill installed in `~/.copilot` by Add): report
   20-10-18: 5 calls, one stop at OrderService.quote:25 (rate = 0, subtotal = 120), cleanup terminated the JVM, 28 s,

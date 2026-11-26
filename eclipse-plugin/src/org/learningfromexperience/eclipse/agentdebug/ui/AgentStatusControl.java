@@ -17,18 +17,20 @@ import org.learningfromexperience.agentdebug.report.activity.ActivityPage;
 import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 
 /**
- * Agent status in the Eclipse status bar (OPEN-36): "● Agent: waiting for a stop · 12 s" in blue while an
- * investigation runs (updated every second), green "finished" or amber "ended without finish" with the time taken
- * at the end, empty when no agent has debugged yet. A click opens the Agent Activity view. Registered in plugin.xml
+ * Agent status in the Eclipse status bar (OPEN-36): while an investigation runs (updated every second) orange
+ * "● Agent: thinking · 8 s" when the agent works without the debugger and red "● Agent: waiting for a stop · 12 s"
+ * (running, paused) while it debugs, the same colours as the Agent Activity banner (OPEN-48); green "finished" or
+ * yellow "ended without finish" with the time taken at the end, empty when no agent has debugged yet. A click opens the Agent Activity view. Registered in plugin.xml
  * ({@code toolbar:org.eclipse.ui.trim.status}).
  *
  * @author Ayan Dutta
  */
 public final class AgentStatusControl extends WorkbenchWindowControlContribution {
 
-    private static final Color RUNNING = new Color(0x1e, 0x40, 0xaf);
+    private static final Color THINKING = new Color(0xc2, 0x41, 0x0c);
+    private static final Color DEBUGGING = new Color(0xb9, 0x1c, 0x1c);
     private static final Color DONE = new Color(0x16, 0x65, 0x34);
-    private static final Color ENDED = new Color(0x92, 0x40, 0x0e);
+    private static final Color ENDED = new Color(0xa1, 0x62, 0x07);
 
     private Label label;
     private boolean blink;
@@ -73,8 +75,13 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
         boolean running = inv != null && !inv.finished();
         blink = running && !blink;
         label.setText(text == null ? "" : (running && !blink ? "\u25CB " : "\u25CF ") + text);
-        label.setForeground(inv == null ? null : !inv.finished() ? RUNNING
-                : "FINISHED".equals(inv.outcome()) ? DONE : ENDED);
+        String phase = ActivityPage.phase(inv);
+        label.setForeground(phase == null ? null : switch (phase) {
+            case ActivityPage.PHASE_THINKING -> THINKING;
+            case ActivityPage.PHASE_DEBUGGING -> DEBUGGING;
+            case ActivityPage.PHASE_FINISHED -> DONE;
+            default -> ENDED;
+        });
         label.getParent().layout();
         Display display = label.getDisplay();
         display.timerExec(-1, tick);

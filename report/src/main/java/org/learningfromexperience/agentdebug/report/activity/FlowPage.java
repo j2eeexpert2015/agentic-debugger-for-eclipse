@@ -770,8 +770,21 @@ final class FlowPage {
             body.dark .fviews button.on,body.dark #fctl button.p{background:var(--blue);color:#07122b;
             border-color:var(--blue)}
             body.dark .banner.done{background:rgba(61,220,151,.13);color:var(--green);border:1px solid rgba(61,220,151,.4)}
-            body.dark .banner.ended{background:rgba(255,200,87,.12);color:var(--amber);border:1px solid rgba(255,200,87,.4)}
-            body.dark .banner.running{background:rgba(90,162,255,.14);color:var(--blue);animation:none}
+            body.dark .banner.ended{background:rgba(250,204,21,.24);color:#fde047;border:1.5px solid #facc15}
+            body.dark .banner.ended .dot{background:#facc15}
+            body.dark .banner.running{background:rgba(90,162,255,.14);color:var(--blue);
+            animation:fl-breathe-blue 1.4s ease-in-out infinite;border:1px solid rgba(90,162,255,.45)}
+            @keyframes fl-breathe-blue{0%,100%{background:rgba(90,162,255,.10)}50%{background:rgba(90,162,255,.26)}}
+            body.dark .banner.running.thinking{color:#fdba74;border-color:rgba(251,146,60,.55);
+            animation:fl-breathe-orange 1.4s ease-in-out infinite}
+            @keyframes fl-breathe-orange{0%,100%{background:rgba(251,146,60,.10)}50%{background:rgba(251,146,60,.28)}}
+            body.dark .banner.thinking .live::before,body.dark .banner.thinking .live::after{background:#fb923c}
+            body.dark .banner.running.debugging{color:var(--red);border-color:rgba(255,92,122,.55);
+            animation:fl-breathe-red 1.4s ease-in-out infinite}
+            @keyframes fl-breathe-red{0%,100%{background:rgba(255,92,122,.10)}50%{background:rgba(255,92,122,.28)}}
+            body.dark .banner.debugging .live::before,body.dark .banner.debugging .live::after{background:var(--red)}
+            body.dark .banner .where{background:rgba(7,18,43,.55);color:var(--text)}
+            body.dark .banner .where a.src{color:inherit}
             body.dark .prog,body.dark .prog b{color:var(--muted)}
             body.dark .prog b{color:var(--text)}
             body.dark #head h1{font-size:22px;color:var(--text);letter-spacing:.2px;margin:4px 0 4px}
@@ -909,6 +922,8 @@ final class FlowPage {
             body.dark #toast{color:var(--green)}
             body.dark .req .full{background:var(--panel2)}
             body.dark .banner.running .what{color:var(--blue)}
+            body.dark .banner.running.thinking .what{color:#fdba74}
+            body.dark .banner.running.debugging .what{color:var(--red)}
 """;
 
     /** The script of the flow: one node at a time, Previous, Next, Replay, keys; the views Flow and All steps. */

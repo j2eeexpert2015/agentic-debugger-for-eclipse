@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 
 /**
- * JUnit 5 unit tests for {@link ActivityPage}, the Agent Activity page (AP-U1 to AP-U10, OPEN-36 deliveries 4 and 5).
+ * JUnit 5 unit tests for {@link ActivityPage}, the Agent Activity page (AP-U1 to AP-U13; OPEN-36 deliveries 4 and 5, OPEN-41, OPEN-48, OPEN-49).
  * No Eclipse needed: run by {@code mvn clean package}.
  *
  * @author Ayan Dutta
@@ -105,7 +105,7 @@ class ActivityPageTest {
         ActivityStore store = started("Why?");
         assertEquals("Investigation started", ActivityPage.statusLine(store.current()));
         step(store, "stepStarted", "STOP", "RUNNING", "Waiting for the program to stop");
-        assertTrue(ActivityPage.banner(store.current()).contains("class=\"banner running\""));
+        assertTrue(ActivityPage.banner(store.current()).contains("class=\"banner running debugging\""));
         assertTrue(ActivityPage.banner(store.current()).contains("Running: Waiting for the program to stop"));
         assertTrue(ActivityPage.steps(store.current()).contains("class=\"s run\""), "the running step blinks");
         assertTrue(ActivityPage.steps(store.current()).contains("<span class=\"live\"></span>"), "pulsing dot on the running step");
@@ -274,13 +274,15 @@ class ActivityPageTest {
         assertEquals(once, ActivityPage.links(once), "an existing link is not linked again");
     }
 
-    @Test @DisplayName("AP-U8 program state from Eclipse: paused location, the agent looking at it, a warning when it ended without a stop")
+    @Test @DisplayName("AP-U8 program state from Eclipse: paused (location in the banner), the agent looking at it, a warning when it ended without a stop")
     void apU8() {
         ActivityStore store = started("Why?");
         assertNull(ActivityPage.programLine(store.current()), "nothing before the launch");
         step(store, "stepRecorded", "LAUNCH", "OK", "Started application in debug mode: OrdersApplication");
         store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:24");
-        assertTrue(ActivityPage.programLine(store.current()).contains("<b>paused</b> at <a class=\"src\""));
+        assertEquals("Program: <b>paused</b>", ActivityPage.programLine(store.current()),
+                "where it is paused is in the banner now (OPEN-49)");
+        assertTrue(ActivityPage.banner(store.current()).contains("Paused in</span><a class=\"src\""));
         assertEquals("The agent is looking at the paused program", ActivityPage.statusLine(store.current()));
         store.program(ActivityStore.PROGRAM_ENDED, null);
         assertEquals("Program: <b>ended</b>", ActivityPage.programLine(store.current()));
@@ -364,5 +366,56 @@ class ActivityPageTest {
         assertEquals("0.21.0", ActivityPage.agent("Eclipse/copilot-eclipse 4.41.0/0.21.0.202608060743")[1]);
         assertEquals("unknown agent", ActivityPage.agent(null)[0]);
         assertTrue(ActivityPage.afterFinish("CONTROLLED").contains("kept, so you can inspect them"));
+    }
+
+    @Test @DisplayName("AP-U12 a colour per phase (OPEN-48): thinking before the launch and after the program ended, debugging while it runs, finished, ended")
+    void apU12() {
+        assertNull(ActivityPage.phase(null));
+        ActivityStore store = started("Why?");
+        assertEquals(ActivityPage.PHASE_THINKING, ActivityPage.phase(store.current()), "nothing launched yet");
+        String banner = ActivityPage.banner(store.current());
+        assertTrue(banner.contains("class=\"banner running thinking\""), banner);
+        assertTrue(banner.contains("<span class=\"phase\">Thinking</span>"), "the phase in words, not only by colour");
+        assertEquals("Agent: thinking · 3.0 s", ActivityPage.statusBar(store.current(), START + 3_000));
+        step(store, "stepRecorded", "BREAKPOINT", "OK", "Set breakpoint: OrderService, line 23");
+        assertEquals(ActivityPage.PHASE_THINKING, ActivityPage.phase(store.current()), "a breakpoint is still preparation");
+        step(store, "stepStarted", "LAUNCH", "RUNNING", "Starting JUnit test in debug mode");
+        assertEquals(ActivityPage.PHASE_DEBUGGING, ActivityPage.phase(store.current()), "the launch is under way");
+        step(store, "stepRecorded", "LAUNCH", "OK", "Started JUnit test in debug mode: OrderServiceTest.calculatesDiscount");
+        assertEquals(ActivityPage.PHASE_DEBUGGING, ActivityPage.phase(store.current()), "launched, Eclipse has not reported yet");
+        store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:23");
+        banner = ActivityPage.banner(store.current());
+        assertTrue(banner.contains("class=\"banner running debugging\""), banner);
+        assertTrue(banner.contains("<span class=\"phase\">Debugging</span>"));
+        store.program(ActivityStore.PROGRAM_ENDED, null);
+        assertEquals(ActivityPage.PHASE_THINKING, ActivityPage.phase(store.current()), "the agent writes its answer");
+        finish(store, "FINISHED", null);
+        assertEquals(ActivityPage.PHASE_FINISHED, ActivityPage.phase(store.current()));
+        assertFalse(ActivityPage.banner(store.current()).contains("class=\"phase\""), "no phase label at the end");
+        ActivityStore ended = started("Why?");
+        finish(ended, "ENDED_WITHOUT_FINISH", null);
+        assertEquals(ActivityPage.PHASE_ENDED, ActivityPage.phase(ended.current()));
+    }
+
+    @Test @DisplayName("AP-U13 the banner shows where the program is (OPEN-49): paused location, else the last stop; none before a stop, after the end or the finish")
+    void apU13() {
+        ActivityStore store = started("Why?");
+        step(store, "stepRecorded", "LAUNCH", "OK", "Started JUnit test in debug mode: OrderServiceTest.calculatesDiscount");
+        assertNull(ActivityPage.where(store.current()), "no stop yet");
+        assertFalse(ActivityPage.banner(store.current()).contains("class=\"where\""));
+        step(store, "stepRecorded", "STOP", "OK", "Stopped at breakpoint: OrderService.quote, line 23",
+                stopDetails("OrderService.quote:23  <  OrderServiceTest.calculatesDiscount:19", table("percent", "int", "10")));
+        assertEquals("OrderService.quote:23", ActivityPage.where(store.current()), "from the stop");
+        store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:24");
+        assertEquals("OrderService.quote:24", ActivityPage.where(store.current()), "Eclipse's paused location, after a step");
+        String banner = ActivityPage.banner(store.current());
+        assertTrue(banner.contains("<span class=\"wl\">Paused in</span><a class=\"src\""), banner);
+        assertTrue(banner.contains("adGo(event,'OrderService',24)"), "a link to the line");
+        store.program(ActivityStore.PROGRAM_RUNNING, null);
+        assertTrue(ActivityPage.banner(store.current()).contains("<span class=\"wl\">Last stop</span>"), "resumed: the last stop");
+        store.program(ActivityStore.PROGRAM_ENDED, null);
+        assertNull(ActivityPage.where(store.current()), "the program ended");
+        finish(store, "FINISHED", null);
+        assertNull(ActivityPage.where(store.current()), "finished: the report shows the last stop");
     }
 }
