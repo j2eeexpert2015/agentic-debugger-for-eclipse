@@ -1,5 +1,5 @@
 # Sequential CI and manual, draft-only GitHub Release preparation. Never auto-publishes.
-# Pushes and PRs: four serial validation stages, with no release writes.
+# Pushes and PRs: five serial validation stages, with no release writes.
 # Only an explicit manual run on default branch main can create a draft after all checks pass.
 name: CI release readiness (sequential)
 
@@ -45,9 +45,14 @@ jobs:
     needs: integration
     uses: ./.github/workflows/zip-install-windows.yml
 
-  candidate:
-    name: 'Stage 4: Verified release-candidate bundle (not published)'
+  compatibility:
+    name: 'Stage 4: Eclipse 2026-09 compatibility (21 tests)'
     needs: packaged
+    uses: ./.github/workflows/compatibility-windows.yml
+
+  candidate:
+    name: 'Stage 5: Verified release-candidate bundle (not published)'
+    needs: compatibility
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -131,8 +136,9 @@ jobs:
               f'- Original Maven build filename: `{source.name}`\n'
               f'- SHA-256: `{digest}`\n'
               '- Validated: Windows JDK 21/25 unit builds, FullSuite 43 tests, '
-              'ZIP install/uninstall/reinstall and 21 post-reinstall tests.\n'
-              '- Tested Eclipse: 2025-12 on Windows. Other operating systems are not certified by this run.\n\n'
+              'ZIP install/uninstall/reinstall, 21 post-reinstall tests, '
+              'and 21 compatibility regression tests on Eclipse 2026-09.\n'
+              '- Tested Eclipse: 2025-12 and 2026-09 on Windows. Other operating systems are not certified by this run.\n\n'
               '## Local installation\n'
               'In Eclipse: Help → Install New Software → Add → Archive, then select the update-site ZIP.\n'
               'Install Agentic Debugger for Eclipse IDE and restart.\n\n'
@@ -148,7 +154,7 @@ jobs:
               summary.write(f'### Release candidate prepared (NOT published)\n\n')
               summary.write(f'- Tested package: `{destination.name}`\n- SHA-256: `{digest}`\n')
               summary.write(f'- Source commit: `{os.environ["SOURCE_SHA"]}`\n')
-              summary.write('- All 3 prior validation stages completed successfully.\n')
+              summary.write('- All 4 prior validation stages completed successfully.\n')
           PY
 
       - name: Upload verified candidate, checksum and release notes
@@ -163,8 +169,8 @@ jobs:
   create-draft:
     # This job does not run on any push or pull request. It can only run after
     # an explicit workflow_dispatch on main with create_draft=true, and only
-    # after the four validation stages succeed on the same source commit.
-    name: 'Stage 5: Create GitHub Release DRAFT (manual/main only)'
+    # after the five validation stages succeed on the same source commit.
+    name: 'Stage 6: Create GitHub Release DRAFT (manual/main only)'
     needs: candidate
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && inputs.create_draft == true }}
     runs-on: ubuntu-latest
@@ -218,8 +224,9 @@ jobs:
               f'- Installable ZIP: `{archive.name}`\n'
               f'- SHA-256: `{digest}`\n'
               '- CI evidence: Windows JDK 21/25 builds, 43 integration tests, '
-              'installation/uninstallation/reinstallation, 21 post-reinstall tests.\n'
-              '- Validated platform: Windows, Eclipse 2025-12.\n\n'
+              'installation/uninstallation/reinstallation, 21 post-reinstall tests, '
+              'and 21 Eclipse 2026-09 compatibility tests.\n'
+              '- Validated platform: Windows, Eclipse 2025-12 and 2026-09.\n\n'
               '## Installation\n'
               'Eclipse → Help → Install New Software → Add → Archive → select the update-site ZIP.\n'
               'Install Agentic Debugger for Eclipse IDE and restart.\n\n'
