@@ -1,19 +1,19 @@
-# CI phase 1 (OPEN-54): build and unit tests, Windows first.
-# Step 1.1 (checked 27 Nov 2026): Windows, JDK 25, same as Ayan's machine. Step 1.2: Windows, JDK 21 (README promises JDK 21+).
-# Step 1.3 adds Linux and macOS: only new rows in the matrix below. See docs/ci.md.
+# Windows CI for Java 21 (minimum runtime) and Java 25.
+# This workflow also validates PR merge commits against the current base branch.
 name: Build and unit tests
 
 on:
   push:
-    branches: [ main, 'ci/**' ]
+    branches: [main, 'ci/**']
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,8 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ windows-latest ]
-        java: [ '25', '21' ]
+        os: [windows-latest]
+        java: ['21', '25']
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
 
@@ -38,52 +38,85 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
 
-      - name: Show versions
+      - name: Show versions and revision
         shell: pwsh
         run: |
+          Write-Host "Repository revision: $(git rev-parse HEAD)"
           java -version
           mvn -v
 
-      - name: Build and unit tests (mvn clean package)
+      - name: Build and unit tests
         shell: pwsh
         run: mvn -B -ntp clean package
 
-      - name: Test-count summary
-        if: always()
+      # Maven can exit successfully even if tests are accidentally disabled.
+      # Treat missing, empty, failed, errored or unexpectedly skipped test reports as a failed check.
+      - name: Verify unit-test results
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $lines = @('### Unit tests: ${{ matrix.os }} / JDK ${{ matrix.java }}', '',
-                     '| Module | Tests | Failures | Errors | Skipped |', '|---|---|---|---|---|')
-          $total = @{ t = 0; f = 0; e = 0; s = 0 }
-          foreach ($m in 'report', 'mcp-server', 'testing', 'eclipse-plugin') {
-            $files = Get-ChildItem -Path "$m/target/surefire-reports" -Filter 'TEST-*.xml' -ErrorAction SilentlyContinue
-            if (-not $files) { $lines += "| $m | no reports | | | |"; continue }
-            $t = 0; $f = 0; $e = 0; $s = 0
-            foreach ($file in $files) {
+                     '| Module | Tests | Failures | Errors | Skipped |', '|---|---:|---:|---:|---:|')
+          $totals = @{ tests = 0; failures = 0; errors = 0; skipped = 0 }
+          foreach ($module in @('report', 'mcp-server', 'testing', 'eclipse-plugin')) {
+            $folder = Join-Path $module 'target/surefire-reports'
+            $reports = @(Get-ChildItem -Path $folder -Filter 'TEST-*.xml' -File -ErrorAction SilentlyContinue)
+            if ($reports.Count -eq 0) { throw "No Surefire XML reports for module: $module" }
+            $count = @{ tests = 0; failures = 0; errors = 0; skipped = 0 }
+            foreach ($file in $reports) {
               $suite = ([xml](Get-Content -Raw $file.FullName)).testsuite
-              $t += [int]$suite.tests; $f += [int]$suite.failures; $e += [int]$suite.errors; $s += [int]$suite.skipped
+              if ($null -eq $suite) { throw "Malformed Surefire report: $($file.FullName)" }
+              foreach ($field in @('tests', 'failures', 'errors', 'skipped')) {
+                $count[$field] += [int]$suite.GetAttribute($field)
+              }
             }
-            $lines += "| $m | $t | $f | $e | $s |"
-            $total.t += $t; $total.f += $f; $total.e += $e; $total.s += $s
+            if ($count.tests -eq 0) { throw "No tests executed in module: $module" }
+            $lines += "| $module | $($count.tests) | $($count.failures) | $($count.errors) | $($count.skipped) |"
+            foreach ($field in @('tests', 'failures', 'errors', 'skipped')) {
+              $totals[$field] += $count[$field]
+            }
           }
-          $lines += "| **total** | **$($total.t)** | **$($total.f)** | **$($total.e)** | **$($total.s)** |"
-          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
-          $lines | ForEach-Object { Write-Host $_ }
+          $lines += "| **Total** | **$($totals.tests)** | **$($totals.failures)** | **$($totals.errors)** | **$($totals.skipped)** |"
+          $lines | Tee-Object -Variable output | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          $output | ForEach-Object { Write-Host $_ }
+          if ($totals.failures -ne 0 -or $totals.errors -ne 0 -or $totals.skipped -ne 0) {
+            throw 'Unit-test report contains failures, errors, or skipped tests.'
+          }
 
-      - name: Keep test reports (only when the build fails)
+      # Validate the actual release candidate artifact, not just Maven's build status.
+      - name: Verify installable update-site ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zips = @(Get-ChildItem -Path 'eclipse-update-site/target' -Filter 'agentic-debugger-update-site-*.zip' -File)
+          if ($zips.Count -ne 1) { throw "Expected exactly one update-site ZIP; found $($zips.Count)" }
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($zips[0].FullName)
+          try {
+            $names = @($zip.Entries | ForEach-Object { $_.FullName -replace '\\','/' })
+            $feature = @($names | Where-Object { $_ -match '^features/.+\.jar$' })
+            $plugins = @($names | Where-Object { $_ -match '^plugins/.+\.jar$' })
+            $content = @($names | Where-Object { $_ -match '^content\.(jar|xml|xml\.xz)$' })
+            $artifacts = @($names | Where-Object { $_ -match '^artifacts\.(jar|xml|xml\.xz)$' })
+            if (!$feature.Count -or !$plugins.Count -or !$content.Count -or !$artifacts.Count) {
+              throw "Invalid Eclipse update-site ZIP. feature=$($feature.Count) plugins=$($plugins.Count) content=$($content.Count) artifacts=$($artifacts.Count)"
+            }
+            Write-Host "Validated $($zips[0].Name): $($zips[0].Length) bytes, $($feature.Count) feature jar(s), $($plugins.Count) plugin jar(s)"
+          } finally { $zip.Dispose() }
+
+      - name: Keep test reports when a check fails
         if: failure()
         uses: actions/upload-artifact@v5
         with:
           name: test-reports-${{ matrix.os }}-jdk${{ matrix.java }}
           path: '*/target/surefire-reports/'
-          if-no-files-found: ignore
+          if-no-files-found: warn
           retention-days: 14
 
-      - name: Keep the update-site zip
+      - name: Keep validated update-site ZIP
         if: success()
         uses: actions/upload-artifact@v5
         with:
           name: update-site-${{ matrix.os }}-jdk${{ matrix.java }}
-          path: eclipse-update-site/target/*.zip
-          if-no-files-found: warn
+          path: eclipse-update-site/target/agentic-debugger-update-site-*.zip
+          if-no-files-found: error
           retention-days: 14
