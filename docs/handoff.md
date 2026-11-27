@@ -166,6 +166,22 @@ pauses from the gaps between calls; glow). Not in the repo yet; the design note 
 `docs/design/sequence-view.md`). Report tests 62 expected (SQ-U1..U4 new). Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
 not refresh the skill in the test Eclipse: `AGENTDEBUG_FIXTURE_SOURCE` skips the start-up refresh).
 
+**T. Mockups v5-v7 and `open-66-activity-v7.zip` (28 Nov 02:20-02:45):** Ayan 02:16 on the real Sequence tab: request
+in its own box, even fonts, "Paused" instead of "Stopped" (the wording is our MCP server's, not the model's), bright
+line colours per kind, a colour per class carried into the timeline and Steps rows; 02:24: pause rows as full boxes in
+the class colour, show the waiting period; 02:27: cleaner and sharper (v7); 02:31 "go with this". OPEN-66 row in the
+README. Report activity tests 40/40 here (expected report module 64 = 62 + SQ-U5 + AP-U15; other modules unchanged).
+Not built here: mcp-server (SessionReportTest changed), the plugin, Eclipse. Not yet in the plugin from the mockups:
+class colours on the Flow cards and Steps rows, the process strip and shared selection (OPEN-65 delivery 2).
+`open-66-activity-v7-fix1.zip` (02:50): Ayan's build 02:43 failed HW-U6 ("REPORT CHECK FAIL  missing: request"):
+the report check looked for the old label "Request: ". `ReportReplay.check` and `ClaudeSymptomTrial` now accept any
+label that starts with "Request" (new and older reports).
+`open-66-activity-v7-fix2.zip` (03:05): one font scale in the live window (Ayan 02:56: variables table and section
+headings bigger than the timeline): section headings 11px like the panel headers, table text 12.5px Segoe UI, values
+12px code font (`CLEAN_CSS`, `.sqb>h3`); the Sequence diagram is never drawn larger than its own width (one class made
+its text about 19px); the waiting text no longer names Spring Boot ("It may still be starting.", Flow and Sequence).
+Previews built from the code: `agent-activity-fonts-preview(-dark).html`.
+
 
 
 

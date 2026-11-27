@@ -23,7 +23,7 @@ shared. Nothing new is recorded: the view is drawn from what the MCP server and 
 
 ## Limits (said in the view)
 
-- Only places where the program stopped become boxes; methods passed through without a stop are not shown.
+- Only places where the program paused become boxes; methods passed through without a pause are not shown.
 - "Back in the caller" is inferred from call stacks, marked INFERRED.
 - The per-stop reason and the root cause are the agent's text, marked FROM THE AGENT.
 - In a window narrower than 820 px the three panels stack (diagram, selected, timeline).
@@ -35,3 +35,8 @@ shared. Nothing new is recorded: the view is drawn from what the MCP server and 
 2. Next: the process strip (Prepare, Start program, Wait, Stops, Result, Clean up), one selection shared by all three
    views, thinking pauses in Flow and Steps, the Sequence view in the HTML report.
 3. Then: colours and glow polished to mockup v4 everywhere (light mode: dark text only).
+4. **`open-66-activity-v7.zip`** (OPEN-66, mockups v5-v7): "paused" wording; a colour per class (`SequencePage.CLASS_COLOURS`,
+   seven, repeating: column, boxes, Selected title, timeline rows); a colour per kind of line (first pause rose, call
+   cyan, step green, back in the caller violet) with arrowheads and legend; the waiting period (`ActivityPage.waitingForPause`:
+   the program runs and has not paused, before the first pause or after a resume or step) as an amber box in the
+   diagram, amber timeline rows and an amber "Waiting" banner; one status card; cleaner panels (`ActivityPage.CLEAN_CSS`).

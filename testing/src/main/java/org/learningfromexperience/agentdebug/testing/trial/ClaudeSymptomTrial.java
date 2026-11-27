@@ -136,7 +136,8 @@ public final class ClaudeSymptomTrial {
     static String checkReport(Path report, Path transcript, boolean skillAllowed) throws Exception {
         String html = Files.readString(report, StandardCharsets.ISO_8859_1);
         List<String> missing = new java.util.ArrayList<>();
-        if (!html.contains("<span class=\"lbl\">Request: </span>")) missing.add("request");
+        // OPEN-66: the label is "Request (the prompt)" now, "Request: " in older reports; both count.
+        if (!html.contains("<span class=\"lbl\">Request")) missing.add("request");
         if (!html.contains("<h2>From the agent</h2>")) missing.add("conclusion (no summary at finish)");
         if (!html.contains("Finished investigation and cleaned up") && !html.contains("Cleaned up automatically")) missing.add("cleanup step");
         if (html.contains("<link") || html.contains(" src=\"")) missing.add("self-contained file (something is loaded from outside)");

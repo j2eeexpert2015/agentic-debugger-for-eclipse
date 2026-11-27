@@ -122,7 +122,7 @@ class SessionReportTest {
         assertEquals(StepKind.BREAKPOINT, steps.get(0).kind());
         assertEquals("Started application in debug mode: OrdersApplication", steps.get(1).title());
         assertEquals(StepKind.LAUNCH, steps.get(1).kind());
-        assertEquals("Stopped at breakpoint: OrderService.quote, line 24", steps.get(2).title());
+        assertEquals("Paused at breakpoint: OrderService.quote, line 24", steps.get(2).title());
         assertEquals(StepKind.STOP, steps.get(2).kind());
         assertEquals("Resumed execution", steps.get(3).title());
         List<String> first = steps.get(0).details();
@@ -167,7 +167,7 @@ class SessionReportTest {
                 "{\"status\":\"success\",\"stopped\":false,\"reason\":\"TIMEOUT\"}");
         var last = captured.steps().get(captured.steps().size() - 1);
         assertEquals("inv-2", last.investigationId());
-        assertEquals("No breakpoint reached yet (still running)", last.title());
+        assertEquals("Waiting for a breakpoint: none reached yet (program running)", last.title());
     }
 
     @Test
@@ -364,7 +364,7 @@ class SessionReportTest {
         session.toolCalled("claude-code", "wait_for_stop", Map.of("investigationId", "inv-1", "launchName", "Orders"), false, STOP, 40);
         assertTrue(live.events.get(0) instanceof ReportEvent.InvestigationStarted, live.events::toString);
         var running = (ReportEvent.StepStarted) live.events.get(1);
-        assertEquals("Waiting for the program to stop", running.title());
+        assertEquals("Waiting for the program to pause", running.title());
         assertEquals(StepKind.STOP, running.kind());
         assertTrue(live.events.get(2) instanceof ReportEvent.StepRecorded);
         assertTrue(session.reportInfo(null).contains("\"enabled\":false"), "reports are still off");

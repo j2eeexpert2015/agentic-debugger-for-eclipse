@@ -82,16 +82,17 @@ public final class ActivityPage {
             body{font:13px/1.45 'Segoe UI',system-ui,sans-serif;margin:0;padding:8px 10px 14px;background:#fff;
             color:#1f2937;overflow-wrap:anywhere}
             #head h1{font-size:15px;margin:0 0 4px;color:#0b2545}
-            .req{margin:0 0 4px;font-size:12.5px;color:#374151}
-            .req summary{cursor:pointer;list-style:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+            .req{margin:0 0 6px;font-size:13px;color:#0b1220;background:#eff6ff;border:1px solid #93c5fd;
+            border-left:4px solid #1d4ed8;border-radius:8px;padding:7px 12px}
+            .req summary{cursor:pointer;list-style:none;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
             overflow:hidden}
             .req summary::-webkit-details-marker{display:none}
-            .req .lbl{font-weight:600;color:#1d4ed8}
+            .req .lbl{display:block;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
+            color:#1d4ed8;margin-bottom:1px}
             .req .more{color:#1d4ed8;font-size:12px;white-space:nowrap}
             .req[open] summary{display:block}
             .req[open] .clip{display:none}
-            .req .full{white-space:pre-wrap;background:#eef4ff;border-left:4px solid #0d6efd;border-radius:6px;
-            padding:6px 10px;margin-top:4px}
+            .req .full{white-space:pre-wrap}
             .dby{background:#EEEDFE;border:1px solid #AFA9EC;border-radius:8px;padding:8px 12px 7px;margin:4px 0 8px;
             color:#3C3489}
             .dby-h{font-size:13px;font-weight:700;color:#26215C}
@@ -188,6 +189,7 @@ public final class ActivityPage {
             .banner.ended .dot{background:#a16207}
             .banner.waiting{background:#f3f4f6;color:#4b5563}
             .prog{font-size:11.5px;color:#4b5563;margin:2px 2px 0}
+            .banner .prog{flex-basis:100%;margin:0 0 0 20px}
             .prog b{color:#1f2937}
             .dot{width:10px;height:10px;border-radius:50%;background:currentColor;flex:none}
             .banner.running .dot{animation:ad-blink 1s ease-in-out infinite}
@@ -243,6 +245,51 @@ public final class ActivityPage {
             a.src:hover{text-decoration:underline}
             """;
 
+    /**
+     * OPEN-66 (Ayan 28 Nov, mockup v7 "go with this"): the live window's clean look, after all other styles: the view
+     * switch as tabs, Expand All / Collapse All only where they act, one status card (the program's state its second
+     * line), the waiting state in amber, calmer panels, one font for sentences (code font only for code and places).
+     * Light and dark.
+     */
+    static final String CLEAN_CSS = """
+            #bar{gap:8px}
+            #bar .sp{flex:1}
+            #bar button{border-radius:7px;padding:3px 11px;font-weight:600}
+            #vbar{background:#e8eef7;border-radius:9px;padding:3px;gap:2px}
+            #vbar button,#vbar button:first-child,#vbar button:last-child{border:0;margin:0;border-radius:7px;
+            background:transparent;padding:3px 13px;color:#0b1220}
+            #vbar button.on{background:#fff;color:#1d4ed8;border:0;box-shadow:0 1px 3px rgba(15,23,42,.2)}
+            body.vseq #bar .xa{display:none}
+            #bar button.stop{background:#fff5f5;border-color:#ef4444;color:#b91c1c}
+            #banner .banner{padding:8px 12px;border-radius:9px;font-size:13.5px}
+            #banner .banner .what{font-weight:700}
+            #banner .banner .timer{font-weight:800}
+            #banner .banner .prog{flex-basis:100%;margin:0;padding-left:20px;font-size:12px;font-weight:600;color:inherit;opacity:.95}
+            #banner .banner .prog b{color:inherit}
+            .banner.running.waitp{background:#fef3c7;color:#92400e;box-shadow:0 0 0 1px #fcd34d inset;
+            animation:ad-breathe-wait 1.4s ease-in-out infinite}
+            @keyframes ad-breathe-wait{0%,100%{background:#fef3c7}50%{background:#fde68a}}
+            .banner.waitp .live::before,.banner.waitp .live::after{background:#d97706}
+            body.dark .banner.running.waitp{background:rgba(245,158,11,.14);color:#fcd34d;border:1px solid rgba(245,158,11,.55);
+            animation:ad-breathe-wait-d 1.4s ease-in-out infinite}
+            @keyframes ad-breathe-wait-d{0%,100%{background:rgba(245,158,11,.10)}50%{background:rgba(245,158,11,.26)}}
+            body.dark .banner.running.waitp .what{color:#fcd34d}
+            body.dark .banner.waitp .live::before,body.dark .banner.waitp .live::after{background:#f59e0b}
+            body.dark #vbar{background:var(--panel2)}
+            body.dark #vbar button,body.dark #vbar button:first-child,body.dark #vbar button:last-child{background:transparent;
+            border:0;color:var(--text)}
+            body.dark #vbar button.on{background:var(--panel);color:var(--blue);box-shadow:0 1px 3px rgba(0,0,0,.5)}
+            body.dark #bar button.stop{background:transparent;border-color:var(--red);color:var(--red)}
+            body.dark .req{background:var(--panel2);border-color:var(--line);border-left-color:var(--blue);color:var(--text)}
+            body.dark .req .full{background:transparent}
+            #seq .fwhere,#seq .fobs,#seq .fagent,#flow .fwhere,#flow .fobs,#flow .fagent{font:12.5px/1.5 'Segoe UI',system-ui,sans-serif}
+            #seq .fwhere a.src,#flow .fwhere a.src{font:12px Consolas,'Cascadia Mono',monospace}
+            #seq .fsec h3,#flow .fsec h3{font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin:0 0 4px}
+            #seq table.vars,#flow table.vars{font-size:12.5px}
+            #seq table.vars th,#seq table.vars td,#flow table.vars th,#flow table.vars td{font:12.5px/1.45 'Segoe UI',system-ui,sans-serif;padding:3px 10px 3px 0}
+            #seq table.vars td:last-child,#flow table.vars td:last-child{font:12px/1.45 Consolas,'Cascadia Mono',monospace}
+            """;
+
     private static final String SCRIPT = """
             var ad={id:null,start:0,end:0,last:0,wait:0,running:false,timer:null,follow:true,paused:false,all:true,state:{}};
             function adPad(n){return n<10?'0'+n:''+n;}
@@ -251,7 +298,7 @@ public final class ActivityPage {
             function adTick(){var now=Date.now();var t=document.getElementById('timer');
               if(t&&ad.start)t.textContent=adClock((ad.end>0?ad.end:now)-ad.start);
               var w=[];
-              if(ad.end<=0&&ad.wait>0&&now-ad.wait>%WAIT%*1000)w.push('Still waiting for the program to stop ('
+              if(ad.end<=0&&ad.wait>0&&now-ad.wait>%WAIT%*1000)w.push('Still waiting for the program to pause ('
                 +adClock(now-ad.wait)+'): the line with the breakpoint may not be reached by this run. The agent decides what to do next.');
               if(ad.end<=0&&!ad.running&&ad.last>0&&now-ad.last>%IDLE%*1000)w.push('No activity from the agent for '
                 +adClock(now-ad.last)+'. It may still be thinking, or it may have stopped or lost its connection.');
@@ -334,7 +381,7 @@ public final class ActivityPage {
      */
     public static String shell(boolean dark) {
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + CSS + ReportFormat.MARKDOWN_CSS
-                + FlowPage.CSS + FlowPage.LIVE_CSS + FlowPage.DARK_CSS + SequencePage.CSS + "</style><script>" + SCRIPT
+                + FlowPage.CSS + FlowPage.LIVE_CSS + FlowPage.DARK_CSS + SequencePage.CSS + CLEAN_CSS + "</style><script>" + SCRIPT
                 + SequencePage.SCRIPT + "</script></head><body"
                 + (dark ? " class=\"dark\"" : "") + ">"
                 + "<div id=\"pin\"><div id=\"bar\"><span id=\"vbar\"><button id=\"vflow\" class=\"on\" onclick=\"return adView('flow')\""
@@ -346,7 +393,7 @@ public final class ActivityPage {
                 + " id=\"follow\" checked onchange=\"ad.follow=this.checked;if(this.checked)adJump()\">Follow</label>"
                 + "<button class=\"xa\" onclick=\"return adSteps(true)\" title=\"Open the details of every step\">Expand All</button>"
                 + "<button class=\"xa\" onclick=\"return adSteps(false)\" title=\"Close the details of every step\">Collapse All</button>"
-                + "<button id=\"theme\" onclick=\"return adTheme()\" title=\"Switch between the dark and the light look\">"
+                + "<span class=\"sp\"></span><button id=\"theme\" onclick=\"return adTheme()\" title=\"Switch between the dark and the light look\">"
                 + (dark ? "Light" : "Dark") + "</button>"
                 + "<span id=\"tools\"></span><span id=\"toast\"></span></div><div id=\"banner\"></div></div>"
                 + "<div id=\"head\">" + waitingHead() + "</div><div id=\"flow\"></div><div id=\"seq\"></div>"
@@ -465,7 +512,7 @@ public final class ActivityPage {
             String flat = request.strip().replaceAll("\\s+", " ");
             boolean longer = flat.length() > REQUEST_PREVIEW;
             String clip = longer ? flat.substring(0, REQUEST_PREVIEW).stripTrailing() + "…" : flat;
-            out.append("<details class=\"req\"><summary><span class=\"lbl\">Request: </span><span class=\"clip\">")
+            out.append("<details class=\"req\"><summary><span class=\"lbl\">Request (the prompt)</span><span class=\"clip\">")
                     .append(html(clip)).append(" <span class=\"more\">(click to show all)</span></span></summary>")
                     .append("<div class=\"full\">").append(html(request.strip())).append("</div></details>");
         }
@@ -592,7 +639,8 @@ public final class ActivityPage {
 
     static String banner(ActivityStore.Investigation inv) {
         String phase = phase(inv);
-        String cls = switch (phase) {
+        boolean waiting = waitingForPause(inv);
+        String cls = waiting ? "running waitp" : switch (phase) {
             case PHASE_THINKING -> "running thinking";
             case PHASE_DEBUGGING -> "running debugging";
             case PHASE_FINISHED -> "done";
@@ -605,18 +653,33 @@ public final class ActivityPage {
         StringBuilder out = new StringBuilder("<div class=\"banner ").append(cls)
                 .append("\">").append(inv.finished() ? "<span class=\"dot\"></span>" : "<span class=\"live\"></span>");
         if (!inv.finished())
-            out.append("<span class=\"phase\">").append(PHASE_THINKING.equals(phase) ? "Thinking" : "Debugging")
-                    .append("</span>");
-        out.append("<span class=\"what\">").append(links(html(statusLine(inv) + extra))).append("</span>");
+            out.append("<span class=\"phase\">").append(waiting ? "Waiting" : PHASE_THINKING.equals(phase) ? "Thinking"
+                    : "Debugging").append("</span>");
+        String what = waiting ? "Program running, waiting for " + (stopped(inv) ? "the next pause or the end"
+                : "the first breakpoint") : statusLine(inv);
+        out.append("<span class=\"what\">").append(links(html(what + extra))).append("</span>");
         String where = where(inv);
         if (where != null)
             out.append("<span class=\"where\" title=\"Where the program is: class, method and line\"><span class=\"wl\">")
-                    .append(ActivityStore.PROGRAM_PAUSED.equals(inv.program()) ? "Paused in" : "Last stop")
+                    .append(ActivityStore.PROGRAM_PAUSED.equals(inv.program()) ? "Paused in" : "Last pause")
                     .append("</span>").append(links(html(where))).append("</span>");
-        out.append("<span class=\"timer\">").append(timer).append("</span></div>");
+        // OPEN-66 (mockup v7): one status card; the program's state is its second line.
         String program = programLine(inv);
+        out.append("<span class=\"timer\">").append(timer).append("</span>");
         if (program != null) out.append("<div class=\"prog\">").append(program).append("</div>");
-        return out.toString();
+        return out.append("</div>").toString();
+    }
+
+    /**
+     * OPEN-66 (Ayan 28 Nov): the program runs and has not paused (yet, or again): before the first breakpoint, or after
+     * a resume or a step until the next pause or the end. Shown as a waiting period (banner, Sequence, timeline).
+     */
+    static boolean waitingForPause(ActivityStore.Investigation inv) {
+        if (inv == null || inv.finished() || ActivityStore.PROGRAM_PAUSED.equals(inv.program())
+                || ActivityStore.PROGRAM_ENDED.equals(inv.program())) return false;
+        ActivityStore.Step running = runningStep(inv);
+        if (running != null && "STOP".equals(running.kind())) return true;
+        return ActivityStore.PROGRAM_RUNNING.equals(inv.program());
     }
 
     /** "Program: <b>paused</b>", "running" or "ended", or null before the launch. */
@@ -647,7 +710,7 @@ public final class ActivityPage {
         // Open while the agent works; after the finish folded to one line (the analysis is what to read then).
         StringBuilder out = new StringBuilder("<details class=\"stopbox\" data-i=\"stop\" data-d=\"")
                 .append(inv.finished() ? "0\">" : "1\" open>").append("<summary><h2>")
-                .append(inv.finished() ? "Last stop: " : "Current stop: ").append(links(html(stop.where()))).append("</h2></summary>");
+                .append(inv.finished() ? "Last pause: " : "Current pause: ").append(links(html(stop.where()))).append("</h2></summary>");
         if (!stop.title().equals(stop.where()))
             out.append("<div class=\"where\">").append(links(html(stop.title()))).append("</div>");
         if (stop.frames() != null) out.append("<div class=\"frames\">").append(frames(stop.frames())).append("</div>");
@@ -1042,7 +1105,7 @@ public final class ActivityPage {
         }
         Stop stop = currentStop(inv);
         if (stop != null && !stop.variables().isEmpty()) {
-            out.append("\n## ").append(inv.finished() ? "Last stop" : "Current stop").append(": ").append(stop.where())
+            out.append("\n## ").append(inv.finished() ? "Last pause" : "Current pause").append(": ").append(stop.where())
                     .append("\n\n| Variable | Type | Value |\n|---|---|---|\n");
             for (Variable v : stop.variables())
                 out.append("| ").append(cell(v.name())).append(" | ").append(cell(v.type())).append(" | ")
@@ -1056,7 +1119,7 @@ public final class ActivityPage {
 
     /**
      * One line for the status bar: "Agent: thinking · 8 s", "Agent: running · 45 s", "Agent: paused",
-     * "Agent: waiting for a stop", "Agent: finished · 1 min 05 s", or null when idle.
+     * "Agent: waiting for a pause", "Agent: finished · 1 min 05 s", or null when idle.
      */
     public static String statusBar(ActivityStore.Investigation inv, long nowMillis) {
         if (inv == null) return null;
@@ -1065,7 +1128,7 @@ public final class ActivityPage {
         String time = start > 0 && end >= start ? " · " + duration((end - start) / 1000 * 1000) : "";
         if (!inv.finished()) {
             ActivityStore.Step running = runningStep(inv);
-            String doing = running != null && "STOP".equals(running.kind()) ? "waiting for a stop"
+            String doing = running != null && "STOP".equals(running.kind()) ? "waiting for a pause"
                     : ActivityStore.PROGRAM_PAUSED.equals(inv.program()) ? "paused"
                     : PHASE_THINKING.equals(phase(inv)) ? "thinking" : "running";
             return "Agent: " + doing + time;

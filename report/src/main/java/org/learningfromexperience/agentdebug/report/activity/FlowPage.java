@@ -50,7 +50,9 @@ final class FlowPage {
     enum Kind { PREP, REQUEST, ASSUMED, RESPONSE, STOP, NOSTOP, NEVER, UNCHECKED, CLEAN, AGENT }
 
     /** The node added when breakpoints were set but the agent never asked whether the program stopped. */
-    static final String STOPS_NOT_CHECKED = "Stops not checked";
+    static final String STOPS_NOT_CHECKED = "Pauses not checked";
+    /** OPEN-66: a wait for a pause that timed out; the program is still running. */
+    static final String WAITING = "Waiting for a breakpoint";
 
     /** One call, or several identical ones, at a node: the tool, what it was about (path, action), how often. */
     record Call(String tool, String about, int count, boolean refused) {
@@ -375,14 +377,16 @@ final class FlowPage {
             case NOSTOP -> {
                 lines.addAll(reader(first));
                 // A wait that timed out is not an error: the program is still running (Ayan 28 Nov 00:45).
+                // OPEN-66: "Waiting for a breakpoint" (older reports: "No breakpoint reached yet").
                 if (first.title() != null && (first.title().startsWith("Waited for a stop: none")
-                        || first.title().startsWith("No breakpoint reached yet"))) {
+                        || first.title().startsWith("No breakpoint reached yet")
+                        || first.title().startsWith("Waiting for a breakpoint"))) {
                     lines.removeIf(l -> l.startsWith("No stop: "));
-                    yield new Node(kind, "No breakpoint reached yet", "The program is still running and has not reached"
-                            + " a breakpoint (a Spring Boot test can take 30 s or more to start).", indexes, null,
+                    yield new Node(kind, WAITING, "The program is running and has not paused at a breakpoint yet. It may"
+                            + " still be starting.", indexes, null,
                             null, null, List.of(), List.of(), List.of(), calls, null, lines, false, null, null);
                 }
-                yield new Node(kind, first.title(), "the program did not stop at any breakpoint here", indexes, null,
+                yield new Node(kind, first.title(), "the program did not pause at any breakpoint here", indexes, null,
                         null, null, List.of(), List.of(), List.of(), calls, null, lines, false, null, null);
             }
             default -> {
@@ -476,7 +480,7 @@ final class FlowPage {
         else if (chain.length > 1 && !chain[1].startsWith("(")) sub.add("called from " + chain[1].strip());
         return new Node(Kind.STOP, where, String.join(" · ", sub), indexes, where, frames, thread, List.copyOf(variables),
                 List.copyOf(expansions), List.copyOf(expressions), calls, movement, List.of(),
-                stop.title().startsWith("Stopped at breakpoint"), null, null);
+                stop.title().startsWith("Paused at breakpoint") || stop.title().startsWith("Stopped at breakpoint"), null, null);
     }
 
     /** Frame lines of a "Read call stack" step: "  OrderService.quote:24". */
@@ -516,11 +520,11 @@ final class FlowPage {
         List<Node> out = new ArrayList<>();
         if (!set.isEmpty() && !stopped && !noStopNode)
             out.add(asked
-                    ? new Node(Kind.NOSTOP, "No stop was reached", "breakpoints were set, but the program never stopped",
+                    ? new Node(Kind.NOSTOP, "No pause was reached", "breakpoints were set, but the program never paused",
                             List.of(), null, null, null, List.of(), List.of(), List.of(), List.of(), null, List.of(), false,
                             null, null)
                     : new Node(Kind.NOSTOP, STOPS_NOT_CHECKED, "breakpoints were set, but the agent never asked whether"
-                            + " the program stopped", List.of(), null, null, null, List.of(), List.of(), List.of(), List.of(),
+                            + " the program paused", List.of(), null, null, null, List.of(), List.of(), List.of(), List.of(),
                             null, List.of(), false, null, null));
         for (var e : set.entrySet()) {
             if (hit.contains(e.getKey())) continue;
@@ -807,9 +811,10 @@ final class FlowPage {
             body.dark .prog,body.dark .prog b{color:var(--muted)}
             body.dark .prog b{color:var(--text)}
             body.dark #head h1{font-size:22px;color:var(--text);letter-spacing:.2px;margin:4px 0 4px}
-            body.dark .req{color:var(--muted);font-size:14px}
+            body.dark .req{color:var(--text);font-size:14px;background:var(--panel2);border-color:var(--line);
+            border-left-color:var(--blue)}
             body.dark .req .lbl,body.dark .req .more{color:var(--blue)}
-            body.dark .req .full{background:var(--panel2);border-left-color:var(--blue);color:var(--text)}
+            body.dark .req .full{background:transparent;color:var(--text)}
             body.dark .info{color:var(--muted);font-size:13px}
             body.dark .flegend{color:var(--text);font-size:12.5px}
             body.dark .ftag{border-radius:999px;padding:2px 9px;font-weight:600;font-size:11.5px}
@@ -939,7 +944,6 @@ final class FlowPage {
             body.dark li.s.run{animation:none;background:rgba(255,92,122,.14)}
             body.dark li.s.run .t{color:var(--red)}
             body.dark #toast{color:var(--green)}
-            body.dark .req .full{background:var(--panel2)}
             body.dark .banner.running .what{color:var(--blue)}
             body.dark .banner.running.thinking .what{color:#fdba74}
             body.dark .banner.running.debugging .what{color:var(--red)}
@@ -1201,7 +1205,7 @@ final class FlowPage {
                 .append("\"><div class=\"fhead\"><span>Step ").append(i + 1).append(" of ").append(total)
                 .append("</span><span>").append(tags(n)).append("</span></div><h2>");
         String heading = switch (n.kind()) {
-            case STOP -> "Stop " + stopNo + " of " + stops + ": " + n.name();
+            case STOP -> "Pause " + stopNo + " of " + stops + ": " + n.name();
             case REQUEST -> "HTTP request: " + n.name();
             case RESPONSE -> "HTTP response: " + n.name().substring("HTTP ".length());
             case NEVER -> "Never hit: breakpoint " + n.name();
@@ -1220,15 +1224,15 @@ final class FlowPage {
             case STOP -> stopDetail(n, out);
             case NEVER -> out.append("<div class=\"fsec\"><div class=\"fobs\">").append(ActivityPage.links(html(
                     "The breakpoint at " + n.name() + " was set (step " + (inv.droppedSteps() + n.steps().get(0) + 1)
-                            + ") but the program never stopped there in this session: the line was not reached by"
+                            + ") but the program never paused there in this session: the line was not reached by"
                             + " what ran, or another branch was taken."))).append("</div></div>");
             case UNCHECKED -> out.append("<div class=\"fsec\"><div class=\"fobs\">").append(ActivityPage.links(html(
                     "The breakpoint at " + n.name() + " was set (step " + (inv.droppedSteps() + n.steps().get(0) + 1)
-                            + "), but the agent never asked whether the program stopped: no wait for a stop and no stack"
+                            + "), but the agent never asked whether the program paused: no wait for a pause and no stack"
                             + " or variables read. Whether the program reached it is not known."))).append("</div></div>");
             case AGENT -> agentBody(inv, out);
             case ASSUMED -> out.append("<div class=\"fsec\"><div class=\"fagent\">").append(ActivityPage.links(html(n.sub())))
-                    .append("</div><div class=\"fnote\">The agent's description of how the request reached the first stop."
+                    .append("</div><div class=\"fnote\">The agent's description of how the request reached the first pause."
                             + " The debugger did not step through it.</div></div>");
             case PREP -> {
                 out.append("<div class=\"fsec\"><h3>What was prepared</h3><div class=\"fobs\">");
@@ -1249,7 +1253,7 @@ final class FlowPage {
         }
         if (n.purpose() != null)
             out.append("<div class=\"fsec\"><h3>").append(n.kind() == Kind.NEVER || n.kind() == Kind.UNCHECKED ? "Why the agent set it"
-                            : "Why the agent stopped here").append(" <span class=\"ftag agent\">FROM THE AGENT</span>"
+                            : "Why the agent paused here").append(" <span class=\"ftag agent\">FROM THE AGENT</span>"
                     + "</h3><div class=\"fagent\">").append(html(n.purpose())).append("</div></div>");
         if (n.finding() != null)
             out.append("<div class=\"fsec\"><h3>What the agent learned here <span class=\"ftag agent\">FROM THE AGENT"
@@ -1299,7 +1303,7 @@ final class FlowPage {
                     .append(html(a.fix())).append("</div></div>");
         List<String[]> unplaced = unplaced(a, nodes);
         if (!unplaced.isEmpty()) {
-            out.append("<div class=\"fsec\"><h3>Findings not tied to a recorded stop</h3><div class=\"fagent\"><ul>");
+            out.append("<div class=\"fsec\"><h3>Findings not tied to a recorded pause</h3><div class=\"fagent\"><ul>");
             for (String[] f : unplaced)
                 out.append("<li>").append(f[0] == null ? "" : "<b>" + html(f[0]) + ":</b> ").append(html(f[1])).append("</li>");
             out.append("</ul></div></div>");
@@ -1443,7 +1447,7 @@ final class FlowPage {
             out.append("<div class=\"fsec\"><h3>Moved</h3><div class=\"fobs\">").append(html(
                     "From " + n.movement().replace(" → ", " to line ") + " in the same method")).append("</div></div>");
         if (!n.variables().isEmpty()) {
-            out.append("<div class=\"fsec\"><h3>Variables at this stop</h3><table class=\"vars\"><tr><th>Variable</th>"
+            out.append("<div class=\"fsec\"><h3>Variables at this pause</h3><table class=\"vars\"><tr><th>Variable</th>"
                     + "<th>Type</th><th>Value</th></tr>");
             for (ActivityPage.Variable v : n.variables()) {
                 out.append(v.changed() ? "<tr class=\"changed\">" : "<tr>").append("<td>").append(html(v.name()))
@@ -1453,7 +1457,7 @@ final class FlowPage {
             }
             out.append("</table>");
             if (n.variables().stream().anyMatch(ActivityPage.Variable::changed))
-                out.append("<div class=\"note\">Highlighted: changed since the previous stop.</div>");
+                out.append("<div class=\"note\">Highlighted: changed since the previous pause.</div>");
             out.append("</div>");
         }
         for (Expansion e : n.expansions()) {
@@ -1480,7 +1484,7 @@ final class FlowPage {
     /** The calls as chips, and every call with its details folded below them. */
     private static void calls(ActivityStore.Investigation inv, Node n, StringBuilder out) {
         if (n.steps().isEmpty()) return;
-        out.append("<div class=\"fsec\"><h3>").append(n.kind() == Kind.STOP ? "Calls at this stop" : "Calls").append("</h3>");
+        out.append("<div class=\"fsec\"><h3>").append(n.kind() == Kind.STOP ? "Calls at this pause" : "Calls").append("</h3>");
         for (Call c : n.calls())
             out.append("<span class=\"fchip").append(c.refused() ? " ref" : "").append("\" title=\"")
                     .append(c.refused() ? "Refused" : "Succeeded").append("\">").append(html(c.label()))

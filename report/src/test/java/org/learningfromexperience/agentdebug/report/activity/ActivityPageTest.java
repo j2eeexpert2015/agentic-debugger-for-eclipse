@@ -105,8 +105,9 @@ class ActivityPageTest {
         ActivityStore store = started("Why?");
         assertEquals("Investigation started", ActivityPage.statusLine(store.current()));
         step(store, "stepStarted", "STOP", "RUNNING", "Waiting for the program to stop");
-        assertTrue(ActivityPage.banner(store.current()).contains("class=\"banner running debugging\""));
-        assertTrue(ActivityPage.banner(store.current()).contains("Running: Waiting for the program to stop"));
+        // OPEN-66: waiting for a pause is its own state (amber "Waiting"), not "Running: Waiting for ...".
+        assertTrue(ActivityPage.banner(store.current()).contains("class=\"banner running waitp\""));
+        assertTrue(ActivityPage.banner(store.current()).contains("Program running, waiting for the first breakpoint"));
         assertTrue(ActivityPage.steps(store.current()).contains("class=\"s run\""), "the running step blinks");
         assertTrue(ActivityPage.steps(store.current()).contains("<span class=\"live\"></span>"), "pulsing dot on the running step");
         assertTrue(ActivityPage.banner(store.current()).contains("<span class=\"live\"></span>"), "pulsing dot in the banner");
@@ -215,7 +216,7 @@ class ActivityPageTest {
         assertFalse(stop.variables().get(0).changed(), "unchanged value");
         assertFalse(stop.variables().get(2).changed(), "a new variable is not a change");
         String html = ActivityPage.stop(store.current());
-        assertTrue(html.contains("<h2>Current stop: <a class=\"src\""), html);
+        assertTrue(html.contains("<h2>Current pause: <a class=\"src\""), html);
         assertTrue(html.contains("<tr class=\"changed\"><td>total</td><td>BigDecimal</td><td>120 <span class=\"was\">(was 0)</span>"), html);
         assertTrue(html.contains("adGo(event,'OrderService',24)"), "the stop location is a link");
         assertTrue(ActivityPage.markdown(store.current(), KOLKATA).contains("| total | BigDecimal | 120 (was 0) |"));
@@ -241,8 +242,8 @@ class ActivityPageTest {
                 "the banner is in the pinned strip at the top");
         assertTrue(html.contains("<details class=\"stopbox\" data-i=\"stop\" data-d=\"1\" open>"), "current stop open while running");
         finish(store, "FINISHED", null);
-        assertTrue(ActivityPage.stop(store.current()).contains("<h2>Last stop: "));
-        assertTrue(ActivityPage.stop(store.current()).contains("data-d=\"0\"><summary><h2>Last stop: "), "folded after the finish");
+        assertTrue(ActivityPage.stop(store.current()).contains("<h2>Last pause: "));
+        assertTrue(ActivityPage.stop(store.current()).contains("data-d=\"0\"><summary><h2>Last pause: "), "folded after the finish");
 
         // A pause ("Thread suspended") has no frames of its own: they come from a later "Read call stack".
         ActivityStore paused = started("Why?");
@@ -298,7 +299,7 @@ class ActivityPageTest {
         assertNull(ActivityPage.statusBar(null, START));
         assertEquals("Agent: running · 5.0 s", ActivityPage.statusBar(store.current(), START + 5_400));
         step(store, "stepStarted", "STOP", "RUNNING", "Waiting for the program to stop");
-        assertEquals("Agent: waiting for a stop · 1 min 05 s", ActivityPage.statusBar(store.current(), START + 65_000));
+        assertEquals("Agent: waiting for a pause · 1 min 05 s", ActivityPage.statusBar(store.current(), START + 65_000));
         finish(store, "FINISHED", "## Symptom\n**POST /orders/quote** returned `120.00`; expected 108.00.");
         assertEquals("Agent: finished · 45.0 s", ActivityPage.statusBar(store.current(), START + 999_000));
     }
@@ -410,7 +411,7 @@ class ActivityPageTest {
         assertTrue(banner.contains("<span class=\"wl\">Paused in</span><a class=\"src\""), banner);
         assertTrue(banner.contains("adGo(event,'OrderService',24)"), "a link to the line");
         store.program(ActivityStore.PROGRAM_RUNNING, null);
-        assertTrue(ActivityPage.banner(store.current()).contains("<span class=\"wl\">Last stop</span>"), "resumed: the last stop");
+        assertTrue(ActivityPage.banner(store.current()).contains("<span class=\"wl\">Last pause</span>"), "resumed: the last stop");
         store.program(ActivityStore.PROGRAM_ENDED, null);
         assertNull(ActivityPage.where(store.current()), "the program ended");
         finish(store, "FINISHED", null);
@@ -428,5 +429,30 @@ class ActivityPageTest {
         assertEquals(ActivityPage.PHASE_ENDED, ActivityPage.phase(store.current()));
         String page = ActivityPage.shell(false);
         assertTrue(page.contains(".banner .what{flex:1 1 14em;min-width:14em}"), "the location wraps, not the text");
+    }
+
+    @Test @DisplayName("AP-U15 OPEN-66: waiting for a pause (amber banner) until the next pause; one status card; tabs and buttons")
+    void apU15() {
+        ActivityStore store = started("Why?");
+        assertFalse(ActivityPage.waitingForPause(store.current()), "nothing launched");
+        step(store, "stepStarted", "STOP", "RUNNING", "Waiting for the program to pause");
+        assertTrue(ActivityPage.waitingForPause(store.current()), "a wait for a pause is running");
+        step(store, "stepRecorded", "STOP", "OK", "Paused at breakpoint: OrderService.quote, line 24");
+        store.program(ActivityStore.PROGRAM_PAUSED, "OrderService.quote:24");
+        assertFalse(ActivityPage.waitingForPause(store.current()), "paused");
+        assertTrue(ActivityPage.banner(store.current()).contains("class=\"banner running debugging\""));
+        store.program(ActivityStore.PROGRAM_RUNNING, null);
+        assertTrue(ActivityPage.waitingForPause(store.current()), "resumed, no pause yet");
+        String banner = ActivityPage.banner(store.current());
+        assertTrue(banner.contains("<span class=\"phase\">Waiting</span>"), banner);
+        assertTrue(banner.contains("Program running, waiting for the next pause or the end"), banner);
+        assertTrue(banner.contains("<div class=\"prog\">Program: <b>running</b></div></div>"), "the program line inside the card");
+        assertEquals("Agent: running · 3.0 s", ActivityPage.statusBar(store.current(), START + 3_000));
+        store.program(ActivityStore.PROGRAM_ENDED, null);
+        assertFalse(ActivityPage.waitingForPause(store.current()), "the program ended");
+        String page = ActivityPage.shell(true);
+        assertTrue(page.contains("body.vseq #bar .xa{display:none}") && page.contains("<span class=\"sp\"></span>"),
+                "Expand / Collapse hidden in Sequence; theme and actions on the right");
+        assertTrue(page.contains(".banner.running.waitp{"), "the waiting colour");
     }
 }

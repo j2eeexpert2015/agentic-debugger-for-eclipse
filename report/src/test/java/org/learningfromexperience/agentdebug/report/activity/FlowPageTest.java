@@ -161,7 +161,7 @@ class FlowPageTest {
                 RESPONSE, CLEANUP), null));
         assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.REQUEST, FlowPage.Kind.NOSTOP, FlowPage.Kind.RESPONSE,
                 FlowPage.Kind.NEVER, FlowPage.Kind.CLEAN), kinds(none), "the wait itself is the no-stop node");
-        assertEquals("No breakpoint reached yet", none.get(2).name(), "a timeout is not an error");
+        assertEquals("Waiting for a breakpoint", none.get(2).name(), "a timeout is not an error");
         assertTrue(none.get(2).lines().stream().noneMatch(l -> l.startsWith("No stop: ")), "no raw TIMEOUT line");
 
         // The agent read the stack but never waited: it asked, so a breakpoint not seen is "never hit".
@@ -170,7 +170,7 @@ class FlowPageTest {
                 RESPONSE, CLEANUP), null));
         assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.REQUEST, FlowPage.Kind.RESPONSE, FlowPage.Kind.NOSTOP,
                 FlowPage.Kind.NEVER, FlowPage.Kind.CLEAN), kinds(looked));
-        assertEquals("No stop was reached", looked.get(3).name());
+        assertEquals("No pause was reached", looked.get(3).name());
     }
 
     @Test @DisplayName("FP-U9 an agent that never asked whether the program stopped: breakpoints 'not checked', not 'never hit'")
@@ -182,12 +182,12 @@ class FlowPageTest {
         List<FlowPage.Node> nodes = FlowPage.nodes(inv);
         assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.NOSTOP, FlowPage.Kind.UNCHECKED, FlowPage.Kind.CLEAN),
                 kinds(nodes));
-        assertEquals("Stops not checked", nodes.get(1).name());
+        assertEquals("Pauses not checked", nodes.get(1).name());
         assertEquals("StepFilterApplication:9", nodes.get(2).name());
         String html = FlowPage.render(inv);
         assertTrue(html.contains("NOT CHECKED") && html.contains("Not checked: breakpoint ")
-                && html.contains("never asked whether the program stopped"), "the page says what is not known");
-        assertFalse(html.contains("NEVER HIT") || html.contains("No stop was reached")
+                && html.contains("never asked whether the program paused"), "the page says what is not known");
+        assertFalse(html.contains("NEVER HIT") || html.contains("No pause was reached")
                 || html.contains("the program never stopped"), "and claims nothing it did not see");
         // The two "not checked" nodes carry NOT CHECKED only, never OBSERVED; the recorded ones stay OBSERVED.
         String flow = html.substring(html.indexOf("<div class=\"fflow\">"), html.indexOf("<div class=\"fdetail\">"));
@@ -226,11 +226,11 @@ class FlowPageTest {
         assertTrue(html.indexOf("<main class=\"fl\">") < html.indexOf("<div id=\"all\">"), "the flow first");
         for (int i = 0; i < 6; i++)
             assertTrue(html.contains("<section class=\"fd\" id=\"fd" + i + "\" data-n=\"" + i + "\">"), "section " + i);
-        assertTrue(html.contains("Step 3 of 6") && html.contains("Stop 1 of 1: <a class=\"src\""));
+        assertTrue(html.contains("Step 3 of 6") && html.contains("Pause 1 of 1: <a class=\"src\""));
         assertTrue(html.contains("Previous") && html.contains("Replay") && html.contains("flInit();"));
         assertTrue(html.contains("<body class=\"report dark\">") && html.contains("id=\"ftheme\""),
                 "dark by default, with a switch to the light theme");
-        assertTrue(html.contains("<span class=\"lbl\">Request: </span>") && html.contains("<h2>From the agent</h2>")
+        assertTrue(html.contains("<span class=\"lbl\">Request (the prompt)</span>") && html.contains("<h2>From the agent</h2>")
                 && html.contains("Finished investigation and cleaned up"), "what the REPORT CHECK of the trials looks for");
         assertTrue(html.contains("<details open data-i=\"1\""), "All steps as before");
         assertFalse(html.contains("<script>alert(1)"), "values from the program escaped");
@@ -296,7 +296,7 @@ class FlowPageTest {
         assertTrue(html.contains("<span class=\"sl hl\"><span class=\"ln\">23</span>    int rate = percent / 100;</span>"),
                 "the root cause line, read by the tool, highlighted");
         assertTrue(html.contains("What the agent learned here") && html.contains("Not stopped here.")
-                && html.contains("Findings not tied to a recorded stop"), "placed and unplaced findings");
+                && html.contains("Findings not tied to a recorded pause"), "placed and unplaced findings");
         assertTrue(html.contains("line 23 was not stepped") && html.contains("Suggested fix (not applied)"));
         assertFalse(html.contains("<b>integer</b>") || html.contains("// <script>"), "the agent's text and the source escaped");
 
@@ -344,7 +344,7 @@ class FlowPageTest {
         assertTrue(html.contains("<div class=\"tv bad\" data-n=\"2\"><span class=\"first\">FIRST WRONG</span>"), html);
         assertTrue(html.contains("<div class=\"fmis\" data-n=\"2\">Mismatch at OrderService.quote:24"));
         assertEquals(1, html.split("FIRST WRONG", -1).length - 1, "only the first wrong place is marked");
-        assertTrue(html.contains("Why the agent stopped here") && html.contains("why: Test the division")
+        assertTrue(html.contains("Why the agent paused here") && html.contains("why: Test the division")
                 && html.contains("Why the agent set it"));
 
         // The request's own value, by name; numbers compared by value.

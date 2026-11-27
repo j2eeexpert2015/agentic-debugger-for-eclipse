@@ -21,7 +21,7 @@ import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 
 /**
  * Agent status in the Eclipse status bar (OPEN-36): while an investigation runs (updated every second) orange
- * "● Agent: thinking · 8 s" when the agent works without the debugger and red "● Agent: waiting for a stop · 12 s"
+ * "● Agent: thinking · 8 s" when the agent works without the debugger and red "● Agent: waiting for a pause · 12 s"
  * (running, paused) while it debugs, the same colours as the Agent Activity banner (OPEN-48); green "finished" or
  * yellow "ended without finish" with the time taken at the end, empty when no agent has debugged yet (OPEN-61: then
  * "Agentic Debugger: check setup" in amber when the setup check found a problem; a click opens the preferences). A click opens the Agent Activity view. Added to the bottom trim by {@link StatusTrim}.

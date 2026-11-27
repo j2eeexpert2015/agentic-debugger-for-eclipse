@@ -203,7 +203,7 @@ final class SessionReport {
 
     /**
      * A tool call is about to run (OPEN-36): records a {@link ReportEvent.StepStarted} for the live view, so it can
-     * show the step as running ("Waiting for the program to stop"). Calls outside an investigation are ignored, like
+     * show the step as running ("Waiting for the program to pause"). Calls outside an investigation are ignored, like
      * in {@link #toolCalled}. Never throws.
      */
     synchronized void toolStarting(String tool, Map<String, Object> arguments) {
@@ -221,7 +221,7 @@ final class SessionReport {
     /** The plain-language title of a step that is still running. */
     static String startedTitle(String tool, Map<String, Object> args) {
         return switch (tool) {
-            case "wait_for_stop", "wait_for_debug_pause" -> "Waiting for the program to stop";
+            case "wait_for_stop", "wait_for_debug_pause" -> "Waiting for the program to pause";
             case "start_java_application" -> "Starting application in debug mode: " + simple(Json.str(args.get("mainType")));
             case "start_junit_test" -> (runMode(args) ? "Running JUnit test (no debugger): " : "Starting JUnit test in debug mode: ")
                     + simple(Json.str(args.get("typeName")));
@@ -444,7 +444,7 @@ final class SessionReport {
 
     /**
      * A plain-language title for the step: what happened, not which tool was called (the tool name is the first
-     * detail line). Examples: "Set breakpoint: OrderService, line 24", "Stopped at breakpoint: OrderService.quote,
+     * detail line). Examples: "Set breakpoint: OrderService, line 24", "Paused at breakpoint: OrderService.quote,
      * line 24", "Sent HTTP request: POST /orders/quote", "HTTP request not sent (discount scenario)",
      * "Received HTTP response: 200".
      */
@@ -520,20 +520,22 @@ final class SessionReport {
         if (!Boolean.TRUE.equals(reply.get("stopped"))) {
             String reason = Text.firstNonNull(Json.str(reply.get("reason")), "no reply");
             // OPEN-63: a wait that timed out is not an error; the program is still running.
-            return reason.equals("TERMINATED") ? "Program ended without stopping"
-                    : reason.equals("TIMEOUT") ? "No breakpoint reached yet (still running)"
+            // OPEN-66 (Ayan 28 Nov): "Waiting for a breakpoint", the page shows it as a waiting period.
+            return reason.equals("TERMINATED") ? "Program ended without pausing"
+                    : reason.equals("TIMEOUT") ? "Waiting for a breakpoint: none reached yet (program running)"
                     : "Waited for a stop: none (" + reason + ")";
         }
         Map<String, Object> at = Json.obj(reply.get("location"));
         String where = at.isEmpty() ? "" : ": " + simple(Json.str(at.get("className"))) + "."
                 + Json.str(at.get("methodName")) + ", line " + Json.str(at.get("lineNumber"));
         String reason = Text.firstNonNull(Json.str(reply.get("reason")), "");
+        // OPEN-66 (Ayan 28 Nov): "Paused", not "Stopped": the program waits there; it stops only when it ends.
         return switch (reason) {
-            case "BREAKPOINT" -> "Stopped at breakpoint" + where;
-            case "EXCEPTION" -> "Stopped on exception " + Text.firstNonNull(simple(Json.str(reply.get("exceptionType"))), "") + where;
-            case "STEP_END" -> "Stopped after step" + where;
+            case "BREAKPOINT" -> "Paused at breakpoint" + where;
+            case "EXCEPTION" -> "Paused on exception " + Text.firstNonNull(simple(Json.str(reply.get("exceptionType"))), "") + where;
+            case "STEP_END" -> "Paused after step" + where;
             case "PAUSED" -> "Paused" + where;
-            default -> "Stopped" + where;
+            default -> "Paused" + where;
         };
     }
 

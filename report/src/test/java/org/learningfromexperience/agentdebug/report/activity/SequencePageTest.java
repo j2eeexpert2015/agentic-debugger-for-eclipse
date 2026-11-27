@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.learningfromexperience.agentdebug.report.format.ReportFormat;
 
 /**
- * JUnit 5 unit tests for {@link SequencePage} (SQ-U1 to SQ-U4, OPEN-65): lanes, the kind of each move, thinking time,
+ * JUnit 5 unit tests for {@link SequencePage} (SQ-U1 to SQ-U5, OPEN-65, OPEN-66): lanes, the kind of each move, thinking time,
  * the root cause box, and the page parts. Steps are shaped like the MCP server writes them.
  *
  * @author Ayan Dutta
@@ -54,10 +54,13 @@ class SequencePageTest {
                     "2026-11-28T00:00:44Z", "2026-11-28T00:00:45Z", "percent", "int", "10", "rate", "int", "0"));
 
     private static ActivityStore.Investigation inv(List<ActivityStore.Step> steps, boolean finished, String analysis) {
+        return inv(steps, finished, analysis, finished ? ActivityStore.PROGRAM_ENDED : ActivityStore.PROGRAM_PAUSED);
+    }
+
+    private static ActivityStore.Investigation inv(List<ActivityStore.Step> steps, boolean finished, String analysis, String program) {
         return new ActivityStore.Investigation("inv-sq", "NORMAL", "copilot", "Why 120.00?", true, "2026-11-28T00:00:00Z",
                 steps, 0, finished ? "FINISHED" : null, null, List.of(), null, finished ? "2026-11-28T00:01:00Z" : null,
-                finished ? ActivityStore.PROGRAM_ENDED : ActivityStore.PROGRAM_PAUSED, null, "2026-11-28T00:00:45Z",
-                analysis, null, null, null);
+                program, null, "2026-11-28T00:00:45Z", analysis, null, null, null);
     }
 
     @Test @DisplayName("SQ-U1 one lane per class in order of appearance; the kind of every move from the call stacks")
@@ -97,6 +100,39 @@ class SequencePageTest {
         assertTrue(html.contains("INFERRED"), "back in the caller is marked inferred");
         assertTrue(html.contains("Agent thinking · 8.0 s") || html.contains("Agent thinking · 8 s"), html);
         assertTrue(html.contains("sqbox cur"), "the paused stop glows");
-        assertTrue(SequencePage.live(inv(RUN.subList(0, 2), false, null)).contains("No stop yet"));
+        assertTrue(SequencePage.live(inv(RUN.subList(0, 2), false, null)).contains("No pause yet"));
+    }
+
+    @Test @DisplayName("SQ-U5 OPEN-66: 'paused' wording, a colour per class, a colour per kind of line, and the waiting period")
+    void sqU5() {
+        ActivityStore.Step timedOut = step("STOP", "Waiting for a breakpoint: none reached yet (program running)",
+                "2026-11-28T00:00:05Z", "2026-11-28T00:00:05Z", List.of("No stop: TIMEOUT"), "Tool: wait_for_stop");
+        // Before the first pause: the program runs, a wait ran out; the whole diagram is the waiting box.
+        List<ActivityStore.Step> before = new ArrayList<>(RUN.subList(0, 2));
+        before.add(timedOut);
+        String waiting = SequencePage.live(inv(before, false, null, ActivityStore.PROGRAM_RUNNING));
+        assertTrue(waiting.contains("Waiting for the first breakpoint"), waiting);
+        assertTrue(waiting.contains("class=\"sqev wait now\""), "the timed-out wait is an amber row, the newest one");
+
+        // The new titles ("Paused ..."), the wait before the first pause, then resumed: waiting for the next pause.
+        List<ActivityStore.Step> run = new ArrayList<>();
+        for (ActivityStore.Step st : RUN)
+            run.add(new ActivityStore.Step(st.kind(), st.title().replace("Stopped", "Paused"), st.status(), st.details(),
+                    st.durationMs(), st.startedAt(), st.finishedAt()));
+        run.add(2, timedOut);
+        String html = SequencePage.live(inv(run, false, null, ActivityStore.PROGRAM_RUNNING));
+        assertEquals(5, SequencePage.model(inv(run, false, null)).stops().size(), "'Paused at breakpoint' is a pause");
+        assertTrue(html.contains("Where the program paused") && html.contains("data-t=\"Pause 1 of 5\""), "paused, not stopped");
+        assertFalse(html.contains(">Stop ") || html.contains("program stopped"), "no 'stop' for a pause");
+        assertTrue(html.contains("--cc:#2563eb") && html.contains("--cc:#db2777") && html.contains("--cc:#d97706"),
+                "a colour per class: columns, boxes, timeline rows");
+        assertTrue(html.contains("class=\"sqev stop\" style=\"--cc:#db2777"), "a pause row in its class colour");
+        assertTrue(html.contains("url(#sqas)") && html.contains("url(#sqar)") && html.contains("url(#sqae)")
+                && html.contains("url(#sqa)"), "an arrowhead per kind of line");
+        assertTrue(html.contains("first pause") && html.contains("class=\"sqleg\""), "legend in the line colours");
+        assertTrue(html.contains("for the first pause"), "how long it waited before the first pause");
+        assertTrue(html.contains("waiting for the next pause or the end"), "resumed: running until the next pause");
+        assertFalse(SequencePage.live(inv(run, false, null)).contains("waiting for the next pause"), "not while paused");
+        assertEquals(SequencePage.colour(0), SequencePage.colour(SequencePage.CLASS_COLOURS.length), "colours repeat");
     }
 }

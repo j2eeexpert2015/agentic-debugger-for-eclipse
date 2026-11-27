@@ -61,7 +61,8 @@ public final class ReportReplay {
      */
     static String check(String html) {
         List<String> missing = new ArrayList<>();
-        if (!html.contains("<span class=\"lbl\">Request: </span>")) missing.add("request");
+        // OPEN-66: the label is "Request (the prompt)" now, "Request: " in older reports; both count.
+        if (!html.contains("<span class=\"lbl\">Request")) missing.add("request");
         if (!html.contains("<h2>From the agent</h2>")) missing.add("conclusion (no summary at finish)");
         if (!html.contains("Finished investigation and cleaned up") && !html.contains("Cleaned up automatically"))
             missing.add("cleanup step");
