@@ -8,7 +8,9 @@ import com.microsoft.copilot.eclipse.ui.extensions.IMcpRegistrationProvider;
 /**
  * OPEN-23: offers our MCP server to GitHub Copilot for Eclipse through Copilot's extension point
  * {@code com.microsoft.copilot.eclipse.ui.mcpRegistration} (plugin.xml). Copilot calls this when it starts, then asks
- * the user once, in its own dialog, whether to allow the server. Nothing in Copilot's settings files is written.
+ * the user once, in its own dialog, whether to allow the server. Since OPEN-60 it also applies our preference to two of
+ * Copilot's settings of this workspace ({@link CopilotIntegration#apply}): our tools only in the Agentic Debugger
+ * agent, auto-approved there; only our own entries are changed.
  * <p>Loaded only by Copilot: when Copilot is not installed, the extension is ignored and this class is never loaded
  * (the import of Copilot's package is optional in MANIFEST.MF).
  * <p>Stages the MCP server jar (the same file Claude uses, see {@link CopilotRegistration#runtimeFolder}), writes the
@@ -41,6 +43,9 @@ public final class CopilotMcpProvider implements IMcpRegistrationProvider {
                     System.out.println("[Eclipse Agentic Debugger] Offered the eclipse-debugger MCP server to GitHub"
                             + " Copilot: " + java + " -jar " + jar);
                 }
+                // OPEN-60: before Copilot starts the server and reads its tool settings, make sure our tools are off
+                // for its Agent mode (and auto-approved for our agent), as the preference says. Never fails the offer.
+                CopilotIntegration.apply();
                 return json;
             } catch (Exception | LinkageError failure) {
                 System.err.println("[Eclipse Agentic Debugger] Could not offer the MCP server to GitHub Copilot: "

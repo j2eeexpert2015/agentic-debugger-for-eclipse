@@ -69,8 +69,9 @@ class ClaudeAgentEndToEndTests {
                 + (skill ? "-skill" : "-noskill") + (model == null ? "" : "-" + model);
         // The trial uses the skill of this repository (the test Eclipse does not install it, OPEN-32).
         if (skill) syncSkill(env.root.resolve("skills/eclipse-debugger"));
-        // OPEN-58: the plugin asks the user before an agent runs code in the program. A trial runs unattended, so the
-        // answer is preset (default allow, as before); -Dclaude.consent=deny or =ask (the dialog, for a watched run).
+        // OPEN-58: the plugin can ask the user before an agent runs code in the program (since OPEN-60 only when the
+        // user turned that on). A trial runs unattended, so the answer is preset (default allow, as before);
+        // -Dclaude.consent=deny, or =ask (no preset: the preference "Ask before the agent runs code" decides).
         String consent = TestEnvironment.option("claude.consent");
         new Bridge(env.port).call("TEST_SET_CONSENT", true, consent == null ? "allow" : consent);
     }

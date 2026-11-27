@@ -20,7 +20,8 @@ import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
  * Agent status in the Eclipse status bar (OPEN-36): while an investigation runs (updated every second) orange
  * "● Agent: thinking · 8 s" when the agent works without the debugger and red "● Agent: waiting for a stop · 12 s"
  * (running, paused) while it debugs, the same colours as the Agent Activity banner (OPEN-48); green "finished" or
- * yellow "ended without finish" with the time taken at the end, empty when no agent has debugged yet. A click opens the Agent Activity view. Registered in plugin.xml
+ * yellow "ended without finish" with the time taken at the end, empty when no agent has debugged yet (OPEN-61: then
+ * "Agentic Debugger: check setup" in amber when the setup check found a problem; a click opens the preferences). A click opens the Agent Activity view. Registered in plugin.xml
  * ({@code toolbar:org.eclipse.ui.trim.status}).
  *
  * @author Ayan Dutta
@@ -36,6 +37,9 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
     private boolean blink;
     private final Consumer<String> listener = id -> schedule();
     private final Runnable tick = this::tick;
+    private final Runnable setupListener = this::schedule;
+    /** OPEN-61: true while the label shows the setup note (a click then opens the preferences page). */
+    private boolean showingSetup;
 
     @Override
     protected Control createControl(Composite parent) {
@@ -49,7 +53,11 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
         label.setToolTipText("Agent Activity: click to open the view");
         label.addListener(SWT.MouseUp, event -> openView());
         ActivityStore.global().addListener(listener);
-        label.addDisposeListener(event -> ActivityStore.global().removeListener(listener));
+        SetupCheckRunner.addListener(setupListener);
+        label.addDisposeListener(event -> {
+            ActivityStore.global().removeListener(listener);
+            SetupCheckRunner.removeListener(setupListener);
+        });
         refresh();
         return box;
     }
@@ -74,6 +82,17 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
         // While running, the dot blinks (filled, hollow) every second, like the view's live dot.
         boolean running = inv != null && !inv.finished();
         blink = running && !blink;
+        String setup = text == null ? SetupCheckRunner.problemLine() : null;
+        showingSetup = setup != null;
+        if (showingSetup) {
+            // OPEN-61: no investigation to show, but the setup check found something: a quiet note, never a popup.
+            label.setText("\u26A0 Agentic Debugger: check setup");
+            label.setToolTipText(setup + "\nClick to open Preferences > Agentic Debugger (Check setup).");
+            label.setForeground(ENDED);
+            label.getParent().layout();
+            return;
+        }
+        label.setToolTipText("Agent Activity: click to open the view");
         label.setText(text == null ? "" : (running && !blink ? "\u25CB " : "\u25CF ") + text);
         String phase = ActivityPage.phase(inv);
         label.setForeground(phase == null ? null : switch (phase) {
@@ -93,6 +112,15 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
     }
 
     private void openView() {
+        if (showingSetup) {
+            try {
+                org.eclipse.ui.dialogs.PreferencesUtil.createPreferenceDialogOn(label.getShell(),
+                        "org.learningfromexperience.eclipse.agentdebug.preferences", null, null).open();
+            } catch (Exception unavailable) {
+                System.err.println("[Eclipse Agentic Debugger] Could not open the preferences: " + unavailable.getMessage());
+            }
+            return;
+        }
         try {
             IWorkbenchWindow window = getWorkbenchWindow();
             if (window != null && ActivityViewOpener.ownWindow()) {

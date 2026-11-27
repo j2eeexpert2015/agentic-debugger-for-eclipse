@@ -53,7 +53,9 @@ public final class EclipseAgentOperations {
     private final EclipseBreakpointService breakpoints = new EclipseBreakpointService();
     private final AgentDebugUiCoordinator ui = new AgentDebugUiCoordinator();
     /** OPEN-58: the user decides in Eclipse before an agent runs code in the debugged program (90 s to answer). */
-    private final EvaluationConsent consent = new EvaluationConsent(new EvaluationConsentDialog(), 90_000);
+    /** OPEN-58/OPEN-60: asks only when the user turned "Ask before the agent runs code" on (off by default). */
+    private final EvaluationConsent consent = new EvaluationConsent(new EvaluationConsentDialog(), 90_000,
+            EvaluationConsentDialog::askEnabled);
     private final DebugInvestigationPolicy investigations = new DebugInvestigationPolicy();
     /** Records real debugger stops for WAIT_FOR_STOP (event-based, no polling). */
     private final DebugStopTracker stops = new DebugStopTracker();

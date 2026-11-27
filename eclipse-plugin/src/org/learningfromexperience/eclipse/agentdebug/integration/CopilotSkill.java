@@ -47,13 +47,12 @@ public final class CopilotSkill {
 
     static String install(Map<String, byte[]> bundled, Path home) throws IOException {
         if (Files.isRegularFile(claudeFolder(home).resolve("SKILL.md"))) {
-            return "Skill: Copilot reads it from " + claudeFolder(home) + " (installed for Claude Code); nothing else was"
-                    + " installed.";
+            return "Skill: Copilot reads it from the Claude Code folder (~/.claude/skills).";
         }
         if (bundled.isEmpty()) return "Skill: not found in the plugin; nothing installed.";
         List<String> done = SkillInstaller.install(bundled, copilotFolder(home), state(home));
-        if (done.isEmpty()) return "Skill: already up to date in " + copilotFolder(home) + ".";
-        return "Skill installed for GitHub Copilot in " + copilotFolder(home) + " (" + String.join("; ", done) + ").";
+        if (done.isEmpty()) return "Skill: already up to date.";
+        return "Skill installed for GitHub Copilot (~/.copilot/skills).";
     }
 
     static String remove(Path home) throws IOException {
@@ -61,7 +60,7 @@ public final class CopilotSkill {
         Path state = state(home);
         if (!Files.isDirectory(folder)) {
             Files.deleteIfExists(state);
-            return "Skill: not installed for GitHub Copilot in " + folder + "; nothing removed.";
+            return "Skill: not installed for GitHub Copilot; nothing removed.";
         }
         Properties written = new Properties();
         if (Files.isRegularFile(state)) try (var in = Files.newInputStream(state)) {
@@ -77,18 +76,18 @@ public final class CopilotSkill {
         deleteEmptyFolders(folder);
         Files.deleteIfExists(state);
         if (Files.isDirectory(folder)) {
-            return "Skill removed for GitHub Copilot, except files you changed or added, which are kept in " + folder
+            return "Skill removed; files you changed or added were kept"
                     + (kept.isEmpty() ? "." : ": " + String.join(", ", kept) + ".");
         }
-        return "Skill removed for GitHub Copilot (" + folder + ").";
+        return "Skill removed for GitHub Copilot.";
     }
 
     static String status(Path home) {
         if (Files.isRegularFile(claudeFolder(home).resolve("SKILL.md"))) {
-            return "Copilot reads the skill from " + claudeFolder(home) + " (installed for Claude Code).";
+            return "Copilot reads the skill from the Claude Code folder (~/.claude/skills).";
         }
         if (Files.isRegularFile(copilotFolder(home).resolve("SKILL.md"))) {
-            return "Installed for GitHub Copilot in " + copilotFolder(home) + ".";
+            return "Installed for GitHub Copilot (~/.copilot/skills).";
         }
         return "Not installed for GitHub Copilot.";
     }

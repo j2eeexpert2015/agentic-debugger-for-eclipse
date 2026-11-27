@@ -120,4 +120,30 @@ class CopilotAgentInstallerTest {
         assertEquals(CopilotAgentInstaller.Result.UNCHANGED, CopilotAgentInstaller.install(project, V1));
         assertEquals(CopilotAgentInstaller.Result.UPDATED, CopilotAgentInstaller.install(project, V2));
     }
+
+    @Test
+    @DisplayName("CA-U9 for all workspaces: written to ~/.copilot/agents, removed again; Copilot's folders stay")
+    void caU9() throws Exception {
+        Path home = project;   // a temporary folder standing in for the user's home
+        Path agent = CopilotAgentInstaller.userAgentFile(home);
+        assertEquals(home.resolve(".copilot/agents/agentic_debugger.agent.md"), agent);
+        assertEquals(CopilotAgentInstaller.Result.CREATED, CopilotAgentInstaller.installForUser(home, V1));
+        assertTrue(CopilotAgentInstaller.writtenByPluginUnedited(read(agent)));
+        assertEquals(CopilotAgentInstaller.Result.UPDATED, CopilotAgentInstaller.installForUser(home, V2));
+        assertEquals(CopilotAgentInstaller.Removal.REMOVED, CopilotAgentInstaller.removeForUser(home, false));
+        assertFalse(Files.exists(agent));
+        assertTrue(Files.isDirectory(home.resolve(".copilot/agents")), "Copilot's own folder is kept");
+        assertEquals(CopilotAgentInstaller.Removal.NOT_PRESENT, CopilotAgentInstaller.removeForUser(home, false));
+    }
+
+    @Test
+    @DisplayName("CA-U10 state: missing, current, older version, edited by the user")
+    void caU10() throws Exception {
+        assertEquals(CopilotAgentInstaller.State.MISSING, CopilotAgentInstaller.state(file(), V1));
+        CopilotAgentInstaller.install(project, V1);
+        assertEquals(CopilotAgentInstaller.State.CURRENT, CopilotAgentInstaller.state(file(), V1));
+        assertEquals(CopilotAgentInstaller.State.OLDER, CopilotAgentInstaller.state(file(), V2));
+        Files.writeString(file(), read(file()) + "\nMine.\n", StandardCharsets.UTF_8);
+        assertEquals(CopilotAgentInstaller.State.EDITED, CopilotAgentInstaller.state(file(), V1));
+    }
 }

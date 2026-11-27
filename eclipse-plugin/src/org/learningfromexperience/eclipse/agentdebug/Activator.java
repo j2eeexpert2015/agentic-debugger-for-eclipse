@@ -16,6 +16,11 @@ public class Activator implements BundleActivator {
 
     private static EclipseBridgeServer bridgeServer;
 
+    /** OPEN-61: true while the bridge server is running (for the setup check). */
+    public static synchronized boolean bridgeRunning() {
+        return bridgeServer != null;
+    }
+
     static BundleContext getContext() {
         return context;
     }

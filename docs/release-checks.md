@@ -30,7 +30,7 @@ Use the eclipse-debugger tools to debug OrderService in spring-boot-debugging an
 
 Send: the dialog screenshot, and for 2 and 3 the end of the chat.
 
-## B. Copilot without our agent (OPEN-23 b)
+## B. Copilot without our agent must not use our tools (OPEN-60; until 27 Nov 14:12 the opposite, OPEN-23 b)
 
 Mode **Agent** (Copilot's own, not Agentic Debugger), new chat:
 
@@ -38,9 +38,9 @@ Mode **Agent** (Copilot's own, not Agentic Debugger), new chat:
 The test OrderServiceTest.calculatesDiscount in spring-boot-debugging fails. Debug it and tell me why.
 ```
 
-Expected: Copilot uses the eclipse-debugger tools and starts the test itself (`start_junit_test`). Before 27 Nov it
-handed the work to its built-in "Debugger" agent, whose `java_debugger` asked the user to start a debug session.
-Send: whether it handed off (yes or no), which tools it used, the end of the chat.
+Expected: **no** eclipse-debugger tool and **no** "Run Sub Agent" to Agentic Debugger; Copilot works with its own tools
+(it may use its Debugger mode or `java_debugger`). Repeat in mode **Ask**. Send: any eclipse-debugger tool or
+"Run Sub Agent" seen (yes or no), the first lines of the chat.
 
 ## C. Copilot scenarios (OPEN-23, release requirement)
 
@@ -80,3 +80,24 @@ changed** at a start: then the wrench button carries a **red dot**.
 
 At the next two starts of the test Eclipse (one after `deploy`, one plain `start`), before clicking anything: does
 the wrench button in the Copilot chat bar have a red dot (yes or no)? No red dot means nothing to fix.
+
+## F. Only the Agentic Debugger agent, nothing blocks (OPEN-60, OPEN-23 d, OPEN-61)
+
+Before: remove the old user-level agent copy from the (d) check
+(`del "%USERPROFILE%\.copilot\agents\agentic_debugger.agent.md"`) and the project copies (project menu → Agentic
+Debugger → Remove), so only the new one is tested.
+
+| # | Do | Expected |
+|---|---|---|
+| F1 | Restart the test Eclipse (after deploy). Preferences → Agentic Debugger → GitHub Copilot | Checkbox *Only the Agentic Debugger agent, and without confirmations* ticked; the line under it says our tools are off for Agent mode and Copilot runs them without asking |
+| F2 | Same page → **Install for all workspaces** | "Installed ...\.copilot\agents\agentic_debugger.agent.md"; no duplicate note |
+| F3 | Copilot's mode list → Configure Agents... once, close; choose **Agentic Debugger**, new chat, the prompt of B | Our tools run; **no** "Confirm MCP Tool", no "Run command in terminal ... Allow", no "allow the agent to run code?" dialog; `finish_debug_investigation` called |
+| F4 | New chat in **Agent** mode, the prompt of B | As B: no eclipse-debugger tool, no "Run Sub Agent" |
+| F5 | In the F3 chat switch the mode to **Agent** and ask "Debug it again with the eclipse-debugger tools" | No eclipse-debugger tool (Copilot says it does not have them) |
+| F6 | Copilot's Tools page (Preferences → GitHub Copilot → ...), mode **Agent** | Our group unticked; mode **Agentic Debugger**: our tools and read_file, file_search, grep_search, list_dir ticked. Do not click Apply for the Agentic Debugger mode (Copilot would rewrite our file) |
+| F7 | Preferences → Agentic Debugger → **Check setup** | No FAIL; agent "all workspaces" up to date; tools off for Agent mode; tools run without confirmations; MCP server's tools match the agent's list. **Copy report** and send it |
+| F8 | Untick the checkbox, restart, new **Agent** chat, prompt of B | Agent mode may now use our tools, and Copilot asks before each one ("Confirm MCP Tool"); tick it again, restart, F4 again passes |
+| F9 | Project menu → Add Agentic Debugger Agent on spring-boot-debugging | The message notes the agent is in 2 places; Check setup warns "installed 2 times"; Remove it again |
+| F10 | Preferences → Agentic Debugger → tick *Ask before the agent runs code in the program*, Agentic Debugger chat: "Evaluate percent / 100.0 at the stop" | The dialog asks; untick it again: no dialog |
+| F11 | 30 s after a start, look at the status bar right side | Nothing when all is fine; "check setup" in amber only when the check finds a problem (try: untick the checkbox while our server stays auto-approved by hand) |
+

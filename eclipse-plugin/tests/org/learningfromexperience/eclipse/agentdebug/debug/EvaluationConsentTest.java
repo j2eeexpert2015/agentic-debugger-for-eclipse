@@ -120,4 +120,29 @@ class EvaluationConsentTest {
         assertTrue(new EvaluationConsent(asker, 5_000).decide(evaluate(null)).allowed());
         assertEquals(1, asker.asked.get());
     }
+
+    @Test @DisplayName("EC-U7 asking off (the default since OPEN-60): the code runs without a question; presets still win")
+    void ecU7() {
+        ScriptedAsker asker = new ScriptedAsker();
+        EvaluationConsent consent = new EvaluationConsent(asker, 90_000, () -> false);
+        assertTrue(consent.decide(evaluate(new Object())).allowed());
+        assertTrue(consent.decide(new Request(true, "x", "A:1", null)).allowed());
+        assertEquals(0, asker.asked.get(), "nobody was asked");
+        consent.preset("deny");
+        assertFalse(consent.decide(evaluate(new Object())).allowed(), "a test preset still refuses");
+    }
+
+    @Test @DisplayName("EC-U8 asking on asks; a preference that cannot be read counts as on")
+    void ecU8() {
+        ScriptedAsker asker = new ScriptedAsker();
+        asker.answers.add(Answer.DENY);
+        asker.answers.add(Answer.ALLOW_ONCE);
+        boolean[] on = {true};
+        EvaluationConsent consent = new EvaluationConsent(asker, 90_000, () -> on[0]);
+        assertFalse(consent.decide(evaluate(new Object())).allowed());
+        EvaluationConsent broken = new EvaluationConsent(asker, 90_000, () -> { throw new IllegalStateException("x"); });
+        assertTrue(broken.decide(evaluate(new Object())).allowed(), "asked and allowed once");
+        assertEquals(2, asker.asked.get());
+    }
 }
+

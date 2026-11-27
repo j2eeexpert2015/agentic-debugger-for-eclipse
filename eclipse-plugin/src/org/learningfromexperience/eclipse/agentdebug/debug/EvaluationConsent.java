@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.function.BooleanSupplier;
 
 /**
  * OPEN-58: the user, not the agent, decides whether code runs in the debugged program. Evaluating a Java expression
@@ -14,6 +15,10 @@ import java.util.WeakHashMap;
  * itself after three refusals, and Copilot had every tool auto-approved, so nobody was asked.
  * <p>"Allow for this debugging session" is kept per session object (the launch for an evaluation, the investigation
  * for a tracepoint), weakly, so it ends with that session and never carries over to a later run of the same name.
+ * <p><b>Since 27 Nov 2026 (OPEN-60, Ayan's decision): asking is off by default.</b> Evaluations and tracepoints are
+ * basic debugging steps, and a question blocks the run; in GitHub Copilot only the Agentic Debugger agent can call our
+ * tools, and in Claude Code the user started the session. The preference "Ask before the agent runs code in the
+ * program" ({@code askBeforeRunningCode}) turns the question back on ({@code askUser} below).
  * <p>For unattended tests only, the test Eclipse ({@code AGENTDEBUG_E2E=1}) can preset the answer
  * ({@code TEST_SET_CONSENT allow|deny|ask}); a normal Eclipse always asks.
  * <p>Plain Java on purpose (no Eclipse imports): tested by EC-U1 to EC-U6 ({@code EvaluationConsentTest}).
@@ -55,10 +60,21 @@ public final class EvaluationConsent {
     private final long timeoutMillis;
     private final Set<Object> allowedSessions = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
     private volatile Preset preset = Preset.ASK;
+    private final BooleanSupplier askUser;
 
+    /** Always asks (unless preset or allowed for the session). */
     public EvaluationConsent(Asker asker, long timeoutMillis) {
+        this(asker, timeoutMillis, () -> true);
+    }
+
+    /**
+     * @param askUser read at every request: true asks the user, false lets the code run without a question (the
+     *                default since 27 Nov 2026); test presets still win
+     */
+    public EvaluationConsent(Asker asker, long timeoutMillis, BooleanSupplier askUser) {
         this.asker = asker;
         this.timeoutMillis = timeoutMillis;
+        this.askUser = askUser;
     }
 
     /** The time the user has to answer, in seconds (shown in the question). */
@@ -73,6 +89,13 @@ public final class EvaluationConsent {
         if (current == Preset.ALLOW) return Decision.allow();
         if (current == Preset.DENY) return Decision.refuse(refusal(request, "the user refused in Eclipse (test preset)"));
         if (request.session() != null && allowedSessions.contains(request.session())) return Decision.allow();
+        boolean ask;
+        try {
+            ask = askUser.getAsBoolean();
+        } catch (RuntimeException | LinkageError unreadable) {
+            ask = true;   // when the preference cannot be read, the safe answer is to ask
+        }
+        if (!ask) return Decision.allow();
         Answer answer;
         try {
             answer = asker.ask(request, timeoutMillis);
@@ -93,7 +116,10 @@ public final class EvaluationConsent {
         };
     }
 
-    /** Test Eclipse only: {@code allow}, {@code deny} or {@code ask}. Returns the preset now in force. */
+    /**
+     * Test Eclipse only: {@code allow}, {@code deny} or {@code ask} (no preset: the user's preference decides whether
+     * Eclipse asks). Returns the preset now in force.
+     */
     public Preset preset(String value) {
         Preset chosen = switch (value == null ? "" : value.strip().toLowerCase(Locale.ROOT)) {
             case "allow" -> Preset.ALLOW;

@@ -101,3 +101,36 @@ on, Copilot can approve the read-only ones itself and ask for the others. Indepe
 user in Eclipse before code runs in the program (`EvaluationConsent`). The server also sends MCP "instructions" at
 connection saying that the tools start the program or test themselves; whether Copilot shows them to the model is not
 checked (release checks B).
+
+## 8. Which modes get our tools, and starting other agents (OPEN-60, 27 Nov 2026)
+
+Read in Copilot for Eclipse 0.22 (`6dc0170`) and its language server 1.541.0 (`dist/main.js`):
+
+- **Tools per request:** `getToolsForModel(mode)`: an agent with a `tools:` list gets exactly those (matched on
+  `configurationKey`: `<server>/<tool>` for MCP tools, the plain name for Copilot's own); **Ask** gets six read-only
+  built-in tools (never MCP tools); **Agent** and every custom agent *without* `tools:` get all tools whose status is
+  "enabled" (`shouldApplyGlobalToolsSetting`). A new MCP server's tools start "enabled". So before OPEN-60 Agent mode
+  had our tools since step 1, and our agent (no `tools:`) shared Agent mode's switch.
+- **Starting another agent:** Agent mode has `run_subagent`; its prompt says "You should ALWAYS use the run_subagent
+  tool to delegate tasks to specialized agents when the task you are working on matches the agent's description",
+  listing every custom agent whose invoke policy contains "model". The default policy is `["user","model"]`; the key
+  read is `x-github-copilot-invoke-policy` (GitHub documents `disable-model-invocation: true`, which 1.541 does not
+  read yet). `run_subagent` refuses an agent without "model" ("not available for model invocation").
+- **No MCP server per agent:** the extension point has only a provider class; agent front matter knows `name`,
+  `description`, `tools`, `argument-hint`, `target`, `model` and the invoke policy. `mcp-servers` exists only for the
+  cloud agent at organization level (GitHub docs: not used in VS Code and other IDE agents).
+- **Settings (per workspace, Copilot's preference node `com.microsoft.copilot.eclipse.ui`):** `mcpToolsModeStatus`
+  `{mode: {server group: {tool: boolean}}}` (`agent-mode`, custom agents by file URI), read once after the MCP tools
+  first arrive (`McpConfigService` → `initializeMcpToolsStatus`); when empty Copilot uses `mcpToolsStatus`
+  (`{server group: {tool: boolean}}`, Agent mode only), which it also applies at once when it changes.
+  `autoApproveMcpServers` is a JSON list of server group names, read at every tool call (case-insensitive). Saving
+  the Tools page for a custom agent makes the language server rewrite that agent file's `tools:`.
+- **What the plugin does (OPEN-60):** both user-only lines and a `tools:` list in the agent; our tools `false` for
+  `agent-mode` in both settings (only our group, other values written back unchanged, unknown formats refused);
+  then our group in `autoApproveMcpServers`. Applied in `CopilotMcpProvider` before the offer is answered, i.e. before
+  Copilot starts the server and reads the settings. Real values seen 27 Nov: `agent-mode` held only "Built-in Tools"
+  (with `run_subagent` on) and no entry for our server, so our tools were on in Agent mode.
+- **Remaining limit:** an agent whose author lists our tools by name in its own `tools:` gets them; nothing in
+  Copilot prevents that. If Copilot renames these keys, the per-version check (release checks B and F) and Check setup
+  show it.
+

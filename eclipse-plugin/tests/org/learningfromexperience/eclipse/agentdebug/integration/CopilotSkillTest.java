@@ -60,7 +60,7 @@ class CopilotSkillTest {
     void csU3() throws Exception {
         CopilotSkill.install(skill("v1"), home);
         String message = CopilotSkill.remove(home);
-        assertTrue(message.startsWith("Skill removed for GitHub Copilot ("), message);
+        assertTrue(message.startsWith("Skill removed for GitHub Copilot"), message);
         assertFalse(Files.exists(CopilotSkill.copilotFolder(home)));
         assertFalse(Files.exists(CopilotSkill.state(home)));
         assertEquals("Not installed for GitHub Copilot.", CopilotSkill.status(home));

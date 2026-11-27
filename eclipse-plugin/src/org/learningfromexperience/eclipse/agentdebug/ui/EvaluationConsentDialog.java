@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
@@ -16,7 +17,8 @@ import org.learningfromexperience.eclipse.agentdebug.debug.EvaluationConsent.Ans
 import org.learningfromexperience.eclipse.agentdebug.debug.EvaluationConsent.Request;
 
 /**
- * OPEN-58: the question in Eclipse before an agent runs code in the debugged program (see {@link EvaluationConsent}).
+ * OPEN-58: the question in Eclipse before an agent runs code in the debugged program (see {@link EvaluationConsent}),
+ * asked only when the user turned it on (OPEN-60, {@link #askEnabled}).
  * A standard Eclipse question dialog over the Eclipse window with three buttons: <b>Allow once</b>, <b>Allow for this
  * debugging session</b>, <b>Deny</b> (the default, so Enter never allows by accident; closing the dialog also denies).
  * When the user does not answer within the time limit, the dialog closes itself and the answer is
@@ -29,6 +31,15 @@ import org.learningfromexperience.eclipse.agentdebug.debug.EvaluationConsent.Req
 public final class EvaluationConsentDialog implements EvaluationConsent.Asker {
 
     static final String TITLE = "Agentic Debugger: allow the agent to run code?";
+
+    /** Our preference: ask before the agent runs code in the program (OPEN-60: off by default). */
+    public static final String ASK_BEFORE_RUNNING_CODE = "askBeforeRunningCode";
+
+    /** True when the user turned the question on (Preferences &gt; Agentic Debugger). */
+    public static boolean askEnabled() {
+        return InstanceScope.INSTANCE.getNode("org.learningfromexperience.eclipse.agentdebug")
+                .getBoolean(ASK_BEFORE_RUNNING_CODE, false);
+    }
     private static final String[] BUTTONS = {"Allow once", "Allow for this debugging session", "Deny"};
     private static final int DENY_INDEX = 2;
 

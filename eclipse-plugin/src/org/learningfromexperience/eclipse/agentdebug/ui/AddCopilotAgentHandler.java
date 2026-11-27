@@ -1,8 +1,5 @@
 package org.learningfromexperience.eclipse.agentdebug.ui;
 
-import java.io.InputStream;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -14,8 +11,8 @@ import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.learningfromexperience.eclipse.agentdebug.integration.CopilotAgentInstaller;
+import org.learningfromexperience.eclipse.agentdebug.integration.CopilotIntegration;
 import org.learningfromexperience.eclipse.agentdebug.integration.CopilotSkill;
-import org.osgi.framework.FrameworkUtil;
 
 /**
  * OPEN-23 step 2: project menu "Agentic Debugger &gt; Add Agentic Debugger Agent for GitHub Copilot". Writes the bundled
@@ -29,7 +26,6 @@ import org.osgi.framework.FrameworkUtil;
  */
 public final class AddCopilotAgentHandler extends AbstractHandler {
 
-    static final String TEMPLATE = "copilot/agentic_debugger.agent.md";
     private static final String TITLE = "Agentic Debugger for GitHub Copilot";
 
     @Override
@@ -41,22 +37,18 @@ public final class AddCopilotAgentHandler extends AbstractHandler {
             return null;
         }
         try {
-            String template = template();
+            String template = CopilotIntegration.template();
             Path folder = project.getLocation().toFile().toPath();
             CopilotAgentInstaller.Result result = CopilotAgentInstaller.install(folder, template);
             project.refreshLocal(IResource.DEPTH_INFINITE, null);
             String where = project.getName() + "/" + CopilotAgentInstaller.AGENT_FILE;
-            String next = "\n\nIn Copilot Chat, choose \"Agentic Debugger\" in the mode list (next to Ask, Agent, Plan)."
-                    + " If it is missing there, or the mode button is blank, open Configure Agents... in that list"
-                    + " once and close it (Copilot then reloads its custom agents)."
-                    + "\nCopilot must allow the eclipse-debugger server once: Preferences > GitHub Copilot >"
-                    + " Model Context Protocol (MCP) > Edit MCP Servers from Plug-ins.";
+            String next = "\n\nIn Copilot Chat, pick \"Agentic Debugger\" in the mode list."
+                    + "\nNot listed? Open Configure Agents... once and close it.";
             String message = switch (result) {
-                case CREATED -> "Added " + where + "." + next;
-                case UPDATED -> "Updated " + where + " to the plugin's current version." + next;
-                case UNCHANGED -> where + " is already up to date." + next;
-                case KEPT_EDITED -> where + " was changed by you, so it was left as it is. The plugin's current version"
-                        + " is next to it as agentic_debugger.agent.md.new (Copilot does not load that file).";
+                case CREATED -> "Added to " + project.getName() + "." + next;
+                case UPDATED -> "Updated in " + project.getName() + "." + next;
+                case UNCHANGED -> "Already up to date in " + project.getName() + "." + next;
+                case KEPT_EDITED -> "Kept your changed file; the new version is next to it (.new).";
             };
             String skill;
             try {
@@ -65,7 +57,9 @@ public final class AddCopilotAgentHandler extends AbstractHandler {
                 skill = "Skill: could not be installed (" + skillFailure.getMessage() + "); the agent works without it.";
             }
             System.out.println("[Eclipse Agentic Debugger] Copilot agent " + result + ": " + where + ". " + skill);
-            MessageDialog.openInformation(shell, TITLE, message + "\n\n" + skill);
+            String duplicates = CopilotPreferences.duplicates();
+            MessageDialog.openInformation(shell, TITLE, message + "\n\n" + skill
+                    + (duplicates.isEmpty() ? "" : "\n\n" + duplicates));
         } catch (Exception failure) {
             System.err.println("[Eclipse Agentic Debugger] Could not add the Copilot agent: " + failure);
             MessageDialog.openError(shell, TITLE, "Could not add the agent: " + failure.getMessage());
@@ -82,11 +76,4 @@ public final class AddCopilotAgentHandler extends AbstractHandler {
         return resource == null ? Adapters.adapt(selection.getFirstElement(), IProject.class) : resource.getProject();
     }
 
-    static String template() throws Exception {
-        URL entry = FrameworkUtil.getBundle(AddCopilotAgentHandler.class).getEntry(TEMPLATE);
-        if (entry == null) throw new IllegalStateException(TEMPLATE + " is missing from the plugin");
-        try (InputStream in = entry.openStream()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        }
-    }
 }

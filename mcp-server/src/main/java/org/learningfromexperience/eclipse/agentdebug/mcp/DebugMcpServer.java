@@ -327,7 +327,7 @@ public class DebugMcpServer {
         allTools.add(bridgeTool("set_tracepoint",
                 "Log a Java expression at a line without suspending execution. Uses Eclipse's conditional "
                 + "breakpoint evaluation and System.out.println; evaluation may execute methods/side effects, so "
-                + "Eclipse asks the user before the tracepoint is set (OPEN-58); allowSideEffects=true states that you "
+                + "Eclipse may ask the user before the tracepoint is set (only if the user turned that on, OPEN-58/OPEN-60); allowSideEffects=true states that you "
                 + "know this. If the user refuses, do not retry; use a breakpoint instead. Does not modify existing "
                 + "breakpoints.",
                 Map.of("typeName",str(), "lineNumber",integer(),"expression",str(),
@@ -448,8 +448,8 @@ public class DebugMcpServer {
                 a -> "GET_VARIABLES " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
                         + " " + intArg(a,"frameIndex")));
         allTools.add(bridgeTool("evaluate_expression", "Evaluate a Java expression in a suspended frame. It runs code in"
-                + " the debugged program (it may invoke methods and change state), so Eclipse asks the user before it"
-                + " runs (OPEN-58); allowSideEffects=true states that you know this. If the user refuses, do not retry"
+                + " the debugged program (it may invoke methods and change state); Eclipse asks the user before it"
+                + " runs only if the user turned that on (OPEN-58/OPEN-60); allowSideEffects=true states that you know this. If the user refuses, do not retry"
                 + " the same evaluation: use get_frame_variables or expand_frame_variable, which run no code.",
                 Map.of("launchName",str(),"threadIndex",integer(),"frameIndex",integer(),
                         "expression",str(),"allowSideEffects",Map.of("type","boolean"),"purpose",PURPOSE),
@@ -765,7 +765,7 @@ public class DebugMcpServer {
             + " and the user does not need to start one. Typical flow: begin_debug_investigation, set_breakpoint,"
             + " start the program or test, wait_for_stop, get_frame_variables, finish_debug_investigation (cleans up"
             + " only what the investigation created). Evaluating Java expressions or setting tracepoints runs code in"
-            + " the program; Eclipse asks the user first, and a refusal is final for that request.";
+            + " the program; Eclipse asks the user first only if the user turned that on, and a refusal is final for that request.";
 
     /**
      * Commands that launch, restart or terminate JVMs, or that may wait for the user's answer in Eclipse before code

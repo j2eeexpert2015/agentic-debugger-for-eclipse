@@ -1,4 +1,4 @@
-# Handoff for a new chat (27 Nov 2026, 03:00 IST)
+# Handoff for a new chat (27 Nov 2026, 15:30 IST)
 
 Read [working-agreement.md](working-agreement.md) first (how we work), then this file (where the work stands), then
 the README section **Status and tracking** (the single list of all items). The repository is the truth; earlier
@@ -30,7 +30,8 @@ java dev-e2e/DevE2E.java deploy && ^
 call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 ```
 
-Expected today: BUILD SUCCESS with unit tests **report 54, mcp-server 38, testing 23, eclipse-plugin 91**; deploy
+Expected today: BUILD SUCCESS with unit tests **report 54, mcp-server 38, testing 23, eclipse-plugin 114** (114 since
+`open-60-copilot-agent-only.zip`; 91 before); deploy
 ends with "The test Eclipse is ready"; `RegressionSuite` 27 tests, 0 failures (from `open-58-23b-12.zip`; before it
 mcp-server 34, eclipse-plugin 84, regression 21). A Claude trial (costs usage) only when
 the delivery says "Trial needed: yes":
@@ -70,12 +71,18 @@ B, C, D (with D6 for OPEN-59), E, then one Claude trial (tool descriptions and s
 `%USERPROFILE%\.copilot\agents\` is enough: listed once (empty Project column), our tools run, right cause found,
 still in the mode list after a restart. The user file is still on Ayan's machine (keep it until (d) is built).
 
+**D. OPEN-60/61 manual checks (27 Nov, 17:00-17:30).** Steps 1-9 passed (Agentic Debugger runs our tools with no
+confirmations; Agent and Ask modes use none, also after a restart; Check setup all OK). Step 10A found a bug:
+unchecking the box left our server in Copilot's `autoApproveMcpServers` because the plugin had not added that entry
+itself (no `copilotAutoApproveAddedByPlugin`), so Agent mode would run our tools unasked (Check setup WARN). Fix in
+`open-60-uncheck-fix.zip`: unchecking removes our entry whoever added it; the start-up apply still removes only its own.
+Next: step 10A again, 10B (box on), then 11-14.
+
 ## 5. Next, in this order
 
-1. Results of 4B: build, regression 27, release checks A to E; fix what they show.
-2. **OPEN-23 (d) implementation:** opt-in Install/Remove of the agent in `~/.copilot/agents/` on the preferences page
-   (same checksum protection as the project file), project menu stays, a warning when the agent exists in several
-   places; Remove also deletes the `.github/agents` and `.github` folders it created when they are left empty.
+1. **Check `open-60-copilot-agent-only.zip`** (OPEN-60 P0, OPEN-23 d, OPEN-61; section 7): build, deploy, regression,
+   then [release checks](release-checks.md) B and F; fix what they show.
+2. Results of 4B: release checks A, C, D, E (B is now the OPEN-60 check).
 3. Remaining release must-haves (agreed 27 Nov): report location (reports not written into the user's project by
    default; switch and folder in Preferences, part of OPEN-30 R2b); OPEN-04 launch keeps profile, arguments,
    environment and working directory, and `@SpringBootTest` method debugging; remove `dev-e2e/e2e.properties` from
@@ -97,6 +104,9 @@ still in the mode list after a restart. The user file is still on Ayan's machine
 | Copilot server offer and launcher | `eclipse-plugin/src/.../integration/CopilotMcpProvider.java`, `CopilotRegistration.java` (`json`, `jsonDirect`, `launcherText`, `writeLauncher`, `runtimeFolder`); tests `CopilotRegistrationTest` CP-U1..U7 |
 | Copilot agent file | template `eclipse-plugin/copilot/agentic_debugger.agent.md`; `integration/CopilotAgentInstaller.java` (`AGENT_FILE`), `ui/AddCopilotAgentHandler.java`, Remove handler; tests CA-U* |
 | Skill for Copilot | `integration/CopilotSkill.java`, preferences page; source `skills/eclipse-debugger/` (v0.1.6) |
+| Copilot: only our agent, no confirmations (OPEN-60) | template `eclipse-plugin/copilot/agentic_debugger.agent.md` (user-only lines, `tools:` list); `integration/CopilotAgentTools.java` (reads the list), `CopilotSettings.java` + `MiniJson.java` (Copilot's settings, pure), `CopilotIntegration.java` (applies the preference; called by `CopilotMcpProvider`); `ui/CopilotPreferences.java` (page "GitHub Copilot"); tests CT-U1..U4, CS2-U1..U9 |
+| Agent for all workspaces (OPEN-23 d) | `CopilotAgentInstaller.installForUser`, `removeForUser`, `state`; `CopilotPreferences`; tests CA-U9, CA-U10 |
+| Setup check (OPEN-61) | `integration/SetupCheck.java` (pure, SC-U1..U6), `ui/SetupCheckRunner.java` (snapshot, quiet check 30 s after start from `AgentDebugStartup`), "Check setup" on `ClaudeIntegrationPreferences`, status note in `AgentStatusControl` |
 | Consent before code runs (OPEN-58) | `eclipse-plugin/.../debug/EvaluationConsent.java` (policy, tests EC-U1..U6), `ui/EvaluationConsentDialog.java`, used in `EclipseAgentOperations` (`evaluateExpression`, `setConditionalBreakpoint`, `TEST_SET_CONSENT`); `mcp-server/.../ToolSafety.java` (annotations, TS-U1..U4); `DebugMcpServer.INSTRUCTIONS` |
 | Execution-control refusals (OPEN-12) | `EclipseAgentOperations.control`, `thread`, `launch`/`endedLaunch`; tests in `ExecutionControlTests` |
 | Agent Activity banner | `report/src/main/java/.../report/activity/ActivityPage.java` (`phase()`, `where()`), `FlowPage.java` (dark CSS), `eclipse-plugin/.../ui/AgentStatusControl.java` |
@@ -104,6 +114,32 @@ still in the mode list after a restart. The user file is still on Ayan's machine
 | CI | `.github/workflows/ci.yml`, `integration-windows.yml`, `docs/ci.md` (branch `ci/github-actions` until merged) |
 
 ## 7. Last delivery
+
+`open-60-shorter-texts.zip` (27 Nov 15:05): after Ayan's check (build 54/38/23/114, regression 27/27 at 14:42; F1
+page OK, "too much text"): short texts, one idea per line, on the GitHub Copilot page, the consent and setup-check
+parts of the main page, the Add message, the status lines of `CopilotIntegration`/`CopilotSettings` and the skill
+messages of `CopilotSkill` (CS-U3 expects the shorter remove message). No behaviour changed.
+
+Before it:
+
+`open-60-copilot-agent-only.zip` (27 Nov 15:30, on `feature/all-final`), one round as Ayan asked (14:12 "go"):
+- **OPEN-60 (P0):** only the Agentic Debugger agent uses our tools in Copilot, and nothing blocks it there. Agent
+  template: `disable-model-invocation: true`, `x-github-copilot-invoke-policy: [user]`, a `tools:` list (our 36 tools +
+  read_file, file_search, grep_search, list_dir). Preference (on by default) applied to Copilot's workspace settings
+  when Copilot asks for our server: our tools off for `agent-mode` (`mcpToolsModeStatus`, `mcpToolsStatus`), then our
+  server auto-approved. Consent question for expressions/tracepoints off by default (preference to turn it on).
+  Skill v0.1.7, tool descriptions and server instructions say "asks only if the user turned that on".
+- **OPEN-23 (d):** Install / Remove for all workspaces on the new page Preferences → Agentic Debugger → GitHub Copilot
+  (skill buttons moved there); duplicate note there and in the Add message.
+- **OPEN-61:** Check setup + Copy report on the main page; quiet check 30 s after start; "check setup" in the status
+  bar; Error Log entry.
+- Docs: README (status update, Copilot section steps 3, 5, 6, FAQ, OPEN-60, OPEN-61, OPEN-23 a/b/d, OPEN-58 default),
+  release checks B reversed and F new, Copilot notes §8, this file.
+- Checked here: the changed pure classes and their tests with JUnit and Eclipse stand-ins, 49/49 (CT, CS2, SC, CA,
+  EC, CS, CP). Not checked: the Maven build, the Eclipse UI code (two preference pages, status bar, Add handler,
+  start-up check), every Copilot run.
+
+Before it:
 
 `open-59-chat.zip` (27 Nov 03:05, on `main`): Copilot's Chat view carried into the Debug perspective (OPEN-59), README
 (OPEN-12 and OPEN-58 done, OPEN-57 cases, OPEN-59 new), release checks D6, this file. PP-U1..U8 ran with a JUnit
@@ -123,6 +159,15 @@ compiled against stand-ins, the plugin and MCP server code did not compile there
 any Copilot run.
 
 ## 8. Noticed, not started
+
+- Setup check: the Claude row reads "Claude Code: Claude Code: Configured" (prefix twice); the skill row does not show
+  the installed version, so 0.1.6 in `~/.claude/skills` vs 0.1.7 in the build went unnoticed (27 Nov).
+- Copilot Agent mode reads our skill files (`SKILL.md`, references) although it cannot use our tools (27 Nov step 8).
+
+- Copilot's stored approval in the test workspace (27 Nov 14:06, `mcpExtensionPointContrib`) names
+  `C:\Users\vmadmin\.eclipse-agentdebug\start-mcp-server.cmd` without `port-21766` and without `env`, although the
+  test Eclipse runs on 21766 (at 00:09 the dialog showed both). Check setup (OPEN-61) shows it as "Copilot approved a
+  different command"; find out which start wrote it (DevE2E start without `AGENTDEBUG_PORT`?).
 
 - `SessionReportTest` (mcp-server unit tests) writes report files into the user's home folder
   (`%USERPROFILE%\.eclipse-agentdebug\reports\...`, seen in CI run #1); unit tests should use a temporary folder.

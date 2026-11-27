@@ -48,7 +48,54 @@ public final class CopilotAgentInstaller {
      * @param template the bundled agent text (without the checksum comment)
      */
     public static Result install(Path project, String template) throws IOException {
-        Path file = project.resolve(AGENT_FILE);
+        return installFile(project.resolve(AGENT_FILE), template);
+    }
+
+    /** OPEN-23 (d): where Copilot reads custom agents for every workspace of this user. */
+    public static Path userAgentFile(Path home) {
+        return home.resolve(".copilot").resolve("agents").resolve("agentic_debugger.agent.md");
+    }
+
+    /**
+     * OPEN-23 (d): writes the agent for all workspaces ({@code ~/.copilot/agents/agentic_debugger.agent.md}), with the
+     * same rules as {@link #install}. Only on the user's request (preferences page).
+     */
+    public static Result installForUser(Path home, String template) throws IOException {
+        return installFile(userAgentFile(home), template);
+    }
+
+    /**
+     * OPEN-23 (d): removes the user-wide agent, like {@link #remove}. Copilot's own {@code ~/.copilot} folders are never
+     * deleted (Copilot keeps its skills and other agents there).
+     */
+    public static Removal removeForUser(Path home, boolean force) throws IOException {
+        Path file = userAgentFile(home);
+        Path newer = file.resolveSibling(file.getFileName() + ".new");
+        if (!Files.exists(file)) {
+            if (!Files.exists(newer)) return Removal.NOT_PRESENT;
+            Files.delete(newer);
+            return Removal.REMOVED;
+        }
+        if (!force && !writtenByPluginUnedited(Files.readString(file, StandardCharsets.UTF_8))) {
+            return Removal.EDITED_NEEDS_CONFIRMATION;
+        }
+        Files.delete(file);
+        Files.deleteIfExists(newer);
+        return Removal.REMOVED;
+    }
+
+    /** The state of an agent file, for the preferences page and the setup check. */
+    public enum State { MISSING, CURRENT, OLDER, EDITED }
+
+    /** Compares an agent file with the current template. */
+    public static State state(Path file, String template) throws IOException {
+        if (!Files.isRegularFile(file)) return State.MISSING;
+        String current = Files.readString(file, StandardCharsets.UTF_8);
+        if (normalize(current).equals(normalize(withMark(template)))) return State.CURRENT;
+        return writtenByPluginUnedited(current) ? State.OLDER : State.EDITED;
+    }
+
+    private static Result installFile(Path file, String template) throws IOException {
         String content = withMark(template);
         if (!Files.exists(file)) {
             write(file, content);
