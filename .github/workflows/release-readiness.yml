@@ -113,6 +113,14 @@ jobs:
           digest = hashlib.sha256(destination.read_bytes()).hexdigest()
           (out/'SHA256SUMS.txt').write_text(f'{digest}  {destination.name}\n', encoding='utf-8')
           original_version = source.name.removeprefix('agentic-debugger-update-site-').removesuffix('.zip')
+          # Maven uses 1.5.0-SNAPSHOT during development; Tycho resolves the
+          # Eclipse feature/bundle to 1.5.0.<build qualifier>. Compare their
+          # MAJOR.MINOR.PATCH versions, not the qualifier and SNAPSHOT suffix.
+          base_version = version.rsplit('.', 1)[0]
+          if original_version not in (base_version, f'{base_version}-SNAPSHOT'):
+              raise SystemExit(
+                  f'Update-site ZIP Maven version {original_version} does not match '
+                  f'Eclipse feature/plugin base version {base_version}')
           note = (
               '# Agentic Debugger for Eclipse — UNPUBLISHED release candidate\n\n'
               'Not a public release. Requires owner acceptance and validation against the approved development commit.\n\n'
@@ -132,9 +140,6 @@ jobs:
               '- Verify this candidate against the latest approved product code (main is still under development).\n'
               '- Complete manual Claude Code / GitHub Copilot acceptance, signing decision, and release approval.\n'
           )
-          if original_version != version:
-              print(f'::warning::Maven ZIP filename {original_version} disagrees with the feature version {version}. Candidate is renamed, but align the Maven versions before public release.')
-              note += f'- Maven artifact version `{original_version}` differs from product version `{version}`. Align build versions before public release.\n'
           (out/'RELEASE_CANDIDATE.md').write_text(note, encoding='utf-8')
           print(f'Candidate: {destination.name} ({destination.stat().st_size} bytes)')
           print(f'SHA256: {digest}')
@@ -205,8 +210,6 @@ jobs:
           notes = Path('RELEASE_CANDIDATE.md').read_text(encoding='utf-8')
           if os.environ['GITHUB_SHA'] not in notes:
               raise SystemExit('Release candidate does not document this exact source commit')
-          if '- Maven artifact version `' in notes and ' differs from product version ' in notes:
-              raise SystemExit('Release packaging version mismatch must be fixed before drafting')
           # Human approval is still needed to publish the GitHub draft.
           Path('DRAFT_RELEASE_NOTES.md').write_text(
               f'# Agentic Debugger for Eclipse IDE — {tag}\n\n'

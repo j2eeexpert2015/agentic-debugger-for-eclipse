@@ -9,6 +9,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>agentic-debugger-update-site</artifactId>
+    <version>1.5.0-SNAPSHOT</version>
     <packaging>eclipse-repository</packaging>
     <name>Agentic Debugger for Eclipse IDE Update Site</name>
     <build>
