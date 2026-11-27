@@ -188,6 +188,10 @@ Also discussed, outside this product: a standalone Eclipse "Flow Recorder" plugi
 sequence diagram per HTTP request, no AI); concept pages `petclinic-flow-find-owners.html`,
 `petclinic-flow-add-visit.html`. Closest existing tool: AppMap (IntelliJ, VS Code; no Eclipse plugin found).
 
+**V. Preferences by agent (28 Nov 04:04-04:21), README OPEN-69:** mockups v1-v3, then the full case tables with the
+enabled buttons per case in `docs/design/preferences-pages.md`. Not started; to be built carefully, a pure state class
+with one unit test per table row first.
+
 
 
 
