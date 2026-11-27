@@ -1,6 +1,6 @@
-# Sequential CI and controlled release preparation. Never publishes a public release.
-# On ci/** pushes and PRs: builds, tests and produces a verified draft-ready artifact only.
-# Once this workflow is on default branch main: an explicit manual dispatch can create a DRAFT release.
+# Sequential CI and manual, draft-only GitHub Release preparation. Never auto-publishes.
+# Pushes and PRs: four serial validation stages, with no release writes.
+# Only an explicit manual run on default branch main can create a draft after all checks pass.
 name: CI release readiness (sequential)
 
 on:
@@ -154,109 +154,78 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  draft-preflight:
-    name: 'Stage 5: Verify draft-release input and candidate (NO publication)'
-    needs: candidate
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Download Stage 4 candidate
-        uses: actions/download-artifact@v5
-        with:
-          name: release-candidate-validated
-          path: release-draft-input
-
-      - name: Independently verify release ZIP, checksum and metadata
-        shell: bash
-        env:
-          CREATE_DRAFT: ${{ inputs.create_draft || 'false' }}
-          RELEASE_TAG: ${{ inputs.release_tag || '' }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib, os, pathlib, re, zipfile
-          root = pathlib.Path('release-draft-input')
-          zips = list(root.glob('agentic-debugger-update-site-*.zip'))
-          if len(zips) != 1:
-              raise SystemExit(f'Expected exactly one validated ZIP; got {len(zips)}')
-          archive = zips[0]
-          sha = hashlib.sha256(archive.read_bytes()).hexdigest()
-          sums = (root / 'SHA256SUMS.txt').read_text(encoding='utf-8').strip()
-          if sums != f'{sha}  {archive.name}':
-              raise SystemExit('SHA256SUMS.txt does not match tested ZIP')
-          notes = (root / 'RELEASE_CANDIDATE.md').read_text(encoding='utf-8')
-          if os.environ['GITHUB_SHA'] not in notes:
-              raise SystemExit('Release metadata does not identify this source commit')
-          version = re.fullmatch(r'agentic-debugger-update-site-(\d+\.\d+\.\d+\.[A-Za-z0-9_-]+)\.zip', archive.name)
-          if not version:
-              raise SystemExit('Invalid versioned update-site ZIP filename')
-          with zipfile.ZipFile(archive) as z:
-              names = z.namelist()
-              if not any(n.startswith('features/') and n.endswith('.jar') for n in names):
-                  raise SystemExit('No feature JAR')
-              if not any(n.startswith('plugins/') and n.endswith('.jar') for n in names):
-                  raise SystemExit('No plugin JAR')
-              if not any(n in names for n in ('content.jar','content.xml','content.xml.xz')):
-                  raise SystemExit('No p2 content metadata')
-              if not any(n in names for n in ('artifacts.jar','artifacts.xml','artifacts.xml.xz')):
-                  raise SystemExit('No p2 artifacts metadata')
-          create = os.environ['CREATE_DRAFT'].lower() == 'true'
-          tag = os.environ['RELEASE_TAG'].strip()
-          if create:
-              if os.environ['GITHUB_REF_NAME'] != 'main' or os.environ['GITHUB_EVENT_NAME'] != 'workflow_dispatch':
-                  raise SystemExit('Draft creation may only be manually requested on main')
-              if not re.fullmatch(r'v\d+\.\d+\.\d+-(?:rc|preview)\.\d+', tag):
-                  raise SystemExit('Draft tag must look like v1.5.0-preview.2 or v1.5.0-rc.1')
-              base = '.'.join(version.group(1).split('.')[:3])
-              if not tag.startswith('v' + base + '-'):
-                  raise SystemExit(f'Tag {tag} does not match product version {base}')
-          else:
-              if tag:
-                  print('Release tag ignored: draft creation is disabled')
-          preview = (
-              '# Agentic Debugger for Eclipse — release draft preview\n\n'
-              'This is not a published GitHub Release. Review before publishing.\n\n'
-              f'Commit: `{os.environ["GITHUB_SHA"]}`\n\n'
-              f'Package: `{archive.name}`\n\n'
-              f'SHA-256: `{sha}`\n\n'
-              + notes
-          )
-          (root / 'DRAFT_RELEASE_NOTES.md').write_text(preview, encoding='utf-8')
-          print(f'PASS: {archive.name}, {archive.stat().st_size} bytes, SHA-256 {sha}')
-          print('Draft requested:', create)
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as s:
-              s.write('### Release draft preflight PASSED\n\n')
-              s.write(f'- ZIP: `{archive.name}`\n- SHA-256 verified: `{sha}`\n')
-              s.write(f'- Draft creation requested: **{create}**\n')
-              s.write('- No public release is created by this stage.\n')
-          PY
-
-      - name: Upload draft-ready bundle (still NOT published)
-        uses: actions/upload-artifact@v5
-        with:
-          name: release-draft-preflight
-          path: release-draft-input/
-          if-no-files-found: error
-          retention-days: 30
 
   create-draft:
-    # Manual, opt-in, main-only. This job is unreachable on ci/** push and PR events.
-    # workflow_dispatch buttons appear only when this workflow is on the default branch.
-    name: 'Stage 6: Create GitHub Release DRAFT (owner-invoked only)'
-    needs: draft-preflight
+    # This job does not run on any push or pull request. It can only run after
+    # an explicit workflow_dispatch on main with create_draft=true, and only
+    # after the four validation stages succeed on the same source commit.
+    name: 'Stage 5: Create GitHub Release DRAFT (manual/main only)'
+    needs: candidate
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && inputs.create_draft == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - name: Download independently verified draft files
+      - name: Download the exact ZIP validated in Stage 3 and packaged in Stage 4
         uses: actions/download-artifact@v5
         with:
-          name: release-draft-preflight
+          name: release-candidate-validated
           path: release-draft-input
 
-      - name: Create unpublished prerelease draft (never auto-publish)
+      - name: Validate release tag, checksum, and source commit
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          cd release-draft-input
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+
+          tag = os.environ.get('RELEASE_TAG', '').strip()
+          if not re.fullmatch(r'v\d+\.\d+\.\d+-(preview|rc)\.\d+', tag):
+              raise SystemExit('Invalid release tag; expected e.g. v1.5.0-preview.2 or v1.5.0-rc.1')
+          archives = list(Path('.').glob('agentic-debugger-update-site-*.zip'))
+          if len(archives) != 1:
+              raise SystemExit(f'Expected exactly one tested ZIP; got {len(archives)}')
+          archive = archives[0]
+          match = re.fullmatch(r'agentic-debugger-update-site-(\d+\.\d+\.\d+)\.([A-Za-z0-9_-]+)\.zip', archive.name)
+          if not match:
+              raise SystemExit('Unexpected ZIP version name')
+          if tag.split('-')[0] != 'v' + match.group(1):
+              raise SystemExit(f'Release tag {tag} does not match Eclipse feature version {match.group(1)}')
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          recorded = Path('SHA256SUMS.txt').read_text(encoding='utf-8').strip()
+          if recorded != f'{digest}  {archive.name}':
+              raise SystemExit('ZIP SHA-256 does not match checksum file')
+          notes = Path('RELEASE_CANDIDATE.md').read_text(encoding='utf-8')
+          if os.environ['GITHUB_SHA'] not in notes:
+              raise SystemExit('Release candidate does not document this exact source commit')
+          if '- Maven artifact version `' in notes and ' differs from product version ' in notes:
+              raise SystemExit('Release packaging version mismatch must be fixed before drafting')
+          # Human approval is still needed to publish the GitHub draft.
+          Path('DRAFT_RELEASE_NOTES.md').write_text(
+              f'# Agentic Debugger for Eclipse IDE — {tag}\n\n'
+              'Preview release draft; confirm acceptance before publishing.\n\n'
+              f'- Source commit: `{os.environ["GITHUB_SHA"]}`\n'
+              f'- Installable ZIP: `{archive.name}`\n'
+              f'- SHA-256: `{digest}`\n'
+              '- CI evidence: Windows JDK 21/25 builds, 43 integration tests, '
+              'installation/uninstallation/reinstallation, 21 post-reinstall tests.\n'
+              '- Validated platform: Windows, Eclipse 2025-12.\n\n'
+              '## Installation\n'
+              'Eclipse → Help → Install New Software → Add → Archive → select the update-site ZIP.\n'
+              'Install Agentic Debugger for Eclipse IDE and restart.\n\n'
+              '## Release candidate information\n\n' + notes,
+              encoding='utf-8')
+          print(f'Validated for draft: {archive.name}, SHA-256 {digest}')
+          PY
+
+      - name: Create unpublished GitHub Release draft (never auto-publish)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -265,22 +234,20 @@ jobs:
           set -euo pipefail
           cd release-draft-input
           shopt -s nullglob
-          files=(agentic-debugger-update-site-*.zip)
-          [[ ${#files[@]} -eq 1 ]] || { echo 'Expected exactly one ZIP'; exit 1; }
+          archives=(agentic-debugger-update-site-*.zip)
+          [[ ${#archives[@]} -eq 1 ]] || { echo 'Expected exactly one ZIP'; exit 1; }
           sha256sum -c SHA256SUMS.txt
-          # Never overwrite an existing tag or release, even when re-running a job.
+          # Refuse overwriting an existing tag or GitHub Release.
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Tag already exists: $RELEASE_TAG. Refusing to overwrite."
-            exit 1
+            echo "Tag already exists: $RELEASE_TAG"; exit 1
           fi
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release already exists: $RELEASE_TAG. Refusing to overwrite."
-            exit 1
+            echo "Release already exists: $RELEASE_TAG"; exit 1
           fi
-          gh release create "$RELEASE_TAG" "${files[0]}" SHA256SUMS.txt RELEASE_CANDIDATE.md \
+          gh release create "$RELEASE_TAG" "${archives[0]}" SHA256SUMS.txt RELEASE_CANDIDATE.md \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Agentic Debugger for Eclipse $RELEASE_TAG" \
+            --title "Agentic Debugger for Eclipse IDE $RELEASE_TAG" \
             --notes-file DRAFT_RELEASE_NOTES.md \
             --draft --prerelease
-          echo 'A GitHub Release DRAFT was created. It has NOT been published.'
+          echo 'Draft created; not publicly published. Publishing requires manual owner action.'
