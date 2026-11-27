@@ -335,7 +335,8 @@ public class DebugMcpServer {
                 List.of("typeName","lineNumber","expression","allowSideEffects"),
                 a -> {
                     if (!Boolean.TRUE.equals(a.get("allowSideEffects")))
-                        throw new IllegalArgumentException("Explicit consent required for tracepoint evaluation");
+                        throw new IllegalArgumentException("Not set: allowSideEffects must be true (the tracepoint's"
+                                + " expression runs code in the program). Call again with allowSideEffects=true.");
                     return "SET_TRACEPOINT " + enc(arg(a,"typeName")) + " " + intArg(a,"lineNumber")
                             + " " + enc(arg(a,"expression")) + ownedId(a);
                 }));
@@ -456,7 +457,8 @@ public class DebugMcpServer {
                 List.of("launchName","threadIndex","frameIndex","expression","allowSideEffects"),
                 a -> {
                     if (!Boolean.TRUE.equals(a.get("allowSideEffects")))
-                        throw new IllegalArgumentException("Explicit consent required for evaluation");
+                        throw new IllegalArgumentException("Not run: allowSideEffects must be true (the expression runs"
+                                + " code in the program). Call again with allowSideEffects=true.");
                     return "EVALUATE_EXPRESSION " + enc(arg(a,"launchName")) + " " + intArg(a,"threadIndex")
                             + " " + intArg(a,"frameIndex") + " " + enc(arg(a,"expression"));
                 }));

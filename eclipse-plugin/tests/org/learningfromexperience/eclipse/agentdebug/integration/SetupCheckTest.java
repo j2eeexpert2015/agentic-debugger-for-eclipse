@@ -48,7 +48,7 @@ class SetupCheckTest {
     private SetupCheck.Snapshot snapshot(boolean copilot, MapStore store, boolean agentOnly, Map<String, Path> agents,
                                          boolean claude, SetupCheck.Probe probe) {
         return new SetupCheck.Snapshot(8765, true, true, TEMPLATE, copilot, "0.22.0.v1", agentOnly, store, "p", null,
-                agents, claude, claude, null, probe);
+                agents, claude, claude ? "0.1.7" : null, "0.1.7", null, probe);
     }
 
     private static boolean has(List<SetupCheck.Row> rows, SetupCheck.Level level, String text) {
@@ -143,5 +143,22 @@ class SetupCheckTest {
         SetupCheck.Probe broken = SetupCheck.probeServer(List.of(home.resolve("missing-program").toString()), env,
                 Duration.ofSeconds(5));
         assertTrue(broken.error() != null && broken.tools().isEmpty());
+    }
+
+    @Test @DisplayName("SC-U7 skill version from SKILL.md; an older installed skill is a WARN; Claude's answer once")
+    void scU7() {
+        assertEquals("0.1.7", SetupCheck.skillVersion("---\nname: x\n---\n\n# Eclipse debugger — skill v0.1.7 (candidate)\n"));
+        assertEquals("", SetupCheck.skillVersion("# no version here"));
+        assertNull(SetupCheck.skillVersion(null));
+        SetupCheck.Snapshot older = new SetupCheck.Snapshot(8765, true, true, TEMPLATE, false, null, true, null, "p", null,
+                Map.of(), true, "0.1.6", "0.1.7", "Configured (user scope)", null);
+        List<SetupCheck.Row> rows = SetupCheck.rows(older);
+        assertTrue(rows.stream().anyMatch(r -> r.level() == SetupCheck.Level.WARN && r.text().contains("0.1.6")
+                && r.text().contains("0.1.7")), rows::toString);
+        assertTrue(rows.stream().anyMatch(r -> r.text().equals("Configured (user scope)")), rows::toString);
+        SetupCheck.Snapshot same = new SetupCheck.Snapshot(8765, true, true, TEMPLATE, false, null, true, null, "p", null,
+                Map.of(), true, "0.1.7", "0.1.7", null, null);
+        assertTrue(SetupCheck.rows(same).stream().anyMatch(r -> r.level() == SetupCheck.Level.OK
+                && r.text().equals("eclipse-debugger skill 0.1.7 installed.")));
     }
 }

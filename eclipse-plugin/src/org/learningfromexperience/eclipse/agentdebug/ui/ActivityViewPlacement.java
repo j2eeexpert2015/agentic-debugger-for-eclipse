@@ -217,7 +217,7 @@ final class ActivityViewPlacement {
     }
 
     /** The window in the Eclipse 4 model: as a service, otherwise from the window itself. */
-    private static MWindow modelWindow(IWorkbenchWindow window) {
+    static MWindow modelWindow(IWorkbenchWindow window) {
         MWindow model = null;
         try {
             model = window.getService(MWindow.class);
@@ -234,7 +234,7 @@ final class ActivityViewPlacement {
     }
 
     /** The model service: from the window, the workbench, or the model window's own context. */
-    private static EModelService modelService(IWorkbenchWindow window, MWindow model) {
+    static EModelService modelService(IWorkbenchWindow window, MWindow model) {
         try {
             EModelService service = window.getService(EModelService.class);
             if (service != null) return service;

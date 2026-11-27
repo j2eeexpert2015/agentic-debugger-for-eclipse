@@ -45,14 +45,17 @@ public final class SetupCheck {
      *
      * @param agentFiles     label (project name, or "all workspaces") to agent file path
      * @param launcher       the launcher script Copilot should run (Windows), else null
+     * @param claudeSkill    the version in ~/.claude/skills/eclipse-debugger/SKILL.md ("0.1.7"), "" when the file has
+     *                       no version line, null when the skill is missing
+     * @param bundledSkill   the version of the skill packed into this plugin, null when unknown
      * @param claudeStatus   Claude Code's answer ("Configured (user scope)", ...), null when not asked
      * @param probe          a real start of the MCP server, null in the quiet start-up check
      */
     public record Snapshot(int port, boolean bridgeListening, boolean jarStaged, String template,
                            boolean copilotInstalled, String copilotVersion, boolean agentOnly,
                            CopilotSettings.Store copilot, String pluginId, Path launcher,
-                           Map<String, Path> agentFiles, boolean claudeConfigured, boolean claudeSkill,
-                           String claudeStatus, Probe probe) { }
+                           Map<String, Path> agentFiles, boolean claudeConfigured, String claudeSkill,
+                           String bundledSkill, String claudeStatus, Probe probe) { }
 
     /** Copilot versions the isolation was checked with (docs/release-checks.md). */
     static final List<String> TESTED_COPILOT = List.of("0.22.");
@@ -192,14 +195,33 @@ public final class SetupCheck {
     private static void claudeRows(Snapshot s, List<Row> rows) {
         if (s.claudeStatus() != null) {
             boolean ok = s.claudeStatus().startsWith("Configured");
-            rows.add(new Row("Claude Code", ok ? Level.OK : Level.WARN, "Claude Code: " + s.claudeStatus(),
+            rows.add(new Row("Claude Code", ok ? Level.OK : Level.WARN, s.claudeStatus(),
                     ok ? "" : "Click Configure Claude Code."));
         } else {
             rows.add(new Row("Claude Code", Level.OK, "Set up by this plugin (registration recorded).", ""));
         }
-        rows.add(s.claudeSkill() ? new Row("Claude Code", Level.OK, "eclipse-debugger skill installed.", "")
-                : new Row("Claude Code", Level.WARN, "eclipse-debugger skill missing in ~/.claude/skills.",
-                        "Click Configure Claude Code, or restart Eclipse."));
+        String installed = s.claudeSkill();
+        String bundled = s.bundledSkill();
+        if (installed == null) {
+            rows.add(new Row("Claude Code", Level.WARN, "eclipse-debugger skill missing in ~/.claude/skills.",
+                    "Click Configure Claude Code."));
+        } else if (bundled == null || installed.equals(bundled)) {
+            rows.add(new Row("Claude Code", Level.OK, "eclipse-debugger skill "
+                    + (installed.isEmpty() ? "" : installed + " ") + "installed.", ""));
+        } else {
+            // The plugin keeps a copy the user edited and writes its own next to it (SkillInstaller).
+            rows.add(new Row("Claude Code", Level.WARN, "eclipse-debugger skill " + (installed.isEmpty() ? "(no version)"
+                    : installed) + " installed; this plugin has " + bundled + ".",
+                    "Your copy was kept because it was edited. Move ~/.claude/skills/eclipse-debugger away, then"
+                    + " click Configure Claude Code."));
+        }
+    }
+
+    /** The skill version from a SKILL.md heading ("# Eclipse debugger — skill v0.1.7 (candidate)"), "" when none. */
+    public static String skillVersion(String skillMd) {
+        if (skillMd == null) return null;
+        Matcher m = Pattern.compile("skill v(\\d+(?:\\.\\d+)*)").matcher(skillMd);
+        return m.find() ? m.group(1) : "";
     }
 
     /** The worst level in the rows (OK when empty). */

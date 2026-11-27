@@ -2,8 +2,11 @@ package org.learningfromexperience.eclipse.agentdebug.ui;
 
 import java.util.function.Consumer;
 
+import jakarta.annotation.PostConstruct;
+
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.GC;
 import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Composite;
@@ -12,7 +15,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
-import org.eclipse.ui.menus.WorkbenchWindowControlContribution;
+import org.eclipse.ui.PlatformUI;
 import org.learningfromexperience.agentdebug.report.activity.ActivityPage;
 import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
 
@@ -21,12 +24,11 @@ import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
  * "● Agent: thinking · 8 s" when the agent works without the debugger and red "● Agent: waiting for a stop · 12 s"
  * (running, paused) while it debugs, the same colours as the Agent Activity banner (OPEN-48); green "finished" or
  * yellow "ended without finish" with the time taken at the end, empty when no agent has debugged yet (OPEN-61: then
- * "Agentic Debugger: check setup" in amber when the setup check found a problem; a click opens the preferences). A click opens the Agent Activity view. Registered in plugin.xml
- * ({@code toolbar:org.eclipse.ui.trim.status}).
+ * "Agentic Debugger: check setup" in amber when the setup check found a problem; a click opens the preferences). A click opens the Agent Activity view. Added to the bottom trim by {@link StatusTrim}.
  *
  * @author Ayan Dutta
  */
-public final class AgentStatusControl extends WorkbenchWindowControlContribution {
+public final class AgentStatusControl {
 
     private static final Color THINKING = new Color(0xc2, 0x41, 0x0c);
     private static final Color DEBUGGING = new Color(0xb9, 0x1c, 0x1c);
@@ -41,15 +43,34 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
     /** OPEN-61: true while the label shows the setup note (a click then opens the preferences page). */
     private boolean showingSetup;
 
-    @Override
-    protected Control createControl(Composite parent) {
+    /**
+     * Called by Eclipse when it shows the status-bar item ({@link StatusTrim} adds it to the window's bottom trim as an
+     * E4 tool control). 27 Nov: as a {@code <control>} in a status-bar toolbar the item was only 7 px high on Windows (a
+     * toolbar with no buttons is that low), so the text was drawn but cut to a strip; a tool control of its own is
+     * sized from the label (one line of its font).
+     */
+    @PostConstruct
+    public void create(Composite parent) {
+        createControl(parent);
+    }
+
+    private Control createControl(Composite parent) {
         Composite box = new Composite(parent, SWT.NONE);
         GridLayout layout = new GridLayout(1, false);
         layout.marginHeight = 0;
         layout.marginWidth = 4;
         box.setLayout(layout);
         label = new Label(box, SWT.NONE);
-        label.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, true));
+        GridData data = new GridData(SWT.FILL, SWT.CENTER, true, true);
+        data.widthHint = 270;   // the label keeps its width even while empty, so a later text is not clipped to nothing
+        // One line of the label's font, so the item is tall enough even while it is empty at start-up.
+        GC gc = new GC(label);
+        try {
+            data.heightHint = gc.getFontMetrics().getHeight();
+        } finally {
+            gc.dispose();
+        }
+        label.setLayoutData(data);
         label.setToolTipText("Agent Activity: click to open the view");
         label.addListener(SWT.MouseUp, event -> openView());
         ActivityStore.global().addListener(listener);
@@ -60,11 +81,6 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
         });
         refresh();
         return box;
-    }
-
-    @Override
-    protected int computeWidth(Control control) {
-        return 280;
     }
 
     private void schedule() {
@@ -89,7 +105,7 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
             label.setText("\u26A0 Agentic Debugger: check setup");
             label.setToolTipText(setup + "\nClick to open Preferences > Agentic Debugger (Check setup).");
             label.setForeground(ENDED);
-            label.getParent().layout();
+            label.getParent().layout(true);
             return;
         }
         label.setToolTipText("Agent Activity: click to open the view");
@@ -101,7 +117,7 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
             case ActivityPage.PHASE_FINISHED -> DONE;
             default -> ENDED;
         });
-        label.getParent().layout();
+        label.getParent().layout(true);
         Display display = label.getDisplay();
         display.timerExec(-1, tick);
         if (inv != null && !inv.finished()) display.timerExec(1000, tick);
@@ -122,7 +138,10 @@ public final class AgentStatusControl extends WorkbenchWindowControlContribution
             return;
         }
         try {
-            IWorkbenchWindow window = getWorkbenchWindow();
+            IWorkbenchWindow window = null;
+            for (IWorkbenchWindow each : PlatformUI.getWorkbench().getWorkbenchWindows()) {
+                if (each.getShell() == label.getShell()) window = each;
+            }
             if (window != null && ActivityViewOpener.ownWindow()) {
                 ActivityWindow.open(window, true);       // the user asked for it: it becomes the active window
                 return;

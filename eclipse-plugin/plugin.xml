@@ -65,16 +65,8 @@
           class="org.learningfromexperience.eclipse.agentdebug.ui.AgentActivityView"
           restorable="true"/>
    </extension>
-   <!-- OPEN-36: agent status in the status bar ("Agent: running · 12 s"); a click opens Agent Activity -->
-   <extension point="org.eclipse.ui.menus">
-      <menuContribution locationURI="toolbar:org.eclipse.ui.trim.status">
-         <toolbar id="org.learningfromexperience.eclipse.agentdebug.statusToolbar">
-            <control
-                id="org.learningfromexperience.eclipse.agentdebug.agentStatus"
-                class="org.learningfromexperience.eclipse.agentdebug.ui.AgentStatusControl"/>
-         </toolbar>
-      </menuContribution>
-   </extension>
+   <!-- OPEN-36: the agent status in the status bar is added by ui.StatusTrim at start-up (an E4 tool control; as a
+        toolbar <control> here it was only 7 px high on Windows, 27 Nov). -->
    <!-- OPEN-36: the Agent Activity view's own area, to the right of the Console: not stacked with the Console (which
         comes to the front whenever the program prints) nor with Variables (front at each stop). Applies to a new or
         reset perspective (Window > Perspective > Reset Perspective...). -->

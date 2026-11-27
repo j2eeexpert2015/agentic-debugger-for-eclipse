@@ -42,11 +42,12 @@ public final class RemoveCopilotAgentHandler extends AbstractHandler {
             }
             project.refreshLocal(IResource.DEPTH_INFINITE, null);
             String message = removal == CopilotAgentInstaller.Removal.NOT_PRESENT
-                    ? "No Agentic Debugger agent in " + project.getName() + "; nothing changed."
-                    : "Removed " + where + ". Copilot Chat no longer lists \"Agentic Debugger\" for this project"
-                            + " (start a New Chat if one is open).\n\nThe eclipse-debugger skill stays installed"
-                            + " (other projects and Claude Code may use it): Window > Preferences > Agentic Debugger"
-                            + " removes it for GitHub Copilot.";
+                    ? "No agent in " + project.getName() + "."
+                    : "Removed from " + project.getName() + ".\n"
+                            + (java.nio.file.Files.isRegularFile(CopilotAgentInstaller.userAgentFile(
+                                    java.nio.file.Path.of(System.getProperty("user.home"))))
+                                    ? "The copy for all workspaces stays."
+                                    : "Start a New Chat if one is open.");
             System.out.println("[Eclipse Agentic Debugger] Copilot agent " + removal + ": " + where);
             MessageDialog.openInformation(shell, TITLE, message);
         } catch (Exception failure) {

@@ -66,6 +66,17 @@ public final class ClaudeIntegration {
         }
     }
 
+    /** OPEN-61: the version of the skill packed into the plugin ("0.1.7"), null when unknown. Never throws. */
+    public static String bundledSkillVersion() {
+        try {
+            byte[] skill = bundledSkillFiles().get("SKILL.md");
+            String version = skill == null ? null : SetupCheck.skillVersion(new String(skill, java.nio.charset.StandardCharsets.UTF_8));
+            return version == null || version.isEmpty() ? null : version;
+        } catch (Exception | LinkageError unknown) {
+            return null;
+        }
+    }
+
     /**
      * The skill files packed into the plugin, by path relative to the skill folder ("SKILL.md",
      * "references/java-debugging.md"); empty outside Eclipse. Also used for GitHub Copilot ({@link CopilotSkill}).

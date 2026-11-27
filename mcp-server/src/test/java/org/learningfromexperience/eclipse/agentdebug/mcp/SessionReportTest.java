@@ -175,11 +175,11 @@ class SessionReportTest {
     void srU5() {
         call("begin_debug_investigation", Map.of(), false, BEGIN);
         call("evaluate_expression", Map.of("launchName", "Orders", "expression", "percent / 100.0"), true,
-                "Explicit consent required for evaluation");
+                "Not run: allowSideEffects must be true");
         var step = captured.steps().get(0);
         assertEquals(StepStatus.FAILED, step.status());
         assertEquals(StepKind.INSPECT, step.kind());
-        assertTrue(step.details().contains("Error: Explicit consent required for evaluation"), step.details()::toString);
+        assertTrue(step.details().contains("Error: Not run: allowSideEffects must be true"), step.details()::toString);
     }
 
     @Test

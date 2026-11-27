@@ -114,8 +114,8 @@ public final class SetupCheckRunner {
         }
         Path claudeDir = home.resolve(".eclipse-agentdebug");
         boolean claudeConfigured = Files.isRegularFile(claudeDir.resolve("claude-registration.properties"));
-        boolean claudeSkill = Files.isRegularFile(home.resolve(".claude").resolve("skills").resolve("eclipse-debugger")
-                .resolve("SKILL.md"));
+        Path skillFile = home.resolve(".claude").resolve("skills").resolve("eclipse-debugger").resolve("SKILL.md");
+        String claudeSkill = Files.isRegularFile(skillFile) ? SetupCheck.skillVersion(Files.readString(skillFile)) : null;
         String claudeStatus = null;
         SetupCheck.Probe probe = null;
         if (deep) {
@@ -138,6 +138,6 @@ public final class SetupCheckRunner {
         return new SetupCheck.Snapshot(port, Activator.bridgeRunning(), Files.isRegularFile(jar), template, copilot,
                 CopilotIntegration.copilotVersion(), CopilotIntegration.agentOnly(),
                 copilot ? CopilotIntegration.copilotStore() : null, CopilotIntegration.PLUGIN_ID, copilot ? launcher : null,
-                agents, claudeConfigured, claudeSkill, claudeStatus, probe);
+                agents, claudeConfigured, claudeSkill, ClaudeIntegration.bundledSkillVersion(), claudeStatus, probe);
     }
 }

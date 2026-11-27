@@ -83,6 +83,9 @@ public class AgentDebugStartup implements IStartup {
         // OPEN-36: open the Agent Activity view (without taking the focus) when an agent investigation starts.
         org.learningfromexperience.eclipse.agentdebug.ui.ActivityViewOpener.install();
 
+        // OPEN-36: the agent status in the status bar (an E4 tool control, 27 Nov: the toolbar item was 7 px high).
+        org.learningfromexperience.eclipse.agentdebug.ui.StatusTrim.install();
+
         // OPEN-61: a quiet setup check about 30 s later, only for the integrations in use (nothing is started).
         org.learningfromexperience.eclipse.agentdebug.ui.SetupCheckRunner.scheduleQuietCheck();
 

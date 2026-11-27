@@ -76,7 +76,74 @@ confirmations; Agent and Ask modes use none, also after a restart; Check setup a
 unchecking the box left our server in Copilot's `autoApproveMcpServers` because the plugin had not added that entry
 itself (no `copilotAutoApproveAddedByPlugin`), so Agent mode would run our tools unasked (Check setup WARN). Fix in
 `open-60-uncheck-fix.zip`: unchecking removes our entry whoever added it; the start-up apply still removes only its own.
-Next: step 10A again, 10B (box on), then 11-14.
+Then (17:49 to 18:55): the uncheck fix works (no WARN; Agent Mode tools checked), box on again after a restart all
+OK, duplicate warning (page note, Add message, Check setup WARN) works, consent question on asks before
+`evaluate_expression` and off runs it at once, Copilot's settings file holds only the intended changes. **Failed:** the
+status-bar item draws nothing (neither "check setup" nor "Agent: …" during runs; the quiet check itself logs
+"Setup check: WARN"; no error in the console or `.metadata/.log`).
+
+**E. `open-61-fixes.zip` (27 Nov evening):** status bar: width hint for the label and a console trace
+("Status bar: ..." with the label's place) to find why nothing shows; `evaluate_expression` and `set_tracepoint`
+refuse a missing `allowSideEffects` with "Not run: allowSideEffects must be true ... Call again with
+allowSideEffects=true" (was "Explicit consent required", which read like a user refusal; the model hit it in both
+runs); Setup check: Claude row without the doubled "Claude Code:", skill row with the installed version and a WARN when
+older than the plugin's (SC-U7); short Remove message. Checked here: SetupCheck, CopilotSettings, CopilotAgentTools
+tests 20/20 with stand-ins; not compiled here: the UI classes. Next: build, restart, read the "Status bar:" lines.
+Result 20:28 (build 115 plugin tests): the trace showed the cause: the status-bar item is sized once from the empty
+label and is only **7 px high** (`box {0, 0, 278, 7}`), so the text was drawn but cut to a strip; the tooltip showed the
+new skill WARN (0.1.6 installed, 0.1.7 in the plugin). Check setup now shows the skill version and one "Claude Code:".
+
+**F. `open-61-statusbar-height.zip`:** the label's height is set to one line of its font (`heightHint` from the
+font metrics), so Eclipse sizes the item tall enough. The trace stays until this is checked.
+Result 20:45: still 7 px (`box {0, 0, 278, 7}`): the parent is a status-bar toolbar, and on Windows a toolbar
+without buttons is 7 px high whatever its control wants.
+
+**G. `open-61-status-trim.zip`:** the agent status is no longer a `<control>` in a status-bar toolbar (plugin.xml
+entry removed) but an E4 tool control of its own in the window's bottom trim (`ui/StatusTrim`, added at start-up
+and removed at shutdown so the saved workbench never refers to the plugin); `AgentStatusControl` is created by
+Eclipse through `@PostConstruct create(Composite)` (MANIFEST imports `jakarta.annotation`); the window is found by
+its shell. Not compiled here (E4 and SWT).
+Result 21:00: works (15 px, readable, click opens the preferences); after Configure Claude Code skill 0.1.7 and all
+OK (21:49); a run shows green "Agent: finished · 1 min 05 s" (21:57).
+
+**H. `open-59-61-final.zip` (27 Nov 22:05):** Copilot's Chat got a tab group of its own in Debug. Result 22:16:
+it split the right side into two narrow columns; Ayan wants it as a normal tab. Also seen: Copilot's own `read_file`
+tool crashed once (TypeError in copilot-language-server main.js), the model went on; not ours.
+
+**I. `open-59-chat-tab.zip` (27 Nov 22:20):** own tab group removed (`giveChatItsArea`); the Chat stays a tab next to
+Variables, Breakpoints and Expressions, selected after the switch; `AgentDebugUiCoordinator.showDebugViews` no
+longer leaves Variables in front of the Chat at the first stop when the Chat tab was showing (Ayan 22:16: Chat
+stays in front during the run). Needs a one-time Reset Perspective in Debug (the 22:05 split is saved there).
+Result 22:29: Chat is a normal tab and selected after the switch; at the first stop Variables still came forward
+(Eclipse's own view management, not our code: in Debug-perspective mode `showDebugViews` is not called).
+
+**J. `open-59-chat-end.zip` (27 Nov 22:40, replaces the unsent-to-test `open-59-chat-front.zip`):** Ayan 22:37 chose
+the middle way: no fight with Eclipse at the stops (Variables comes forward as usual; Agent Activity shows the stops);
+when the agent's program ends (TERMINATE of the followed launch), the Chat tab is shown once, 0.6 s later, without the
+keyboard (`showChat`), so the agent's answer is in view. The `showDebugViews` change from I is undone.
+Result 22:50: the Chat tab was not brought back (Variables stayed in front, empty). **K. `open-59-chat-finish.zip`:**
+triggered by the investigation's finish instead (`ActivityViewOpener.keepInView`, our own event, then 0.6 s later
+`showChat`); the TERMINATE listener is removed.
+Result 23:21: still Variables in front after the finish (the Chat came only when clicked ~40 s later). Likely
+cause: `getActiveWorkbenchWindow()` is null while the Agent Activity window (its own shell) has the focus.
+**L. `open-59-chat-window.zip`:** `showChat` uses the first Eclipse window when none is active and writes what it did
+to the console ("Copilot Chat at the finish: ...").
+Result 23:47: log "brought to the front", yet Variables was in front afterwards. **Parked (Ayan 23:50).**
+
+**M. `open-59-revert.zip` (27 Nov 23:55):** everything from H to L removed: `AgentDebugUiCoordinator` and
+`ActivityViewOpener` back to the committed version, `ActivityViewPlacement` back too (only `modelWindow` and
+`modelService` stay package-visible for `StatusTrim`), `TerminalCarrier` unchanged. The Chat carry from
+`open-59-chat.zip` stays.
+
+**Open (parked):** Chat in front at the finish; Ayan 23:50: the switch to Debug seems slower than before. In the
+23:47 video about 5 s pass between "Running begin_debug_investigation" and the switch; no earlier measurement to
+compare. Suspect: carrying the Chat view (an embedded browser) into Debug; test: close the Chat view in Java, run,
+and compare. Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
+not refresh the skill in the test Eclipse: `AGENTDEBUG_FIXTURE_SOURCE` skips the start-up refresh).
+
+
+
+
 
 ## 5. Next, in this order
 
@@ -160,8 +227,11 @@ any Copilot run.
 
 ## 8. Noticed, not started
 
-- Setup check: the Claude row reads "Claude Code: Claude Code: Configured" (prefix twice); the skill row does not show
-  the installed version, so 0.1.6 in `~/.claude/skills` vs 0.1.7 in the build went unnoticed (27 Nov).
+- Red PowerShell error at start-up (`$env:COPILOT_POWERSHELL_INTEGRATION_SCRIPT`): Eclipse restores the Terminal tab
+  of a Copilot shell from the last session; with the Terminal view closed before a restart it does not appear (Ayan
+  27 Nov 19:02). Not ours; Copilot issue.
+- Copilot's Chat mode list can come up blank after a restart (seen 27 Nov 19:01); known, OPEN-51.
+
 - Copilot Agent mode reads our skill files (`SKILL.md`, references) although it cannot use our tools (27 Nov step 8).
 
 - Copilot's stored approval in the test workspace (27 Nov 14:06, `mcpExtensionPointContrib`) names
