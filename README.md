@@ -2,6 +2,28 @@
 
 Debug **Java, JUnit 5, and Spring Boot** applications in Eclipse with **Claude Code** through the Model Context Protocol (MCP). The plugin uses Eclipse Java Debug Tools (JDT) for actual execution control; Claude selects and invokes MCP tools. Safety checks for session ownership, breakpoints and cleanup are implemented in Java, not left solely to prompt instructions.
 
+## Get started
+
+**Agentic debugging inside Eclipse:** let an AI assistant start or control a Java, JUnit or Spring Boot debug session, set breakpoints, inspect variables, step through execution and explain what actually happened. The plugin uses Eclipse JDT through an MCP server; it is **not** a replacement for Claude Code or GitHub Copilot, and it does not provide its own AI model.
+
+**Why this plugin?** It focuses on debugger control with investigation-scoped cleanup and protection of user-owned breakpoints and unrelated sessions. The Agent Activity view and HTML investigation reports make the debugging steps reviewable.
+
+1. **Download:** Get the *Eclipse update-site ZIP* from [GitHub Releases](https://github.com/j2eeexpert2015/agentic-debugger-for-eclipse/releases) (under **Assets**, not **Source code**). The public `v1.5.0-preview.1` asset is an older preview; CI artifacts are not public releases. [Download and checksum guide](docs/install-from-github-releases.md).
+2. **Install:** In **Eclipse → Help → Install New Software → Add → Archive**, select the ZIP directly, install **Agentic Debugger for Eclipse IDE**, then restart Eclipse.
+3. **Connect an agent:** For **Claude Code**, open **Window → Preferences → Agentic Debugger** and configure the MCP integration. For **GitHub Copilot for Eclipse**, approve the plugin-provided MCP server in Copilot's MCP preferences and use the **Agentic Debugger** custom agent where available.
+4. **Verify:** Import a Java project, keep Eclipse running, and check that Claude's `/mcp` lists `eclipse-debugger`; the `eclipse_ping` tool should return `PONG`.
+5. **Try a real debugging prompt:**
+
+   > My Spring Boot order total is wrong. Debug it in Eclipse, inspect the relevant values, explain the cause, and do not change source code or unrelated debug sessions.
+
+A successful investigation should use debugger tools—not just static code analysis—and produce traceable activity and an HTML debugging report. [Step-by-step installation and first-debug guide](docs/install-from-github-releases.md).
+
+**Requirements:** Eclipse IDE with Java/JDT debugging, JDK 21+, and an independently installed/authenticated AI assistant. The Windows CI baseline has passed on Eclipse 2025-12; verify other Eclipse versions in the exact release's evidence before treating them as supported. Maven and Git are required **only to build from source**, not to install the ZIP.
+
+**Documentation:** [Installation & troubleshooting](docs/install-from-github-releases.md) · [Capabilities](docs/capabilities.md) · [Integration tests](docs/integration-tests.md) · [Maintainer release checklist](docs/release-verification-checklist.md) · [Source and development details](#current-status-and-next-step).
+
+---
+
 **Evidence snapshot — 24 November 2026 (Windows, JDK 25.0.5, Eclipse 2026-09):** direct regression **23/23**, stop/output group **6/6**, abandoned-investigation group **5/5**, bridge fault injection **4/4**, unit tests **74/74** (JUnit 5, run by the Maven build), all with verified cleanup. Repeated Claude trials (3 per scenario, graded automatically from actual debugger results): **9/9 PASS with the skill, 17/18 without** (the one FAIL is a run where the Claude CLI ended early). Small samples on test fixtures: an indication, not a reliability statistic. Details per item: [Status and tracking](#status-and-tracking).
 
 ## Current status and next step
