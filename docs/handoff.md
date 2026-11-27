@@ -182,6 +182,12 @@ headings bigger than the timeline): section headings 11px like the panel headers
 its text about 19px); the waiting text no longer names Spring Boot ("It may still be starting.", Flow and Sequence).
 Previews built from the code: `agent-activity-fonts-preview(-dark).html`.
 
+**U. Ideas parked as future items (28 Nov 03:00-03:51), README OPEN-67 and OPEN-68:** measure tool calls and token
+counts per investigation (Claude Code telemetry); "calls in between" behind a setting with A/B runs. Not started.
+Also discussed, outside this product: a standalone Eclipse "Flow Recorder" plugin (Java agent added at launch, one
+sequence diagram per HTTP request, no AI); concept pages `petclinic-flow-find-owners.html`,
+`petclinic-flow-add-visit.html`. Closest existing tool: AppMap (IntelliJ, VS Code; no Eclipse plugin found).
+
 
 
 
