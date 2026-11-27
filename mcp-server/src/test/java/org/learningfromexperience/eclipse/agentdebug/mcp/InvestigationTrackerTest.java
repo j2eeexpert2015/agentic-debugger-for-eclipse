@@ -82,4 +82,18 @@ class InvestigationTrackerTest {
     private static String enc(String s) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(s.getBytes(StandardCharsets.UTF_8));
     }
+
+    @Test @DisplayName("TR-U7 OPEN-64 a mistyped ID of this session's open investigation is corrected (same first 8 characters); others are left for Eclipse to refuse")
+    void trU7() {
+        InvestigationTracker t = new InvestigationTracker();
+        String real = "c474ffa2-9eaa-48e4-9f09-ea9ff3c1d2b7";
+        t.observe("BEGIN_INVESTIGATION " + enc("NORMAL"), "{\"status\":\"success\",\"investigationId\":\"" + real + "\"}");
+        assertEquals(real, t.resolve("c474ffa2-9eaa-48e4-9f09-ea9ff"), "cut short");
+        assertEquals(real, t.correct("c474ffa2-9eaa-48e4-9f09-ea9ff3c1d2b"), "one character dropped");
+        assertEquals(real, t.correct(real), "the right ID stays");
+        assertEquals("d474ffa2-9eaa-48e4-9f09-ea9ff3c1d2b7", t.correct("d474ffa2-9eaa-48e4-9f09-ea9ff3c1d2b7"), "another prefix is not guessed");
+        assertEquals("c474", t.correct("c474"), "too short to match");
+        t.observe("BEGIN_INVESTIGATION " + enc("NORMAL"), "{\"status\":\"success\",\"investigationId\":\"c474ffa2-0000-0000-0000-000000000000\"}");
+        assertEquals("c474ffa2-9eaa", t.correct("c474ffa2-9eaa"), "two candidates: no guess");
+    }
 }

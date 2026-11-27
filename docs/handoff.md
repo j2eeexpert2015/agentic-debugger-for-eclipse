@@ -151,7 +151,14 @@ Result 00:38: Stop and clean up works.
 "Now:" line at the end of the live flow; plain wording (no-stop timeout, movement only when the line changed,
 "called from" with the stack on a click, Preparation one line per kind, quieter badges). Report tests 58 expected,
 MCP 38 (SR-U4 title). Later (Ayan 00:53): his mockup `runtime-investigation-v3.html`, a sequence view of the stops,
-first for the HTML report; design note to write in `docs/design/` (column width: the live window is ~480 px). Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
+first for the HTML report; design note to write in `docs/design/` (column width: the live window is ~480 px).
+
+**P. Mockups (28 Nov 01:01-01:15):** `agent-activity-sequence-mockup.html` (v1) and `-v2.html` (Option A, Ayan's
+choice: Flow | Sequence | Steps tabs in one view, shared banner, details, warnings, Now line and analysis; thinking
+pauses from the gaps between calls; glow). Not in the repo yet; the design note comes before building it.
+
+**Q. `open-64-id-typos.zip` (28 Nov 01:20):** OPEN-64, mistyped investigation IDs corrected by the MCP server
+(same first 8 characters, this session's only matching open investigation). MCP tests 39 expected (TR-U7). Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
 not refresh the skill in the test Eclipse: `AGENTDEBUG_FIXTURE_SOURCE` skips the start-up refresh).
 
 

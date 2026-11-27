@@ -50,11 +50,33 @@ public final class InvestigationTracker {
      * the only open investigation; otherwise none (no investigation open). Throws if several are open.
      */
     public synchronized String resolve(String explicitId) {
-        if (explicitId != null && !explicitId.isBlank()) return explicitId;
+        if (explicitId != null && !explicitId.isBlank()) return correct(explicitId);
         if (open.size() == 1) return open.iterator().next();
         if (open.size() > 1) throw new IllegalArgumentException("Several investigations are open in this session "
                 + open + "; pass investigationId so the breakpoint or session is cleaned up with the right one");
         return null;
+    }
+
+    /**
+     * OPEN-64 (Ayan 28 Nov 01:17, seen several times with Copilot's models): a model copies the long investigation ID
+     * wrongly ("…-4f6f-bf1c?", "…-9f09-ea9ff", a character dropped). An ID this session does not know is replaced by
+     * the open investigation of this session that starts with the same first 8 characters, when there is exactly one.
+     * Only this session's own investigations are candidates, so nothing of another agent can be reached this way.
+     * Any other ID is returned unchanged (and Eclipse refuses it as before).
+     */
+    public synchronized String correct(String givenId) {
+        if (givenId == null) return null;
+        String given = givenId.strip();
+        if (given.length() < 8 || open.contains(given)) return given;
+        String prefix = given.substring(0, 8).toLowerCase(java.util.Locale.ROOT);
+        String match = null;
+        for (String id : open) {
+            if (id.toLowerCase(java.util.Locale.ROOT).startsWith(prefix)) {
+                if (match != null) return given;   // ambiguous: leave it to Eclipse to refuse
+                match = id;
+            }
+        }
+        return match == null ? given : match;
     }
 
     public synchronized List<String> openIds() {

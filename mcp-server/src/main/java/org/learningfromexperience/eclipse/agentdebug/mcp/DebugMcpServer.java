@@ -284,7 +284,7 @@ public class DebugMcpServer {
                         + "names the report file (reportFile): no further call is needed to check either.",
                 finishProperties(),
                 List.of("investigationId"),
-                a -> "FINISH_INVESTIGATION " + enc(arg(a,"investigationId"))));
+                a -> "FINISH_INVESTIGATION " + enc(TRACKER.correct(arg(a,"investigationId")))));
         // OPEN-30: where the debugging session report of an investigation is (answered by the MCP server itself).
         allTools.add(SyncToolSpecification.builder()
                 .tool(Tool.builder("get_investigation_report", schema(Map.of("investigationId", Map.of("type", "string",
@@ -392,7 +392,7 @@ public class DebugMcpServer {
                 + "User-owned/reused sessions cannot be restarted through this tool.",
                 Map.of("launchName",str(),"investigationId",str()),
                 List.of("launchName","investigationId"),
-                a -> "RESTART_DEBUG " + enc(arg(a,"launchName")) + " " + enc(arg(a,"investigationId"))));
+                a -> "RESTART_DEBUG " + enc(arg(a,"launchName")) + " " + enc(TRACKER.correct(arg(a,"investigationId")))));
         allTools.add(bridgeTool("configure_step_filters",
                 "Set the current Java debug target's step-filter patterns and enabled state. "
                 + "Changes target execution behavior, not global Eclipse preferences. "
@@ -723,7 +723,8 @@ public class DebugMcpServer {
         Object given = args.get("investigationId");
         String explicit = given == null ? null : arg(args, "investigationId");
         String id = TRACKER.resolve(explicit);
-        if (explicit == null && id != null) ATTACHED.set(id);
+        // OPEN-64: also when a mistyped ID was corrected, so the reply tells the model the right one.
+        if (id != null && (explicit == null || !id.equals(explicit.strip()))) ATTACHED.set(id);
         return id == null ? "" : " " + enc(id);
     }
 
