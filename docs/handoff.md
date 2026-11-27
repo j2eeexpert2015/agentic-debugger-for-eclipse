@@ -158,7 +158,12 @@ choice: Flow | Sequence | Steps tabs in one view, shared banner, details, warnin
 pauses from the gaps between calls; glow). Not in the repo yet; the design note comes before building it.
 
 **Q. `open-64-id-typos.zip` (28 Nov 01:20):** OPEN-64, mistyped investigation IDs corrected by the MCP server
-(same first 8 characters, this session's only matching open investigation). MCP tests 39 expected (TR-U7). Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
+(same first 8 characters, this session's only matching open investigation). MCP tests 39 expected (TR-U7).
+
+**R. `open-62-63-64-all.zip`:** all of tonight's code in one zip (Ayan's request 01:26).
+
+**S. `open-65-sequence-1.zip` (28 Nov 02:00):** OPEN-65 delivery 1, the Sequence tab (design note
+`docs/design/sequence-view.md`). Report tests 62 expected (SQ-U1..U4 new). Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
 not refresh the skill in the test Eclipse: `AGENTDEBUG_FIXTURE_SOURCE` skips the start-up refresh).
 
 

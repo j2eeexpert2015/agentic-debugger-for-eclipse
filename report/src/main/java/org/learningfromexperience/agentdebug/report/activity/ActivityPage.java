@@ -285,9 +285,9 @@ public final class ActivityPage {
               var newId=u.id!==ad.id;
               if(newId){document.getElementById('head').innerHTML=u.head;ad.id=u.id;ad.state={};ad.all=true;ad.paused=false;}
               else{var h=document.querySelector('#head h1');if(h&&h.innerHTML!==u.title)h.innerHTML=u.title;}
-              ['tools','banner','warn','stop','steps','flow','analysis','note'].forEach(function(k){
-                document.getElementById(k).innerHTML=u[k];});
-              adApply();
+              ['tools','banner','warn','stop','steps','flow','seq','analysis','note'].forEach(function(k){
+                var e=document.getElementById(k);if(e)e.innerHTML=u[k]===undefined?'':u[k];});
+              adApply();if(newId)ad.sq=null;adSqApply();
               ad.start=u.start;ad.end=u.end;ad.last=u.last;ad.wait=u.wait;ad.running=u.running;
               adTick();
               if(ad.timer){clearInterval(ad.timer);ad.timer=null;}
@@ -297,9 +297,11 @@ public final class ActivityPage {
               adFollow();
               return true;}
             // Flow (default) or Steps: what the page shows; kept while the page lives.
-            function adView(steps){document.body.classList.toggle('vsteps',steps);
-              document.getElementById('vflow').classList.toggle('on',!steps);
-              document.getElementById('vsteps').classList.toggle('on',steps);adFollow();return false;}
+            // Flow (default), Sequence (OPEN-65) or Steps: what the page shows; kept while the page lives.
+            function adView(v){if(v===true)v='steps';if(v===false)v='flow';
+              document.body.classList.toggle('vsteps',v==='steps');document.body.classList.toggle('vseq',v==='seq');
+              ['flow','seq','steps'].forEach(function(n){var b=document.getElementById('v'+n);if(b)b.classList.toggle('on',n===v);});
+              if(v==='seq')adSqApply();adFollow();return false;}
             function adTheme(){var d=!document.body.classList.contains('dark');document.body.classList.toggle('dark',d);
               var b=document.getElementById('theme');if(b)b.textContent=d?'Light':'Dark';
               if(typeof window.adAction==='function'){try{window.adAction('theme',d?'dark':'light','');}catch(x){}}
@@ -332,11 +334,14 @@ public final class ActivityPage {
      */
     public static String shell(boolean dark) {
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>" + CSS + ReportFormat.MARKDOWN_CSS
-                + FlowPage.CSS + FlowPage.LIVE_CSS + FlowPage.DARK_CSS + "</style><script>" + SCRIPT + "</script></head><body"
+                + FlowPage.CSS + FlowPage.LIVE_CSS + FlowPage.DARK_CSS + SequencePage.CSS + "</style><script>" + SCRIPT
+                + SequencePage.SCRIPT + "</script></head><body"
                 + (dark ? " class=\"dark\"" : "") + ">"
-                + "<div id=\"pin\"><div id=\"bar\"><span id=\"vbar\"><button id=\"vflow\" class=\"on\" onclick=\"return adView(false)\""
+                + "<div id=\"pin\"><div id=\"bar\"><span id=\"vbar\"><button id=\"vflow\" class=\"on\" onclick=\"return adView('flow')\""
                 + " title=\"Where the program went: one box per place, a click shows what is known there\">Flow</button>"
-                + "<button id=\"vsteps\" onclick=\"return adView(true)\" title=\"Every tool call in order\">Steps</button></span>"
+                + "<button id=\"vseq\" onclick=\"return adView('seq')\" title=\"The stops by class, the moves between them"
+                + " and a timeline; click a box, a line or a class\">Sequence</button>"
+                + "<button id=\"vsteps\" onclick=\"return adView('steps')\" title=\"Every tool call in order\">Steps</button></span>"
                 + "<label title=\"Keep the newest step in sight\"><input type=\"checkbox\""
                 + " id=\"follow\" checked onchange=\"ad.follow=this.checked;if(this.checked)adJump()\">Follow</label>"
                 + "<button class=\"xa\" onclick=\"return adSteps(true)\" title=\"Open the details of every step\">Expand All</button>"
@@ -344,7 +349,7 @@ public final class ActivityPage {
                 + "<button id=\"theme\" onclick=\"return adTheme()\" title=\"Switch between the dark and the light look\">"
                 + (dark ? "Light" : "Dark") + "</button>"
                 + "<span id=\"tools\"></span><span id=\"toast\"></span></div><div id=\"banner\"></div></div>"
-                + "<div id=\"head\">" + waitingHead() + "</div><div id=\"flow\"></div>"
+                + "<div id=\"head\">" + waitingHead() + "</div><div id=\"flow\"></div><div id=\"seq\"></div>"
                 + "<ol id=\"steps\"></ol><div id=\"stop\"></div>"
                 // Warnings are about now, so they sit with the newest events, where Follow keeps the view.
                 + "<div id=\"warn\"></div><div id=\"jswarn\"></div><div id=\"analysis\"></div><div id=\"note\"></div>"
@@ -371,7 +376,7 @@ public final class ActivityPage {
             u.put("id", "");
             u.put("title", "Agent Activity");
             u.put("head", waitingHead());
-            for (String k : List.of("tools", "banner", "warn", "stop", "steps", "flow", "analysis")) u.put(k, "");
+            for (String k : List.of("tools", "banner", "warn", "stop", "steps", "flow", "seq", "analysis")) u.put(k, "");
             u.put("note", note);
             return new Parts(u, 0, 0, 0, 0, false);
         }
@@ -389,6 +394,7 @@ public final class ActivityPage {
         u.put("stop", stop(inv));
         u.put("steps", steps(inv));
         u.put("flow", report ? "" : FlowPage.live(inv));
+        u.put("seq", report ? "" : SequencePage.live(inv));
         u.put("analysis", analysis(inv, !report));
         u.put("note", note);
         return new Parts(u, start, end, epoch(inv.lastActivity()), wait, running != null);

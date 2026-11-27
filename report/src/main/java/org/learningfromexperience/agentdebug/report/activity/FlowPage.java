@@ -1215,7 +1215,7 @@ final class FlowPage {
     }
 
     /** What is known at a node: the sections below its heading, the same in the report and in the live view. */
-    private static void body(ActivityStore.Investigation inv, Node n, StringBuilder out) {
+    static void body(ActivityStore.Investigation inv, Node n, StringBuilder out) {
         switch (n.kind()) {
             case STOP -> stopDetail(n, out);
             case NEVER -> out.append("<div class=\"fsec\"><div class=\"fobs\">").append(ActivityPage.links(html(
