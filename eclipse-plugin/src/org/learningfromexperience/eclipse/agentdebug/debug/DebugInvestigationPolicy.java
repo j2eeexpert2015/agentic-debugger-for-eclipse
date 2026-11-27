@@ -261,6 +261,13 @@ public final class DebugInvestigationPolicy {
         return result != null && !result.complete();
     }
 
+    /** OPEN-62: the open investigations (not finished, not expired). */
+    public List<Investigation> active() {
+        List<Investigation> result = new ArrayList<>();
+        for (Investigation investigation : investigations.values()) if (!investigation.complete()) result.add(investigation);
+        return result;
+    }
+
     public List<Investigation> abandoned() {
         List<Investigation> result = new ArrayList<>();
         for (Investigation investigation : investigations.values()) if (investigation.abandoned()) result.add(investigation);

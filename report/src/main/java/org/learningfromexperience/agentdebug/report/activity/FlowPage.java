@@ -374,20 +374,36 @@ final class FlowPage {
             }
             case NOSTOP -> {
                 lines.addAll(reader(first));
+                // A wait that timed out is not an error: the program is still running (Ayan 28 Nov 00:45).
+                if (first.title() != null && (first.title().startsWith("Waited for a stop: none")
+                        || first.title().startsWith("No breakpoint reached yet"))) {
+                    lines.removeIf(l -> l.startsWith("No stop: "));
+                    yield new Node(kind, "No breakpoint reached yet", "The program is still running and has not reached"
+                            + " a breakpoint (a Spring Boot test can take 30 s or more to start).", indexes, null,
+                            null, null, List.of(), List.of(), List.of(), calls, null, lines, false, null, null);
+                }
                 yield new Node(kind, first.title(), "the program did not stop at any breakpoint here", indexes, null,
                         null, null, List.of(), List.of(), List.of(), calls, null, lines, false, null, null);
             }
             default -> {
-                List<String> done = new ArrayList<>();
+                // One line per kind (Ayan 28 Nov 00:45: one long run-on line was hard to read).
+                Set<String> breakpoints = new LinkedHashSet<>();
+                Set<String> done = new LinkedHashSet<>();
                 for (ActivityStore.Step s : steps) {
-                    if ("FAILED".equals(s.status()) || s.title() == null) continue;
+                    if ("FAILED".equals(s.status()) || s.title() == null || s.running()) continue;
                     Matcher bp = BREAKPOINT.matcher(s.title());
-                    if (bp.find()) done.add("breakpoint " + bp.group(1) + ":" + bp.group(2));
+                    if (bp.find()) breakpoints.add(bp.group(1) + " " + bp.group(2));
                     else if (s.title().startsWith("Started application in debug mode: "))
-                        done.add(after(s.title(), ": ") + " started in debug mode");
+                        done.add("Started: " + after(s.title(), ": ") + " (debug mode)");
+                    else if (s.title().startsWith("Started JUnit test in debug mode: "))
+                        done.add("Started: JUnit test " + after(s.title(), ": ") + " (debug mode)");
                     else done.add(s.title());
                 }
-                yield new Node(Kind.PREP, "Preparation", String.join(" · ", new LinkedHashSet<>(done)), indexes, null,
+                List<String> prep = new ArrayList<>();
+                if (!breakpoints.isEmpty())
+                    prep.add((breakpoints.size() == 1 ? "Breakpoint: " : "Breakpoints: ") + String.join(", ", breakpoints));
+                prep.addAll(done);
+                yield new Node(Kind.PREP, "Preparation", String.join("\n", prep), indexes, null,
                         null, null, List.of(), List.of(), List.of(), calls, null, List.of(), false, null, null);
             }
         };
@@ -450,14 +466,14 @@ final class FlowPage {
         String movement = null;
         if (previousStop != null && previousStop.where() != null && where != null) {
             Matcher a = FRAME.matcher(previousStop.where()), b = FRAME.matcher(where);
-            if (a.matches() && b.matches() && a.group(1).equals(b.group(1)) && a.group(2).equals(b.group(2)))
+            if (a.matches() && b.matches() && a.group(1).equals(b.group(1)) && a.group(2).equals(b.group(2))
+                    && !a.group(3).equals(b.group(3)))
                 movement = "line " + a.group(3) + " → " + b.group(3);
         }
         String[] chain = frames == null ? new String[0] : frames.split("\\s+<\\s+");
         List<String> sub = new ArrayList<>();
         if (movement != null) sub.add("same method, " + movement);
         else if (chain.length > 1 && !chain[1].startsWith("(")) sub.add("called from " + chain[1].strip());
-        if (thread != null) sub.add("thread " + thread.replaceFirst("\\s*\\(index \\d+\\)$", ""));
         return new Node(Kind.STOP, where, String.join(" · ", sub), indexes, where, frames, thread, List.copyOf(variables),
                 List.copyOf(expansions), List.copyOf(expressions), calls, movement, List.of(),
                 stop.title().startsWith("Stopped at breakpoint"), null, null);
@@ -604,8 +620,11 @@ final class FlowPage {
             .flegend{display:flex;flex-wrap:wrap;gap:8px 12px;font-size:13px;color:#1f2937;margin:8px 0 0;align-items:center}
             .ftag{display:inline-block;font-size:11px;font-weight:700;border-radius:10px;padding:1px 8px;letter-spacing:.3px;
             white-space:nowrap}
-            .ftag.obs{background:#dcfce7;color:#14532d;border:1.5px solid #22c55e}
-            .ftag.agent{background:#ede9fe;color:#4c1d95;border:1.5px solid #8b5cf6}
+            .ftag.obs{background:transparent;color:#15803d;border:1px solid #bbf7d0;font-size:9.5px;font-weight:600;padding:0 6px}
+            .ftag.agent{background:transparent;color:#6d28d9;border:1px solid #ddd6fe;font-size:9.5px;font-weight:600;padding:0 6px}
+            details.stack{display:inline}
+            details.stack summary{display:inline;cursor:pointer;color:#6b7280;text-decoration:underline dotted}
+            details.stack[open]{display:block;margin-top:2px}
             .ftag.bp{background:#fee2e2;color:#7f1d1d;border:1.5px solid #ef4444}
             .ftag.never{background:#e5e7eb;color:#1f2937;border:1.5px solid #6b7280}
             .ftag.ref{background:#fef3c7;color:#78350f;border:1.5px solid #f59e0b}
@@ -794,8 +813,8 @@ final class FlowPage {
             body.dark .info{color:var(--muted);font-size:13px}
             body.dark .flegend{color:var(--text);font-size:12.5px}
             body.dark .ftag{border-radius:999px;padding:2px 9px;font-weight:600;font-size:11.5px}
-            body.dark .ftag.obs{background:rgba(61,220,151,.15);color:var(--green);border:1px solid rgba(61,220,151,.45)}
-            body.dark .ftag.agent{background:rgba(181,140,255,.15);color:var(--violet);border:1px solid rgba(181,140,255,.5)}
+            body.dark .ftag.obs{background:transparent;color:var(--green);border:1px solid rgba(61,220,151,.3);font-size:9.5px;padding:0 6px;opacity:.85}
+            body.dark .ftag.agent{background:transparent;color:var(--violet);border:1px solid rgba(181,140,255,.3);font-size:9.5px;padding:0 6px;opacity:.85}
             body.dark .ftag.bp{background:rgba(255,92,122,.14);color:var(--red);border:1px solid rgba(255,92,122,.5)}
             body.dark .ftag.never{background:rgba(154,165,209,.12);color:var(--muted);border:1px solid rgba(154,165,209,.45)}
             body.dark .ftag.ref{background:rgba(255,200,87,.13);color:var(--amber);border:1px solid rgba(255,200,87,.45)}
@@ -1042,7 +1061,7 @@ final class FlowPage {
                 .append("<span class=\"nm\">").append(html(n.name())).append("</span>");
         // No source links in a node: it is a link itself, and links cannot be nested.
         if (n.sub() != null && !n.sub().isBlank())
-            out.append("<span class=\"sub\">").append(html(n.sub())).append("</span>");
+            out.append("<span class=\"sub\">").append(html(n.sub()).replace("\n", "<br>")).append("</span>");
         List<String> side = new ArrayList<>();
         if (!n.variables().isEmpty()) side.add(n.variables().size() + (n.variables().size() == 1 ? " variable" : " variables"));
         long changed = n.variables().stream().filter(ActivityPage.Variable::changed).count();
@@ -1088,6 +1107,13 @@ final class FlowPage {
             body(inv, n, out);
             out.append("</div></details>");
         }
+        // Ayan 28 Nov 00:45: the newest thing must be in sight. Follow scrolls to the bottom, so what the agent does
+        // now is also the last line of the flow, blinking, until the next step arrives.
+        if (!inv.finished()) {
+            String now = runningAt >= 0 ? steps.get(runningAt).title() : null;
+            out.append("<div class=\"fnow").append(now != null ? " busy" : "").append("\"><span class=\"live\"></span>")
+                    .append(html("Now: " + (now != null ? now : ActivityPage.statusLine(inv)))).append("</div>");
+        }
         return out.append("</div>").toString();
     }
 
@@ -1114,6 +1140,11 @@ final class FlowPage {
             border-radius:0 0 9px 9px;padding:4px 12px 10px}
             details.fl1 .fdl .fsec{margin-top:8px}
             details.fl1 .fdl table.vars{font-size:12.5px}
+            .fnow{display:flex;align-items:center;gap:8px;margin:8px 0 4px;padding:6px 10px;border-radius:7px;
+            font-size:12.5px;font-weight:600;color:#c2410c;background:#fff7ed;border:1px dashed #fdba74}
+            .fnow.busy{color:#b91c1c;background:#fef2f2;border-color:#fca5a5;animation:ad-breathe-red 1.2s ease-in-out infinite}
+            body.dark .fnow{background:rgba(251,146,60,.1);color:#fdba74;border-color:rgba(251,146,60,.4)}
+            body.dark .fnow.busy{background:rgba(255,92,122,.1);color:var(--red);border-color:rgba(255,92,122,.45);animation:none}
             .fnode .frun{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:12px;font-weight:600;color:#b91c1c}
             .fnode.busy{animation:ad-breathe-red 1.2s ease-in-out infinite}
             """;
@@ -1398,14 +1429,19 @@ final class FlowPage {
 
     private static void stopDetail(Node n, StringBuilder out) {
         if (n.frames() != null || n.thread() != null) {
+            // Short: who called this method; the whole call stack and the thread on a click (Ayan 28 Nov 00:45).
+            String[] chain = n.frames() == null ? new String[0] : n.frames().split("\\s+<\\s+");
             out.append("<div class=\"fwhere\">");
+            if (chain.length > 1 && !chain[1].startsWith("("))
+                out.append("called from ").append(ActivityPage.links(html(chain[1].strip()))).append(" ");
+            out.append("<details class=\"stack\"><summary>Call stack and thread</summary>");
             if (n.frames() != null) out.append(ActivityPage.frames(n.frames()));
-            if (n.thread() != null) out.append(n.frames() == null ? "" : " · ").append("thread ").append(html(n.thread()));
-            out.append("</div>");
+            if (n.thread() != null) out.append(n.frames() == null ? "" : "<br>").append("thread ").append(html(n.thread()));
+            out.append("</details></div>");
         }
         if (n.movement() != null)
             out.append("<div class=\"fsec\"><h3>Moved</h3><div class=\"fobs\">").append(html(
-                    "In the same method as the previous stop: " + n.movement())).append("</div></div>");
+                    "From " + n.movement().replace(" → ", " to line ") + " in the same method")).append("</div></div>");
         if (!n.variables().isEmpty()) {
             out.append("<div class=\"fsec\"><h3>Variables at this stop</h3><table class=\"vars\"><tr><th>Variable</th>"
                     + "<th>Type</th><th>Value</th></tr>");

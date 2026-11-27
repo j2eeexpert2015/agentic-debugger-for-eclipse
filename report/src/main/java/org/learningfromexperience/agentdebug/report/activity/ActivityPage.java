@@ -148,13 +148,14 @@ public final class ActivityPage {
             #jump{display:none;position:fixed;right:14px;bottom:12px;z-index:6;background:#1d4ed8;color:#fff;border-radius:14px;
             padding:4px 12px;font-size:12px;font-weight:600;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.25)}
             #bar label{display:flex;align-items:center;gap:4px;cursor:pointer;margin-right:4px}
+            #bar button.stop{color:#b91c1c;border-color:#fca5a5}
             #bar button{font:inherit;font-size:11.5px;padding:2px 9px;border:1px solid #cbd5e1;border-radius:5px;
             background:#f8fafc;color:#1f2937;cursor:pointer}
             #bar button:hover{background:#e2e8f0}
             #toast{color:#166534;font-weight:600}
             .banner{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:5px 10px;border-radius:7px;margin:0;
             font-weight:600}
-            .banner .what{flex:1}
+            .banner .what{flex:1 1 14em;min-width:14em}
             .banner .timer{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
             .banner.running{background:#dbeafe;color:#1e40af;
             animation:ad-breathe 1.4s ease-in-out infinite,ad-glow 1.4s ease-in-out infinite}
@@ -272,7 +273,12 @@ public final class ActivityPage {
               requestAnimationFrame(function(){requestAnimationFrame(function(){
                 ad.scrolling=true;window.scrollTo(0,document.documentElement.scrollHeight);
                 setTimeout(function(){ad.scrolling=false;},50);});});}
+            // Only the user's own scrolling pauses Follow (28 Nov: a page that changed height while being updated sent
+            // scroll events too, Follow paused by itself and the newest step stayed out of sight).
+            ['wheel','keydown','touchmove','mousedown'].forEach(function(t){
+              window.addEventListener(t,function(){ad.user=Date.now();},{passive:true});});
             window.addEventListener('scroll',function(){if(ad.scrolling)return;
+              if(!ad.user||Date.now()-ad.user>1500){if(!ad.paused)return;}
               ad.paused=!adAtBottom();document.getElementById('jump').style.display=ad.paused&&ad.follow?'block':'none';});
             function adJump(){ad.paused=false;document.getElementById('jump').style.display='none';adFollow();return false;}
             function adUpdate(u){
@@ -566,6 +572,11 @@ public final class ActivityPage {
     /** Action buttons; each one calls back into Eclipse ({@code adAction}). Open HTML Report once a report exists. */
     static String tools(ActivityStore.Investigation inv) {
         StringBuilder out = new StringBuilder();
+        // OPEN-62: cancel from Eclipse; Copilot's own stop button is gone once the agent has ended its turn.
+        if (!inv.finished())
+            out.append("<button class=\"stop\" onclick=\"return adCall('stop')\" title=\"Stops the agent's own program"
+                    + " and removes the agent's own breakpoints now. Your own debug sessions are not touched.\">"
+                    + "Stop and clean up</button>");
         if (inv.reportFile() != null && !inv.reportFile().isBlank())
             out.append("<button onclick=\"return adCall('openReport')\" title=\"The same investigation as a standalone HTML"
                     + " file, to keep or share; opens in your browser: ").append(html(inv.reportFile()))
@@ -779,6 +790,9 @@ public final class ActivityPage {
     static String statusLine(ActivityStore.Investigation inv) {
         if (inv.finished()) {
             if ("FINISHED".equals(inv.outcome())) return "Finished";
+            if (ActivityStore.STOPPED.equals(inv.outcome())) return "Stopped by you";
+            if (ActivityStore.EXPIRED.equals(inv.outcome()))
+                return "Ended by Eclipse: the agent stopped calling, so its program and breakpoints were cleaned up";
             String why = endReason(inv);
             return "Ended without the agent finishing it" + (why == null ? "" : ": " + why + ", so the MCP server finished it");
         }
@@ -1050,7 +1064,9 @@ public final class ActivityPage {
                     : PHASE_THINKING.equals(phase(inv)) ? "thinking" : "running";
             return "Agent: " + doing + time;
         }
-        return ("FINISHED".equals(inv.outcome()) ? "Agent: finished" : "Agent: ended without finish") + time;
+        return ("FINISHED".equals(inv.outcome()) ? "Agent: finished"
+                : ActivityStore.STOPPED.equals(inv.outcome()) ? "Agent: stopped by you"
+                : ActivityStore.EXPIRED.equals(inv.outcome()) ? "Agent: ended (no activity)" : "Agent: ended without finish") + time;
     }
 
     /** The same content as plain text, for the fallback when no embedded browser is available. */

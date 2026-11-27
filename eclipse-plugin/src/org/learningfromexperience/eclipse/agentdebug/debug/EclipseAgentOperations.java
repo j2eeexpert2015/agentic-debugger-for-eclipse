@@ -69,7 +69,11 @@ public final class EclipseAgentOperations {
                 return t;
             });
 
+    /** OPEN-62: the operations of the running bridge, for "Stop and clean up" in Agent Activity; null before. */
+    private static volatile EclipseAgentOperations running;
+
     public EclipseAgentOperations() {
+        running = this;
         leaseChecker.scheduleWithFixedDelay(this::expireAbandoned, 2, 2, TimeUnit.SECONDS);
         // After Eclipse starts, no investigation exists yet, so agent breakpoints still linked to one
         // are leftovers from before the restart (CORE-17).
@@ -280,6 +284,13 @@ public final class EclipseAgentOperations {
                     }
                     investigations.expire(investigation.id(), reason);
                     Platform.getLog(EclipseAgentOperations.class).info("[Agentic Debugger] " + reason);
+                    // OPEN-62: Agent Activity and the status bar say so too (they kept "thinking" for ever before).
+                    try {
+                        org.learningfromexperience.agentdebug.report.activity.ActivityStore.global()
+                                .expired(investigation.id(), reason);
+                    } catch (RuntimeException | LinkageError viewOnly) {
+                        // The view is informative only.
+                    }
                 }
             } catch (Exception e) {
                 // Never let one failure stop the checker; retried on the next round.
@@ -287,6 +298,45 @@ public final class EclipseAgentOperations {
                         "[Agentic Debugger] Could not expire investigation " + investigation.id() + ": " + e);
             }
         }
+    }
+
+    /**
+     * OPEN-62 (Ayan 28 Nov 00:18): "Stop and clean up" in Agent Activity. The user's cancel, also when the agent has
+     * ended its turn and Copilot shows no stop button: the same cleanup as an expiry, at once and for every open
+     * investigation, whatever its mode: the agent's own breakpoints removed, its own JVM and test runs ended; a session
+     * the agent only borrowed (the user's own) is never ended. A later call of the agent gets "stopped by the user".
+     * Returns one line per investigation for the view. Never throws.
+     */
+    public static List<String> stopByUser() {
+        EclipseAgentOperations operations = running;
+        if (operations == null) return List.of("The Eclipse bridge is not running; nothing was changed.");
+        return operations.stopAll();
+    }
+
+    private List<String> stopAll() {
+        List<String> said = new ArrayList<>();
+        for (var investigation : investigations.active()) {
+            try {
+                synchronized (lifecycle) {
+                    if (investigation.complete()) continue;
+                    Cleanup result = cleanUp(investigation);
+                    String line = "Stopped by the user in Eclipse (Agent Activity > Stop and clean up): the agent's own"
+                            + " breakpoints were removed" + (investigation.ownedLaunch() == null ? ""
+                            : " and its JVM " + (result.ended() ? "was ended" : "could NOT be ended"))
+                            + ". Do not continue this investigation; ask the user what to do next.";
+                    investigations.expire(investigation.id(), "Investigation " + investigation.id() + ": " + line);
+                    said.add(line);
+                    Platform.getLog(EclipseAgentOperations.class).info("[Agentic Debugger] Investigation "
+                            + investigation.id() + " " + line);
+                }
+            } catch (Exception e) {
+                said.add("Could not clean up investigation " + investigation.id() + ": " + e.getMessage());
+                Platform.getLog(EclipseAgentOperations.class).warn("[Agentic Debugger] Stop by the user failed for "
+                        + investigation.id() + ": " + e);
+            }
+        }
+        if (said.isEmpty()) said.add("No open investigation in Eclipse; nothing to clean up.");
+        return said;
     }
 
     private record Cleanup(String json, boolean ended) {}

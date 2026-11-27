@@ -138,7 +138,20 @@ Result 23:47: log "brought to the front", yet Variables was in front afterwards.
 **Open (parked):** Chat in front at the finish; Ayan 23:50: the switch to Debug seems slower than before. In the
 23:47 video about 5 s pass between "Running begin_debug_investigation" and the switch; no earlier measurement to
 compare. Suspect: carrying the Chat view (an embedded browser) into Debug; test: close the Chat view in Java, run,
-and compare. Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
+and compare.
+
+**N. `open-62-stop-banner.zip` (28 Nov 00:25, includes M):** OPEN-62: Agent Activity "Stop and clean up" (Ayan 00:18:
+no cancel once the agent ended its turn) and the banner text min-width (one word per line in a narrow window, seen
+00:16). Also (Ayan 00:25, status bar "Agent: thinking · 12 min"): the 10-minute expiry now also ends the
+investigation in Agent Activity ("Ended by Eclipse"); before, only the MCP server's finish event did, and Copilot
+never sends it. Report tests 57 expected (AP-U14, AS-U10, AS-U11).
+Result 00:38: Stop and clean up works.
+
+**O. `open-63-activity-clarity.zip` (28 Nov 01:00):** Follow pauses only on the user's own scrolling; a blinking
+"Now:" line at the end of the live flow; plain wording (no-stop timeout, movement only when the line changed,
+"called from" with the stack on a click, Preparation one line per kind, quieter badges). Report tests 58 expected,
+MCP 38 (SR-U4 title). Later (Ayan 00:53): his mockup `runtime-investigation-v3.html`, a sequence view of the stops,
+first for the HTML report; design note to write in `docs/design/` (column width: the live window is ~480 px). Also in H: status-bar console trace removed; skill warnings say "click Configure Claude Code" (a restart does
 not refresh the skill in the test Eclipse: `AGENTDEBUG_FIXTURE_SOURCE` skips the start-up refresh).
 
 
@@ -226,6 +239,14 @@ compiled against stand-ins, the plugin and MCP server code did not compile there
 any Copilot run.
 
 ## 8. Noticed, not started
+
+- Copilot approval asked again when the test workspace is opened from the desktop shortcut: that start has no
+  `AGENTDEBUG_PORT`, so the launcher path differs (port 8765 folder vs `port-21766`) and Copilot sees a new command.
+  Ayan uses `java dev-e2e/DevE2E.java start` only (28 Nov 00:04). Real users start one way, so not a product issue.
+- Copilot run 28 Nov 00:10 (model MAI Code 2 Flash via Auto): it mistyped its investigationId twice (refused, as
+  designed); `wait_for_stop` ended with "MCP error -32001: Request timed out" (Copilot's tool timeout is shorter
+  than our wait), and the agent ended its turn while the program waited for the HTTP request. Fix idea: wait in
+  shorter slices that answer "still waiting, call again" before Copilot's limit.
 
 - Red PowerShell error at start-up (`$env:COPILOT_POWERSHELL_INTEGRATION_SCRIPT`): Eclipse restores the Terminal tab
   of a Copilot shell from the last session; with the Terminal view closed before a restart it does not appear (Ayan

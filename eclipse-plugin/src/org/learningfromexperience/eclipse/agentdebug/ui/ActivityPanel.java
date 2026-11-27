@@ -190,6 +190,11 @@ final class ActivityPanel {
                         return "The report file is not there any more";
                     return Program.launch(current.reportFile()) ? "Opening the report" : "Could not open the report";
                 }
+                case "stop" -> {
+                    // OPEN-62: asked after the click's callback returns (a dialog inside the callback can hang Edge).
+                    browser.getDisplay().asyncExec(ActivityPanel::confirmAndStop);
+                    return "";
+                }
                 case "theme" -> {
                     // The page has already switched; kept for the next load, in this window and the docked view.
                     var preferences = InstanceScope.INSTANCE.getNode(PLUGIN_ID);
@@ -208,6 +213,27 @@ final class ActivityPanel {
     }
 
     private static final String PLUGIN_ID = "org.learningfromexperience.eclipse.agentdebug";
+
+    /** OPEN-62: "Stop and clean up": asks once, then cleans up in the background and marks the run stopped. */
+    private static void confirmAndStop() {
+        var display = org.eclipse.swt.widgets.Display.getCurrent();
+        var shell = display == null ? null : display.getActiveShell();
+        boolean yes = org.eclipse.jface.dialogs.MessageDialog.openQuestion(shell, "Agentic Debugger",
+                "Stop the agent's debugging now?\n\n"
+                + "Ends the agent's own program.\nRemoves the agent's own breakpoints.\n"
+                + "Your own debug sessions are not touched.\n\n"
+                + "Also click the stop button in Copilot Chat if the agent is still working.");
+        if (!yes) return;
+        org.eclipse.core.runtime.jobs.Job job = org.eclipse.core.runtime.jobs.Job.create(
+                "Agentic Debugger: stop and clean up", monitor -> {
+            java.util.List<String> said = org.learningfromexperience.eclipse.agentdebug.debug.EclipseAgentOperations.stopByUser();
+            ActivityStore.global().stoppedByUser(said);
+            System.out.println("[Eclipse Agentic Debugger] Stop and clean up: " + String.join(" | ", said));
+            return org.eclipse.core.runtime.Status.OK_STATUS;
+        });
+        job.setUser(false);
+        job.schedule();
+    }
 
     /** True when the user chose the dark look (the Dark / Light button of the page); light by default. */
     private static boolean dark() {

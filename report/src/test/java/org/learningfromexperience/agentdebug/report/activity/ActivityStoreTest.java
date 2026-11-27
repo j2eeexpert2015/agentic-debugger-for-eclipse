@@ -185,4 +185,33 @@ class ActivityStoreTest {
         assertEquals(ActivityStore.PROGRAM_ENDED, store.current().program(),
                 "the program ending after the finish (its cleanup) is shown (25 Nov 21:30, Eclipse 2025-12)");
     }
+
+    @Test @DisplayName("AS-U10 stopped by the user (OPEN-62): the open investigation ends as STOPPED with the cleanup; the MCP server's later end does not overwrite it")
+    void asU10() {
+        ActivityStore store = new ActivityStore();
+        assertNull(store.stoppedByUser(List.of("x")), "nothing open: nothing stopped");
+        assertEquals(OK, store.accept(started("inv-1")));
+        assertEquals(OK, store.accept(stepStarted("inv-1", "Waiting for a stop")));
+        assertEquals("inv-1", store.stoppedByUser(List.of("breakpoints removed")));
+        ActivityStore.Investigation inv = store.current();
+        assertTrue(inv.finished());
+        assertEquals(ActivityStore.STOPPED, inv.outcome());
+        assertEquals(List.of("breakpoints removed"), inv.cleanup());
+        assertFalse(inv.steps().get(0).running(), "the running step is closed");
+        assertEquals(OK, store.accept(finished("inv-1")));
+        assertEquals(ActivityStore.STOPPED, store.current().outcome());
+    }
+
+    @Test @DisplayName("AS-U11 expired in Eclipse (OPEN-62): only the named open investigation ends as EXPIRED; a later finish does not overwrite it")
+    void asU11() {
+        ActivityStore store = new ActivityStore();
+        assertEquals(OK, store.accept(started("inv-1")));
+        assertFalse(store.expired("other", "x"), "another ID changes nothing");
+        assertFalse(store.current().finished());
+        assertTrue(store.expired("inv-1", "expired after 600 s"));
+        assertEquals(ActivityStore.EXPIRED, store.current().outcome());
+        assertFalse(store.expired("inv-1", "again"), "only once");
+        assertEquals(OK, store.accept(finished("inv-1")));
+        assertEquals(ActivityStore.EXPIRED, store.current().outcome());
+    }
 }

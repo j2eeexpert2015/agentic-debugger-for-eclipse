@@ -416,4 +416,17 @@ class ActivityPageTest {
         finish(store, "FINISHED", null);
         assertNull(ActivityPage.where(store.current()), "finished: the report shows the last stop");
     }
+
+    @Test @DisplayName("AP-U14 Stop and clean up (OPEN-62) only while it runs; 'Stopped by you'; banner text keeps a readable width (no word per line)")
+    void apU14() {
+        ActivityStore store = started("Why?");
+        assertTrue(ActivityPage.tools(store.current()).contains("adCall('stop')"), "while it runs");
+        store.stoppedByUser(List.of("breakpoints removed"));
+        assertFalse(ActivityPage.tools(store.current()).contains("adCall('stop')"), "not after the end");
+        assertTrue(ActivityPage.banner(store.current()).contains("Stopped by you"));
+        assertTrue(ActivityPage.statusBar(store.current(), START + 3_000).startsWith("Agent: stopped by you"));
+        assertEquals(ActivityPage.PHASE_ENDED, ActivityPage.phase(store.current()));
+        String page = ActivityPage.shell(false);
+        assertTrue(page.contains(".banner .what{flex:1 1 14em;min-width:14em}"), "the location wraps, not the text");
+    }
 }

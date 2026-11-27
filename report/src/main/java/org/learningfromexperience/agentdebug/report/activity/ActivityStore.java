@@ -147,6 +147,53 @@ public final class ActivityStore {
         if (id != null) notifyListeners(id);
     }
 
+    /** {@link Investigation#outcome()} of an investigation the user stopped in Eclipse (OPEN-62). */
+    public static final String STOPPED = "STOPPED";
+    /** {@link Investigation#outcome()} of an investigation Eclipse ended after the agent stopped calling (OPEN-62). */
+    public static final String EXPIRED = "EXPIRED";
+
+    /**
+     * OPEN-62: the user stopped the open investigation in Eclipse ("Stop and clean up" in Agent Activity). Marks it
+     * ended, with what the cleanup did. Returns its ID, or null when none was open. Never throws.
+     */
+    public String stoppedByUser(List<String> cleanup) {
+        String id = null;
+        synchronized (this) {
+            Mutable open = null;
+            for (Mutable m : investigations.values()) if (m.outcome == null) open = m;
+            if (open != null) id = end(open, STOPPED, "Stopped by you in Eclipse", cleanup);
+        }
+        if (id != null) notifyListeners(id);
+        return id;
+    }
+
+    /**
+     * OPEN-62 (Ayan 28 Nov 00:25: "Agent: thinking · 12 min" long after the run): Eclipse ended this investigation
+     * because the agent stopped calling (the idle lease, cleanup path 3). Copilot keeps the MCP server running, so no
+     * finish event would ever arrive. Only the named, still open investigation; returns whether it was marked.
+     */
+    public boolean expired(String id, String why) {
+        boolean marked = false;
+        synchronized (this) {
+            Mutable inv = investigations.get(id);
+            if (inv != null && inv.outcome == null) {
+                end(inv, EXPIRED, "Ended by Eclipse: no agent activity", why == null ? List.of() : List.of(why));
+                marked = true;
+            }
+        }
+        if (marked) notifyListeners(id);
+        return marked;
+    }
+
+    private static String end(Mutable inv, String outcome, String conclusion, List<String> cleanup) {
+        inv.outcome = outcome;
+        inv.conclusion = conclusion;
+        inv.cleanup = cleanup == null ? List.of() : List.copyOf(cleanup);
+        inv.finishedAt = Instant.now().toString();
+        inv.endRunning(false);
+        return inv.id;
+    }
+
     /** All investigations, oldest first. */
     public synchronized List<Investigation> investigations() {
         List<Investigation> copy = new ArrayList<>();
@@ -213,6 +260,8 @@ public final class ActivityStore {
             }
             case "investigationFinished" -> {
                 inv = known(id, at);
+                // Ended in Eclipse (stopped by the user, or expired): the MCP server's later end is not news.
+                if (STOPPED.equals(inv.outcome) || EXPIRED.equals(inv.outcome)) break;
                 inv.outcome = Json.str(e.get("outcome"));
                 inv.conclusion = Json.str(e.get("conclusion"));
                 inv.cleanup = strings(e.get("cleanup"));

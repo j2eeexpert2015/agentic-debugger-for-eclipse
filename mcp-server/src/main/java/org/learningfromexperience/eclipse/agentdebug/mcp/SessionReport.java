@@ -519,7 +519,10 @@ final class SessionReport {
     private static String stopTitle(Map<String, Object> reply) {
         if (!Boolean.TRUE.equals(reply.get("stopped"))) {
             String reason = Text.firstNonNull(Json.str(reply.get("reason")), "no reply");
-            return reason.equals("TERMINATED") ? "Program ended without stopping" : "Waited for a stop: none (" + reason + ")";
+            // OPEN-63: a wait that timed out is not an error; the program is still running.
+            return reason.equals("TERMINATED") ? "Program ended without stopping"
+                    : reason.equals("TIMEOUT") ? "No breakpoint reached yet (still running)"
+                    : "Waited for a stop: none (" + reason + ")";
         }
         Map<String, Object> at = Json.obj(reply.get("location"));
         String where = at.isEmpty() ? "" : ": " + simple(Json.str(at.get("className"))) + "."

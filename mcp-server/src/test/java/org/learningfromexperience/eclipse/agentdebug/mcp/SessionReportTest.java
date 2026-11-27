@@ -167,7 +167,7 @@ class SessionReportTest {
                 "{\"status\":\"success\",\"stopped\":false,\"reason\":\"TIMEOUT\"}");
         var last = captured.steps().get(captured.steps().size() - 1);
         assertEquals("inv-2", last.investigationId());
-        assertEquals("Waited for a stop: none (TIMEOUT)", last.title());
+        assertEquals("No breakpoint reached yet (still running)", last.title());
     }
 
     @Test

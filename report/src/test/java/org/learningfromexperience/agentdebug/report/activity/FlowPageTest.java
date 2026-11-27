@@ -97,13 +97,13 @@ class FlowPageTest {
         List<FlowPage.Node> nodes = FlowPage.nodes(inv);
         assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.REQUEST, FlowPage.Kind.STOP, FlowPage.Kind.RESPONSE,
                 FlowPage.Kind.CLEAN, FlowPage.Kind.AGENT), kinds(nodes));
-        assertEquals("breakpoint OrderService:24 · OrdersApplication started in debug mode", nodes.get(0).sub());
+        assertEquals("Breakpoint: OrderService 24\nStarted: OrdersApplication (debug mode)", nodes.get(0).sub(), "one line per kind");
         assertEquals("POST /orders/quote (discount scenario)", nodes.get(1).name());
         assertEquals("{\"quantity\":2,\"discountPercent\":10}", nodes.get(1).sub());
         FlowPage.Node stop = nodes.get(2);
         assertEquals("OrderService.quote:24", stop.name());
         assertTrue(stop.breakpointHit());
-        assertEquals("called from OrderController.quote:21 · thread http-nio-exec-2", stop.sub());
+        assertEquals("called from OrderController.quote:21", stop.sub());
         assertEquals(List.of("quantity", "unitPrice", "percent", "rate"),
                 stop.variables().stream().map(ActivityPage.Variable::name).toList(), "the frame's variables, not the fields");
         assertEquals(1, stop.expansions().size(), "two expansions of one path, folded");
@@ -132,7 +132,7 @@ class FlowPageTest {
                 FlowPage.Kind.RESPONSE, FlowPage.Kind.CLEAN), kinds(nodes), "no agent node without a conclusion");
         FlowPage.Node second = nodes.get(3);
         assertEquals("line 24 → 25", second.movement());
-        assertEquals("same method, line 24 → 25 · thread http-nio-exec-2", second.sub());
+        assertEquals("same method, line 24 → 25", second.sub(), "the thread is under Call stack and thread");
         assertFalse(second.breakpointHit(), "a step end, not a breakpoint");
         ActivityPage.Variable rate = second.variables().get(2);
         assertEquals("1", rate.value());
@@ -161,7 +161,8 @@ class FlowPageTest {
                 RESPONSE, CLEANUP), null));
         assertEquals(List.of(FlowPage.Kind.PREP, FlowPage.Kind.REQUEST, FlowPage.Kind.NOSTOP, FlowPage.Kind.RESPONSE,
                 FlowPage.Kind.NEVER, FlowPage.Kind.CLEAN), kinds(none), "the wait itself is the no-stop node");
-        assertEquals("Waited for a stop: none (TIMEOUT)", none.get(2).name());
+        assertEquals("No breakpoint reached yet", none.get(2).name(), "a timeout is not an error");
+        assertTrue(none.get(2).lines().stream().noneMatch(l -> l.startsWith("No stop: ")), "no raw TIMEOUT line");
 
         // The agent read the stack but never waited: it asked, so a breakpoint not seen is "never hit".
         List<FlowPage.Node> looked = FlowPage.nodes(inv(List.of(breakpoint("OrderService", 24), LAUNCH, REQUEST,
@@ -356,5 +357,34 @@ class FlowPageTest {
         assertTrue(FlowPage.same("0.1", "0.10 (10%)") && !FlowPage.same("0", "0.10 (10%)"),
                 "the agent's expected value with words (trial 25 Nov 12:29): its first number counts");
         assertEquals("", FlowPage.tracker(FlowPage.Analysis.NONE, nodes), "no value named: no tracker");
+    }
+
+    @Test @DisplayName("FP-U10 OPEN-63 clarity: no 'moved' for the same line; a short caller with the stack on a click; a Now line while it runs")
+    void fpU10() {
+        ActivityStore.Step first = stop("Stopped at breakpoint: OrderService.quote, line 23",
+                "OrderService.quote:23  <  OrderController.quote:21  <  X.y:1", table("percent", "int", "10"));
+        ActivityStore.Step again = stop("Stopped at breakpoint: OrderService.quote, line 23",
+                "OrderService.quote:23  <  OrderController.quote:21", table("percent", "int", "10"));
+        ActivityStore.Investigation open = running(List.of(first, again));
+        List<FlowPage.Node> nodes = FlowPage.nodes(open);
+        FlowPage.Node last = nodes.get(nodes.size() - 1);
+        assertNull(last.movement(), "line 23 -> 23 is not a movement");
+        assertEquals("called from OrderController.quote:21", last.sub(), "no thread in the box");
+        String live = FlowPage.live(open);
+        assertTrue(live.contains("Call stack and thread"), live);
+        assertTrue(live.contains("class=\"fnow\""), "a Now line while the agent thinks");
+        List<ActivityStore.Step> waiting = new ArrayList<>(List.of(first, again));
+        waiting.add(new ActivityStore.Step("STOP", "Waiting for the program to stop", "RUNNING", List.of(), -1,
+                "2026-11-25T04:53:05Z", null));
+        String busy = FlowPage.live(running(waiting));
+        assertTrue(busy.contains("class=\"fnow busy\"") && busy.contains("Now: Waiting for the program to stop"), busy);
+        assertFalse(FlowPage.live(inv(List.of(first, again), "x")).contains("fnow"), "no Now line after the finish");
+    }
+
+    /** An investigation still running, paused at a stop. */
+    private static ActivityStore.Investigation running(List<ActivityStore.Step> steps) {
+        return new ActivityStore.Investigation("0e462d67-0591", "NORMAL", "copilot", "Why 120.00?", true,
+                "2026-11-25T04:52:44Z", steps, 0, null, null, List.of(), null, null,
+                ActivityStore.PROGRAM_PAUSED, "OrderService.quote:23", "2026-11-25T04:53:13Z", null, null, null, null);
     }
 }
