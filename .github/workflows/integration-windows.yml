@@ -29,11 +29,12 @@ env:
   ECLIPSE_RELEASE: '2025-12'
   ECLIPSE_HOME: 'C:\ci\eclipse'
   BRIDGE_PORT: '21766'
-  TEST_SUITE: ${{ inputs.suite || 'RegressionSuite' }}
+  # CI branch pushes run all 43 tests; PRs default to the 21-test regression suite.
+  TEST_SUITE: ${{ github.event_name == 'push' && 'FullSuite' || inputs.suite || 'RegressionSuite' }}
 
 jobs:
   regression:
-    name: ${{ inputs.suite || 'RegressionSuite' }} / Windows / Eclipse 2025-12
+    name: ${{ github.event_name == 'push' && 'FullSuite' || inputs.suite || 'RegressionSuite' }} / Windows / Eclipse 2025-12
     runs-on: windows-latest
     timeout-minutes: 60
 
