@@ -1,0 +1,144 @@
+# One sequential pipeline for validation and NON-PUBLISHING release-candidate packaging.
+# No write permissions, tags, GitHub Releases, or modifications to main.
+name: CI release readiness (sequential)
+
+on:
+  push:
+    branches: ['ci/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Available from the Actions UI after the workflow reaches the default branch.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-readiness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: 'Stage 1: Build and unit tests (JDK 21/25, serial)'
+    uses: ./.github/workflows/ci.yml
+
+  integration:
+    name: 'Stage 2: FullSuite (43 tests)'
+    needs: unit
+    uses: ./.github/workflows/integration-windows.yml
+    with:
+      suite: FullSuite
+
+  packaged:
+    name: 'Stage 3: ZIP install, uninstall, reinstall (21 tests)'
+    needs: integration
+    uses: ./.github/workflows/zip-install-windows.yml
+
+  candidate:
+    name: 'Stage 4: Verified release-candidate bundle (not published)'
+    needs: packaged
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download the exact ZIP installed and tested in Stage 3
+        uses: actions/download-artifact@v5
+        with:
+          name: validated-zip-install-windows
+          path: candidate-input
+
+      - name: Validate package and generate versioned candidate plus SHA256
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          ACTIONS_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import io
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import zipfile
+
+          sources = list(Path('candidate-input').rglob('agentic-debugger-update-site-*.zip'))
+          if len(sources) != 1:
+              raise SystemExit(f'Expected exactly one tested update-site ZIP, found {len(sources)}')
+          source = sources[0]
+          prefix = 'org.learningfromexperience.eclipse.agentdebug'
+          with zipfile.ZipFile(source) as archive:
+              names = archive.namelist()
+              if any(name.startswith('/') or '..' in Path(name).parts for name in names):
+                  raise SystemExit('Unsafe paths in update-site ZIP')
+              required = [
+                  any(name in names for name in ('content.jar','content.xml','content.xml.xz')),
+                  any(name in names for name in ('artifacts.jar','artifacts.xml','artifacts.xml.xz')),
+              ]
+              if not all(required):
+                  raise SystemExit('Missing p2 metadata in tested ZIP')
+              feature_pattern = re.compile(r'^features/' + re.escape(prefix) + r'\.feature_(\d+\.\d+\.\d+\.[A-Za-z0-9_-]+)\.jar$')
+              plugin_pattern = re.compile(r'^plugins/' + re.escape(prefix) + r'_(\d+\.\d+\.\d+\.[A-Za-z0-9_-]+)\.jar$')
+              features = [(n,feature_pattern.fullmatch(n)) for n in names if n.startswith('features/')]
+              plugins = [(n,plugin_pattern.fullmatch(n)) for n in names if n.startswith('plugins/')]
+              features = [(n,m) for n,m in features if m]
+              plugins = [(n,m) for n,m in plugins if m]
+              if len(features) != 1 or len(plugins) != 1:
+                  raise SystemExit(f'Expected exactly one debugger feature and plugin; feature={len(features)} plugin={len(plugins)}')
+              version = features[0][1].group(1)
+              if plugins[0][1].group(1) != version:
+                  raise SystemExit(f'Plugin/feature version mismatch: {plugins[0][1].group(1)} vs {version}')
+              with zipfile.ZipFile(io.BytesIO(archive.read(plugins[0][0]))) as plugin:
+                  manifest = plugin.read('META-INF/MANIFEST.MF').decode('utf-8')
+                  # OSGi headers may be folded across continuation lines.
+                  manifest = re.sub(r'\r?\n ', '', manifest)
+                  match = re.search(r'^Bundle-Version:\s*(\S+)', manifest, re.M)
+                  if not match or match.group(1).strip() != version:
+                      raise SystemExit(f'Plugin MANIFEST version does not match feature: {match.group(1) if match else "missing"}')
+
+          out = Path('release-candidate')
+          out.mkdir(exist_ok=True)
+          destination = out / f'agentic-debugger-update-site-{version}.zip'
+          shutil.copy2(source, destination)
+          digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+          (out/'SHA256SUMS.txt').write_text(f'{digest}  {destination.name}\n', encoding='utf-8')
+          original_version = source.name.removeprefix('agentic-debugger-update-site-').removesuffix('.zip')
+          note = (
+              '# Agentic Debugger for Eclipse — UNPUBLISHED release candidate\n\n'
+              'Not a public release. Requires owner acceptance and validation against the approved development commit.\n\n'
+              f'- Tested source commit: `{os.environ["SOURCE_SHA"]}`\n'
+              f'- GitHub Actions evidence: {os.environ["ACTIONS_RUN"]}\n'
+              f'- Eclipse feature and plugin version: `{version}`\n'
+              f'- Download candidate: `{destination.name}`\n'
+              f'- Original Maven build filename: `{source.name}`\n'
+              f'- SHA-256: `{digest}`\n'
+              '- Validated: Windows JDK 21/25 unit builds, FullSuite 43 tests, '
+              'ZIP install/uninstall/reinstall and 21 post-reinstall tests.\n'
+              '- Tested Eclipse: 2025-12 on Windows. Other operating systems are not certified by this run.\n\n'
+              '## Local installation\n'
+              'In Eclipse: Help → Install New Software → Add → Archive, then select the update-site ZIP.\n'
+              'Install Agentic Debugger for Eclipse IDE and restart.\n\n'
+              '## Release blockers still to resolve\n'
+              '- Verify this candidate against the latest approved product code (main is still under development).\n'
+              '- Complete manual Claude Code / GitHub Copilot acceptance, signing decision, and release approval.\n'
+          )
+          if original_version != version:
+              print(f'::warning::Maven ZIP filename {original_version} disagrees with the feature version {version}. Candidate is renamed, but align the Maven versions before public release.')
+              note += f'- Maven artifact version `{original_version}` differs from product version `{version}`. Align build versions before public release.\n'
+          (out/'RELEASE_CANDIDATE.md').write_text(note, encoding='utf-8')
+          print(f'Candidate: {destination.name} ({destination.stat().st_size} bytes)')
+          print(f'SHA256: {digest}')
+          print('Public release: DISABLED')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write(f'### Release candidate prepared (NOT published)\n\n')
+              summary.write(f'- Tested package: `{destination.name}`\n- SHA-256: `{digest}`\n')
+              summary.write(f'- Source commit: `{os.environ["SOURCE_SHA"]}`\n')
+              summary.write('- All 3 prior validation stages completed successfully.\n')
+          PY
+
+      - name: Upload verified candidate, checksum and release notes
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-candidate-validated
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 30

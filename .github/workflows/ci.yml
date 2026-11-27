@@ -1,26 +1,19 @@
-# Windows CI for Java 21 (minimum runtime) and Java 25.
-# This workflow also validates PR merge commits against the current base branch.
+# Reusable Stage 1: Windows JDK 21 and 25 unit builds, executed one at a time.
+# Run only through release-readiness.yml so later stages depend on its success.
 name: Build and unit tests
 
 on:
-  push:
-    branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build:
     name: ${{ matrix.os }} / JDK ${{ matrix.java }}
     strategy:
       fail-fast: false
+      max-parallel: 1  # JDK 21 and JDK 25 execute one after the other.
       matrix:
         os: [windows-latest]
         java: ['21', '25']

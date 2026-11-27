@@ -1,20 +1,13 @@
 # Install from the distributable ZIP, not Maven's unpacked target/repository.
-# Complements integration-windows.yml, which runs FullSuite on ci/** pushes.
+# Reusable Stage 3: invoked only after the 43-test FullSuite passes.
+# Uploads the SAME ZIP that was extracted and used for installation/reinstall tests.
 name: ZIP install and smoke tests (Windows)
 
 on:
-  push:
-    branches: ['ci/**']
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: zip-install-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   ECLIPSE_RELEASE: '2025-12'
@@ -204,6 +197,17 @@ jobs:
           Write-Host "ZIP-installed regression: $n tests, $f failures, $e errors, $skip skipped"
           @('### ZIP-installed Eclipse regression', '', "| Tests | Failures | Errors | Skipped |", "|---:|---:|---:|---:|", "| $n | $f | $e | $skip |") | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
           if ($n -lt 21 -or $f -ne 0 -or $e -ne 0 -or $skip -ne 0) { throw 'ZIP installation regression verification failed' }
+
+      # This is the exact ZIP extracted and installed above; don't rebuild it
+      # for the release candidate. The downstream stage downloads THIS artifact.
+      - name: Upload successfully installed and tested ZIP
+        if: success()
+        uses: actions/upload-artifact@v5
+        with:
+          name: validated-zip-install-windows
+          path: eclipse-update-site/target/agentic-debugger-update-site-*.zip
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Collect Eclipse and test logs
         if: always()

@@ -1,40 +1,29 @@
 # Installs the plugin into an actual Eclipse 2025-12 and runs debugger integration tests.
-# PR jobs use GitHub's proposed merge commit, covering the newest main plus these workflows.
+# Reusable Stage 2: called after all Stage 1 unit/build checks pass.
 name: Integration tests (Windows)
 
 on:
-  push:
-    branches: ['ci/**']
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       suite:
         description: Integration suite to execute
-        type: choice
-        required: true
-        default: RegressionSuite
-        options:
-          - RegressionSuite
-          - FullSuite
+        type: string
+        required: false
+        default: FullSuite
 
 permissions:
   contents: read
-
-concurrency:
-  group: integration-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   ECLIPSE_RELEASE: '2025-12'
   ECLIPSE_HOME: 'C:\ci\eclipse'
   BRIDGE_PORT: '21766'
-  # CI branch pushes run all 43 tests; PRs default to the 21-test regression suite.
-  TEST_SUITE: ${{ github.event_name == 'push' && 'FullSuite' || inputs.suite || 'RegressionSuite' }}
+  # Pipeline explicitly requests FullSuite; one complete run per tested commit.
+  TEST_SUITE: ${{ inputs.suite || 'FullSuite' }}
 
 jobs:
   regression:
-    name: ${{ github.event_name == 'push' && 'FullSuite' || inputs.suite || 'RegressionSuite' }} / Windows / Eclipse 2025-12
+    name: ${{ inputs.suite || 'FullSuite' }} / Windows / Eclipse 2025-12
     runs-on: windows-latest
     timeout-minutes: 60
 
