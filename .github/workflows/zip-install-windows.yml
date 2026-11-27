@@ -123,6 +123,45 @@ jobs:
             throw 'p2 director completed but Agentic Debugger feature is not installed'
           }
 
+      - name: Verify uninstall and reinstall of packaged feature
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $director = Join-Path $env:ECLIPSE_HOME 'eclipsec.exe'
+          $featureId = 'org.learningfromexperience.eclipse.agentdebug.feature.feature.group'
+          $installedFeature = "$featureId/$env:ZIP_FEATURE_VERSION"
+          $sitePath = Join-Path $env:RUNNER_TEMP 'agentdebug-zip-install-site'
+          $siteUri = ([System.Uri]::new((Resolve-Path $sitePath).Path + [IO.Path]::DirectorySeparatorChar)).AbsoluteUri
+
+          # Eclipse is NOT running yet: perform the p2 operations in the isolated CI installation.
+          Write-Host "Uninstalling $featureId"
+          & $director '-nosplash' '-application' 'org.eclipse.equinox.p2.director' '-destination' $env:ECLIPSE_HOME '-uninstallIU' $featureId
+          if ($LASTEXITCODE -ne 0) { throw "Uninstall failed with exit code $LASTEXITCODE" }
+          $roots = @(& $director '-nosplash' '-application' 'org.eclipse.equinox.p2.director' '-destination' $env:ECLIPSE_HOME '-listInstalledRoots')
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot list installed roots after uninstall' }
+          if (($roots -join "`n") -match [regex]::Escape($featureId)) {
+            throw 'Agentic Debugger feature is still an installed root after uninstall'
+          }
+          Write-Host 'Verified: installed root removed after uninstall.'
+
+          # Reinstall from the *same extracted distribution ZIP*, not Maven's target/repository.
+          Write-Host "Reinstalling $installedFeature from $siteUri"
+          & $director '-nosplash' '-application' 'org.eclipse.equinox.p2.director' '-destination' $env:ECLIPSE_HOME '-repository' $siteUri '-installIU' $installedFeature
+          if ($LASTEXITCODE -ne 0) { throw "Reinstall failed with exit code $LASTEXITCODE" }
+          $roots = @(& $director '-nosplash' '-application' 'org.eclipse.equinox.p2.director' '-destination' $env:ECLIPSE_HOME '-listInstalledRoots')
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot list installed roots after reinstall' }
+          if (($roots -join "`n") -notmatch [regex]::Escape($installedFeature)) {
+            throw "Expected feature/version not installed after reinstall: $installedFeature"
+          }
+          Write-Host 'Verified: ZIP feature reinstalled successfully.'
+          @(
+            '### Package lifecycle validation', '',
+            '- Initial installation: PASS',
+            '- Uninstall (installed root removed): PASS',
+            '- Reinstall from extracted ZIP: PASS',
+            '- Runtime behavior: checked by the following 21-test regression step'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
       - name: Configure test workspace
         shell: pwsh
         run: |
