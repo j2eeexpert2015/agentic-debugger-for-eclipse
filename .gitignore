@@ -33,3 +33,4 @@ evaluation/skill-automation/*-install-backup-*/
 # Captured single-run Eclipse diagnostics should stay outside version control
 /eclipse-bridge-threads.txt
 /eclipse-errors.txt
+dev-e2e/e2e.properties.mine
