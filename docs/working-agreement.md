@@ -31,7 +31,7 @@ complements [development-workflow.md](development-workflow.md) (the engineering 
 2. **A full change list** in the message, for every file: the file, where in it, before and after (short), and why.
 3. **"Trial needed: yes/no"** with the reason (yes when anything the agent reads or does changes; see
    development-workflow §6).
-4. **The commands** (section 4), in one block.
+4. **The commands** (section 4): one line each, with a line of note before it.
 5. **What the assistant checked and what it could not.**
 6. Update `docs/handoff.md` (a "Last delivery" section) and the tracking table in `STATUS.md` with each delivery.
 
@@ -40,41 +40,29 @@ buggy fixtures stay unchanged), generated files, secrets.
 
 ## 4. Commands
 
-Plain Windows `cmd`, one block Ayan can paste at once:
+Every command for Ayan is **one line** to paste into `cmd` (Ayan 28 Nov: multi-line pastes get cut or leave the last
+line waiting for Enter), with **one line of note before it** saying what it does. The ready lines for every
+scenario are in **[local-commands.md](local-commands.md)**; take them from there and keep that page up to date.
 
-- First line: `cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && ^`
-- `&& ^` goes at the **end** of every line except the last. Never start a line with `&&` (cmd breaks), and never
-  start a continued line with `(`: the `^` also escapes the first character of the next line, so `(if ...)` becomes
-  an unknown command (27 Nov). Create folders with
-  `powershell -Command "New-Item -ItemType Directory -Force -Path \"<folder>\" | Out-Null"` instead.
-- Maven as `call mvn ...` (without `call`, the chain stops after Maven). Deploy with
-  `java dev-e2e/DevE2E.java deploy`, start with `java dev-e2e/DevE2E.java start`.
-- Extract a zip with
-  `powershell -Command "Expand-Archive -Force -Path '%USERPROFILE%\Downloads\<zip>' -DestinationPath ."`.
-- Add a **`findstr` guard line** that proves the new files are in place before building, e.g.
-  `findstr /c:"<text only in the new version>" <file> >nul && echo <file> OK`.
-- When the test Eclipse must be closed (deploy, file locks), the block starts (after `cd`) with this step, which
-  closes **only** the test Eclipse and stops if a dialog is open. Never kill it with `Stop-Process`: a killed Eclipse
-  does not save its workspace (removed breakpoints come back) nor run the plugin's shutdown clean-up (28 Nov):
-
-```
-powershell -Command "$p = Get-Process eclipse -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq 'C:\All_Softwares\eclipse\eclipse.exe' }; if ($p) { $p | ForEach-Object { [void]$_.CloseMainWindow() }; $p | Wait-Process -Timeout 60 -ErrorAction SilentlyContinue; if (Get-Process -Id $p.Id -ErrorAction SilentlyContinue) { Write-Host 'Test Eclipse did not close: a dialog is waiting in it. Answer it, then run again.'; exit 1 } else { Write-Host 'Test Eclipse closed.' } } else { Write-Host 'Test Eclipse is not running.' }" && ^
-```
-
-- Before the integration tests: Run > Remove All Breakpoints in the test Eclipse (a `pause` step in the block), see
+- Start with `cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse`, join the steps with `&&` (the line stops
+  at the first failure). A step that may fail without stopping the rest uses `&`.
+- Maven as `call mvn ...` (without `call`, the line ends after Maven). Install into the test Eclipse and start it
+  with `java dev-e2e/DevE2E.java deploy`; start only with `java dev-e2e/DevE2E.java start`.
+- Unpack a zip with `tar -xf "%USERPROFILE%\Downloads\<zip>" -C .`.
+- When the test Eclipse must be closed (deploy, file locks), the line starts (after `cd`) with
+  `call dev-e2e\close-test-eclipse.cmd`: it closes **only** the test Eclipse, gracefully, and stops when a dialog is
+  open in it. Never kill it with `Stop-Process`: a killed Eclipse does not save its workspace (removed breakpoints
+  come back) nor run the plugin's shutdown clean-up (28 Nov).
+- A `findstr` guard, when one is needed, has no `\"` in its search string.
+- Before the integration tests: Run > Remove All Breakpoints in the test Eclipse (a `pause` step in the line), see
   handoff.md §2.
 - No git commands. Deletions only with `del /q` / `rmdir /s /q`, and only when the delivery says so.
 - For a Copilot or Claude check inside Eclipse, give the exact prompt to paste.
 
-Typical round (code change):
+Typical round (code change), local-commands.md 1a:
 
 ```
-cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && ^
-<close-test-Eclipse step> && ^
-powershell -Command "Expand-Archive -Force -Path '%USERPROFILE%\Downloads\<zip>' -DestinationPath ." && ^
-findstr /c:"<marker>" <file> && ^
-call mvn clean package && ^
-java dev-e2e/DevE2E.java deploy
+cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call dev-e2e\close-test-eclipse.cmd && tar -xf "%USERPROFILE%\Downloads\<zip>" -C . && call mvn clean package -DskipTests && java dev-e2e/DevE2E.java deploy
 ```
 
 ## 5. Recording

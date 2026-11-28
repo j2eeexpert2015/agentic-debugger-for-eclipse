@@ -1,6 +1,7 @@
-# Handoff for a new chat (27 Nov 2026, 15:30 IST)
+# Handoff for a new chat (28 Nov 2026, 20:40 IST)
 
 Read [working-agreement.md](working-agreement.md) first (how we work), then this file (where the work stands), then
+[local-commands.md](local-commands.md) (every command Ayan runs, one line each), then
 **Status and tracking** in `STATUS.md` (the single list of all items). The repository is the truth; earlier
 chats are not. Delivery-by-delivery notes up to 27 Nov 00:30 are in the git history of this file.
 
@@ -24,16 +25,13 @@ Modules: `report`, `mcp-server` (shaded jar), `testing` (grader, Claude trial ru
 
 Normal deliveries build with `-DskipTests` (Ayan 28 Nov 09:30); this full run only before a merge.
 
+One line, [local-commands.md](local-commands.md) 3a:
+
 ```
-cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && ^
-<close-test-Eclipse step from working-agreement.md §4> && ^
-call mvn clean package && ^
-java dev-e2e/DevE2E.java deploy && ^
-echo. && echo In the test Eclipse: Run - Remove All Breakpoints - Yes. Then press a key here. && pause && ^
-call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
+cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call dev-e2e\close-test-eclipse.cmd && call mvn clean package && java dev-e2e/DevE2E.java deploy && echo In the test Eclipse: Run - Remove All Breakpoints - Yes. Then press a key here. && pause && call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 ```
 
-- **Close Eclipse gracefully** (the step in working-agreement.md §4, `CloseMainWindow`), never with `Stop-Process`:
+- **Close Eclipse gracefully** (`dev-e2e\close-test-eclipse.cmd`, `CloseMainWindow`), never with `Stop-Process`:
   a killed Eclipse does not save its workspace, so breakpoints removed before come back, and the status-bar item
   added by the plugin stays in the saved window layout (28 Nov 10:43-11:00: two failed regression runs with
   "Leftover breakpoints", then two status-bar items).
@@ -248,8 +246,12 @@ the form, the command's existence and Claude's "Status" line; `registration()`, 
 `migrateExisting()` (Update now also rewrites our own stale or direct-Java entry), `remove()` use them;
 PreferenceStates OLDER text "⚠ Needs an update". Skill 0.1.8: stop and ask when the tools are missing. UI tests: module
 `eclipse-plugin-ui-tests` (eclipse-test-plugin, SWTBot, JUnit 5 limited to `[5,6)`: the first JUnit 5 run with `[5,7)` found "No tests"; JUnit 4 then passed, 28 Nov), root-pom profile `ui-tests` (adds the module and
-the SWTBot p2 site, sets skipTests=true for the rest), tests UI-01..05 (UI-05: Needs an update → Update with `CLAUDE_CONFIG_DIR` pointing at target/claude-config, a guard against touching real settings). Open: whether Claude Code starts `cmd /c`
-fine on Ayan's machine (F15); the Tycho/SWTBot setup was never run here, so expect one fix round.
+the SWTBot p2 site, sets skipTests=true for the rest), tests UI-01..05 (UI-05: Needs an update → Update with `CLAUDE_CONFIG_DIR` pointing at target/claude-config, a guard against touching real settings). **Checked by Ayan 28 Nov:** UI tests
+pass, first with JUnit 4 (`open-71-72-3.zip`), then JUnit 5 (`open-71-72-4.zip`, 20:06, 5/5); release check **F15
+passed** (20:22): installed by Archive into an Eclipse with the old plugin (skill 0.1.7 before), the Claude Code page
+showed "⚠ Needs an update", Update, then `claude mcp get eclipse-debugger` showed Command `cmd`, Args
+`/c C:\Users\vmadmin\.eclipse-agentdebug\start-mcp-server.cmd`, ✓ Connected; "works as expected". Lesson: the zips are
+source; a check in Eclipse needs the build installed (local-commands.md 1a for the test Eclipse, 5a for another).
 
 **AB. Welcome after installing, OPEN-70 (28 Nov 13:40, `open-70-welcome-1.zip`, Ayan 13:08-13:27, mockup
 `post-install-welcome-mockup.html`):** `ui/WelcomeDialog` (new; a `MessageDialog` with a custom area for the agent
@@ -286,22 +288,14 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 
 ## 5. Next, in this order
 
-1. **Check `open-60-copilot-agent-only.zip`** (OPEN-60 P0, OPEN-23 d, OPEN-61; section 7): build, deploy, regression,
-   then [release checks](release-checks.md) B and F; fix what they show.
-2. Results of 4B: release checks A, C, D, E (B is now the OPEN-60 check).
-3. Remaining release must-haves (agreed 27 Nov): report location (reports not written into the user's project by
-   default; switch and folder in Preferences, part of OPEN-30 R2b); OPEN-04 launch keeps profile, arguments,
-   environment and working directory, and `@SpringBootTest` method debugging; remove `dev-e2e/e2e.properties` from
-   git. Ayan chose for now: OPEN-58, OPEN-23 (b) + Copilot scenarios, OPEN-36 check, OPEN-12, approval dialog.
-4. **OPEN-46** (moved up, proposed 27 Nov, Ayan to confirm): a short manual protocol for Copilot runs; release checks
-   C is a first version of it.
-5. OPEN-57: exact names and parameters (`lineNumber`, `investigationId`, `allowSideEffects`, reference file paths)
-   in SKILL.md and the agent file; measured before and after.
-6. CI on its branch: 2.1 first run, then 1.3 (Linux, macOS), merge into `main`, 1.4, 2.2 (`docs/ci.md` there).
-   Open release question: first release Windows only, or wait for Linux/macOS evidence.
-7. Later: OPEN-45 signing (only changes the "Signed" label in Copilot; needs a certificate), OPEN-43 console,
-   OPEN-51 upstream report (draft in `docs/copilot-mode-list-bug.md`), OPEN-53 `DevE2E stop`, OPEN-56 releases.
-   OPEN-22 demo apps: parked (Ayan, 27 Nov 02:02).
+1. **OPEN-54/55 cross-platform CI** on a `ci/…` branch: unit tests and the UI tests (`-Pui-tests`) on Windows, Linux
+   and macOS GitHub runners; the macOS PATH note in OPEN-54; then merge into `main`.
+2. More SWTBot UI tests (OPEN-72), one per feature, starting with the parts of F12-F14 still done by hand.
+3. README screenshots `docs/images/agent-activity.png` and `docs/images/report.png`; LICENSE decision.
+4. Pipeline housekeeping: Node 20 action versions; skip the pipeline for docs-only pushes.
+5. Older list, still open: release checks B-E and one Claude trial (section 4 B); report location and OPEN-04
+   (release must-haves); OPEN-46, OPEN-57; OPEN-65 deliveries 2 and 3; OPEN-67/68 (future); automatic clean-up of
+   breakpoints in the test projects once the cause of leftovers is known; later OPEN-45, OPEN-43, OPEN-51, OPEN-53.
 
 ## 6. Where the recent code is
 
@@ -320,6 +314,18 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 | CI | `.github/workflows/ci.yml`, `integration-windows.yml`, `docs/ci.md` (branch `ci/github-actions` until merged) |
 
 ## 7. Last delivery
+
+`open-71-72-5.zip` (28 Nov 20:40): docs and a helper, after F15 passed and Ayan asked (20:27) for one page with all
+local commands. New `docs/local-commands.md` (every command as one line, by scenario: delivery, test Eclipse, tests,
+Claude Code, another Eclipse); new `dev-e2e/close-test-eclipse.cmd` + `.ps1` (the graceful close, reads the Eclipse
+folder from `e2e.properties`); working-agreement §4 now one-line commands joined with `&&` and points to
+local-commands.md; this file (date, §2, AC result, §5, §7); STATUS rows OPEN-71 and OPEN-72 done; CONTRIBUTING doc
+index. Not run here: the close script (no PowerShell on the assistant's machine).
+
+Before it: `open-71-72-4.zip` (28 Nov 19:59): UI tests on JUnit 5 (`Import-Package org.junit.jupiter.api [5,6)`);
+`open-71-72-1..3`: OPEN-71 and OPEN-72, see item AC.
+
+Older:
 
 `open-60-shorter-texts.zip` (27 Nov 15:05): after Ayan's check (build 54/38/23/114, regression 27/27 at 14:42; F1
 page OK, "too much text"): short texts, one idea per line, on the GitHub Copilot page, the consent and setup-check

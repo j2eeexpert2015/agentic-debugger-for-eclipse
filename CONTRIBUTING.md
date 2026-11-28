@@ -125,7 +125,7 @@ Changes follow an **evidence-first, reviewable process**: reproduce and isolate 
 | [Test guide](dev-e2e/README.md) | `DevE2E` commands, suites, Claude trials, setup checks |
 | [Designs](docs/design/README.md) | Agent Activity view and report designs and requirements |
 | [Copilot integration notes](docs/copilot-integration-notes.md) | How GitHub Copilot for Eclipse finds and runs our server and agent |
-| [Working agreement](docs/working-agreement.md) · [Handoff](docs/handoff.md) | How the owner and an assistant work; where the work stands |
+| [Working agreement](docs/working-agreement.md) · [Handoff](docs/handoff.md) · [Local commands](docs/local-commands.md) | How the owner and an assistant work; where the work stands; every local command, one line each |
 | [Coding-agent instructions](AGENTS.md) · [Skill](skills/eclipse-debugger/SKILL.md) | |
 
 Dated phase reports, the old roadmaps, backlog and handoff were removed on 25 Nov 2026 (OPEN-38 step 2); they remain in
