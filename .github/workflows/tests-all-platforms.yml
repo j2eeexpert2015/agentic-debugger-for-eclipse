@@ -1,3 +1,4 @@
+# First full run: 28 Nov 2026
 # Tests on Windows, Linux and macOS (28 Nov 2026, docs/test-plan.md, docs/ci.md "What runs when").
 #   Push to a work branch (not docs-only):  Windows, unit tests + UI tests: the short check, for early feedback.
 #   Push to a ci/... branch:                all three systems, all four kinds (work on the pipelines themselves; the
