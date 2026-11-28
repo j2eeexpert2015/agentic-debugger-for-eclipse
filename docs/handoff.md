@@ -15,7 +15,7 @@ chats are not. Delivery-by-delivery notes up to 27 Nov 00:30 are in the git hist
 | Test workspace | `%LOCALAPPDATA%\AgenticDebugger\java-e2e-workspace` (projects `phase-one-debugging`, `spring-boot-debugging`) |
 | Bridge port of the test Eclipse | 21766 (`dev-e2e/e2e.properties`, untracked, never committed) |
 | Copilot | GitHub Copilot for Eclipse 0.22 nightly, language server 1.541.0; models via "Auto" (runs used claude-sonnet-5-5) |
-| Plugin version | 1.5.0-SNAPSHOT (feature 1.5.0.202611261846 deployed 27 Nov 00:19) |
+| Version | one version everywhere since 28 Nov 11:31 (Ayan): poms `1.0.0-SNAPSHOT`, plugin and feature `1.0.0.qualifier` (before: plugin/feature 1.5.0) |
 
 Modules: `report`, `mcp-server` (shaded jar), `testing` (grader, Claude trial runner, integration tests),
 `eclipse-plugin`, `eclipse-feature`, `eclipse-update-site`. Source map: development-workflow.md.
@@ -240,6 +240,19 @@ list gives each breakpoint's creation time (`createdAt`, from the marker; also v
 list_breakpoints), and the OPEN-47 guard message shows it ("OrderService:23 (user, created 28 Nov 10:45:12)"), so a
 leftover made after the removal can be told from an old one. Automatic clean-up of the test projects waits until the
 cause is known.
+
+**Z. CI and release pipeline on `main` (28 Nov 11:40, `ci-release-1.zip`, Ayan 11:21):** the CI work of branch
+`ci/github-actions` (made with ChatGPT 27-28 Nov, CI files only) brought into `main`: the five workflows, `docs/ci.md`
+(rewritten), `docs/install-from-github-releases.md`, `docs/release-verification-checklist.md`, the update-site pom
+version line. Not taken: the README "Get started" section of that branch, its handoff text, and a stray empty file
+`tar`. New: `update-site-pages.yml` (published release → composite p2 update site on GitHub Pages,
+`https://j2eeexpert2015.github.io/agentic-debugger-for-eclipse/`); `release-readiness.yml` renamed "CI and release",
+runs on pushes to `main` too, releases are previews (`v1.0.0-preview.N`, pre-release; `-rc.N`, plain `v1.0.0` for the
+final one), a release run is never cancelled by a push. One version everywhere (Ayan 11:31): plugin, feature and
+update site back to 1.0.0 like the other modules; the early hand-made `v1.5.0-preview.1` stays on the Releases page
+but is left out of the update site. Decisions (Ayan 11:21): releases from `main`; release by the Run workflow button (draft, the
+owner publishes); install by update-site URL and zip. One-time: Settings → Pages → Source: GitHub Actions. Not run
+by the assistant: any workflow (YAML parsed, the composite-site script run locally on sample tags).
 
 
 

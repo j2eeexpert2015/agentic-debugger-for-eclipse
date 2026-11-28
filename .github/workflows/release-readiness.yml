@@ -1,0 +1,270 @@
+# CI and release (28 Nov: merged from ci/github-actions into main, docs/ci.md).
+# Every push to main or ci/** and every pull request to main: five serial validation stages, no release writes.
+# Release: Actions -> "CI and release" -> Run workflow on main, tick create_draft, enter the tag (a preview: v1.0.0-preview.1). After all
+# stages pass it creates a DRAFT release with the tested zip; the owner publishes it on the Releases page, which
+# then updates the Eclipse update site on GitHub Pages (update-site-pages.yml). Never auto-publishes.
+name: CI and release
+
+on:
+  push:
+    branches: [main, 'ci/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      create_draft:
+        description: 'Release: create a DRAFT GitHub Release after all tests pass (main only)'
+        type: boolean
+        required: true
+        default: false
+      release_tag:
+        description: 'Release tag: a preview, e.g. v1.0.0-preview.1 (later v1.0.0-rc.1; v1.0.0 only for the final release). Must not exist yet.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push replaces a running check of the same branch; a release run is never cancelled by a push.
+  group: release-readiness-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  unit:
+    name: 'Stage 1: Build and unit tests (JDK 21/25, serial)'
+    uses: ./.github/workflows/ci.yml
+
+  integration:
+    name: 'Stage 2: FullSuite (43 tests)'
+    needs: unit
+    uses: ./.github/workflows/integration-windows.yml
+    with:
+      suite: FullSuite
+
+  packaged:
+    name: 'Stage 3: ZIP install, uninstall, reinstall (21 tests)'
+    needs: integration
+    uses: ./.github/workflows/zip-install-windows.yml
+
+  compatibility:
+    name: 'Stage 4: Eclipse 2026-09 compatibility (21 tests)'
+    needs: packaged
+    uses: ./.github/workflows/compatibility-windows.yml
+
+  candidate:
+    name: 'Stage 5: Verified release-candidate bundle (not published)'
+    needs: compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download the exact ZIP installed and tested in Stage 3
+        uses: actions/download-artifact@v5
+        with:
+          name: validated-zip-install-windows
+          path: candidate-input
+
+      - name: Validate package and generate versioned candidate plus SHA256
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          ACTIONS_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import io
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+          import zipfile
+
+          sources = list(Path('candidate-input').rglob('agentic-debugger-update-site-*.zip'))
+          if len(sources) != 1:
+              raise SystemExit(f'Expected exactly one tested update-site ZIP, found {len(sources)}')
+          source = sources[0]
+          prefix = 'org.learningfromexperience.eclipse.agentdebug'
+          with zipfile.ZipFile(source) as archive:
+              names = archive.namelist()
+              if any(name.startswith('/') or '..' in Path(name).parts for name in names):
+                  raise SystemExit('Unsafe paths in update-site ZIP')
+              required = [
+                  any(name in names for name in ('content.jar','content.xml','content.xml.xz')),
+                  any(name in names for name in ('artifacts.jar','artifacts.xml','artifacts.xml.xz')),
+              ]
+              if not all(required):
+                  raise SystemExit('Missing p2 metadata in tested ZIP')
+              feature_pattern = re.compile(r'^features/' + re.escape(prefix) + r'\.feature_(\d+\.\d+\.\d+\.[A-Za-z0-9_-]+)\.jar$')
+              plugin_pattern = re.compile(r'^plugins/' + re.escape(prefix) + r'_(\d+\.\d+\.\d+\.[A-Za-z0-9_-]+)\.jar$')
+              features = [(n,feature_pattern.fullmatch(n)) for n in names if n.startswith('features/')]
+              plugins = [(n,plugin_pattern.fullmatch(n)) for n in names if n.startswith('plugins/')]
+              features = [(n,m) for n,m in features if m]
+              plugins = [(n,m) for n,m in plugins if m]
+              if len(features) != 1 or len(plugins) != 1:
+                  raise SystemExit(f'Expected exactly one debugger feature and plugin; feature={len(features)} plugin={len(plugins)}')
+              version = features[0][1].group(1)
+              if plugins[0][1].group(1) != version:
+                  raise SystemExit(f'Plugin/feature version mismatch: {plugins[0][1].group(1)} vs {version}')
+              with zipfile.ZipFile(io.BytesIO(archive.read(plugins[0][0]))) as plugin:
+                  manifest = plugin.read('META-INF/MANIFEST.MF').decode('utf-8')
+                  manifest = re.sub(r'\r?\n ', '', manifest)
+                  match = re.search(r'^Bundle-Version:\s*(\S+)', manifest, re.M)
+                  if not match or match.group(1).strip() != version:
+                      raise SystemExit(f'Plugin MANIFEST version does not match feature: {match.group(1) if match else "missing"}')
+
+          out = Path('release-candidate')
+          out.mkdir(exist_ok=True)
+          destination = out / f'agentic-debugger-update-site-{version}.zip'
+          shutil.copy2(source, destination)
+          digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+          (out/'SHA256SUMS.txt').write_text(f'{digest}  {destination.name}\n', encoding='utf-8')
+          original_version = source.name.removeprefix('agentic-debugger-update-site-').removesuffix('.zip')
+          # Maven uses 1.0.0-SNAPSHOT during development; Tycho resolves the
+          # Eclipse feature/bundle to 1.0.0.<build qualifier>. Compare their
+          # MAJOR.MINOR.PATCH versions, not the qualifier and SNAPSHOT suffix.
+          base_version = version.rsplit('.', 1)[0]
+          if original_version not in (base_version, f'{base_version}-SNAPSHOT'):
+              raise SystemExit(
+                  f'Update-site ZIP Maven version {original_version} does not match '
+                  f'Eclipse feature/plugin base version {base_version}')
+          note = (
+              '# Agentic Debugger for Eclipse — UNPUBLISHED release candidate\n\n'
+              'Not a public release. Requires owner acceptance and validation against the approved development commit.\n\n'
+              f'- Tested source commit: `{os.environ["SOURCE_SHA"]}`\n'
+              f'- GitHub Actions evidence: {os.environ["ACTIONS_RUN"]}\n'
+              f'- Eclipse feature and plugin version: `{version}`\n'
+              f'- Download candidate: `{destination.name}`\n'
+              f'- Original Maven build filename: `{source.name}`\n'
+              f'- SHA-256: `{digest}`\n'
+              '- Validated: Windows JDK 21/25 unit builds, FullSuite 43 tests, '
+              'ZIP install/uninstall/reinstall, 21 post-reinstall tests, '
+              'and 21 compatibility regression tests on Eclipse 2026-09.\n'
+              '- Tested Eclipse: 2025-12 and 2026-09 on Windows. Other operating systems are not certified by this run.\n\n'
+              '## Local installation\n'
+              'In Eclipse: Help → Install New Software → Add → Archive, then select the update-site ZIP.\n'
+              'Install Agentic Debugger for Eclipse IDE and restart.\n\n'
+              '## Before publishing\n'
+              '- Manual Claude Code / GitHub Copilot acceptance and owner approval '
+              '(docs/release-verification-checklist.md, part D). The plugin is not signed (OPEN-45).\n'
+          )
+          (out/'RELEASE_CANDIDATE.md').write_text(note, encoding='utf-8')
+          print(f'Candidate: {destination.name} ({destination.stat().st_size} bytes)')
+          print(f'SHA256: {digest}')
+          print('Public release: DISABLED')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write(f'### Release candidate prepared (NOT published)\n\n')
+              summary.write(f'- Tested package: `{destination.name}`\n- SHA-256: `{digest}`\n')
+              summary.write(f'- Source commit: `{os.environ["SOURCE_SHA"]}`\n')
+              summary.write('- All 4 prior validation stages completed successfully.\n')
+          PY
+
+      - name: Upload verified candidate, checksum and release notes
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-candidate-validated
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 30
+
+
+  create-draft:
+    # This job does not run on any push or pull request. It can only run after
+    # an explicit workflow_dispatch on main with create_draft=true, and only
+    # after the five validation stages succeed on the same source commit.
+    name: 'Stage 6: Create GitHub Release DRAFT (manual/main only)'
+    needs: candidate
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && inputs.create_draft == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download the exact ZIP validated in Stage 3 and packaged in Stage 4
+        uses: actions/download-artifact@v5
+        with:
+          name: release-candidate-validated
+          path: release-draft-input
+
+      - name: Validate release tag, checksum, and source commit
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          cd release-draft-input
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+
+          tag = os.environ.get('RELEASE_TAG', '').strip()
+          if not re.fullmatch(r'v\d+\.\d+\.\d+(-(preview|rc)\.\d+)?', tag):
+              raise SystemExit('Invalid release tag; expected e.g. v1.0.0-preview.1, v1.0.0-rc.1 or v1.0.0')
+          archives = list(Path('.').glob('agentic-debugger-update-site-*.zip'))
+          if len(archives) != 1:
+              raise SystemExit(f'Expected exactly one tested ZIP; got {len(archives)}')
+          archive = archives[0]
+          match = re.fullmatch(r'agentic-debugger-update-site-(\d+\.\d+\.\d+)\.([A-Za-z0-9_-]+)\.zip', archive.name)
+          if not match:
+              raise SystemExit('Unexpected ZIP version name')
+          if tag.split('-')[0] != 'v' + match.group(1):
+              raise SystemExit(f'Release tag {tag} does not match Eclipse feature version {match.group(1)}')
+          digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          recorded = Path('SHA256SUMS.txt').read_text(encoding='utf-8').strip()
+          if recorded != f'{digest}  {archive.name}':
+              raise SystemExit('ZIP SHA-256 does not match checksum file')
+          notes = Path('RELEASE_CANDIDATE.md').read_text(encoding='utf-8')
+          if os.environ['GITHUB_SHA'] not in notes:
+              raise SystemExit('Release candidate does not document this exact source commit')
+          # Human approval is still needed to publish the GitHub draft.
+          Path('DRAFT_RELEASE_NOTES.md').write_text(
+              f'# Agentic Debugger for Eclipse IDE — {tag}\n\n'
+              'Draft: complete docs/release-verification-checklist.md (part D), then publish.\n\n'
+              f'- Source commit: `{os.environ["GITHUB_SHA"]}`\n'
+              f'- Installable ZIP: `{archive.name}`\n'
+              f'- SHA-256: `{digest}`\n'
+              '- CI evidence: Windows JDK 21/25 builds, 43 integration tests, '
+              'installation/uninstallation/reinstallation, 21 post-reinstall tests, '
+              'and 21 Eclipse 2026-09 compatibility tests.\n'
+              '- Validated platform: Windows, Eclipse 2025-12 and 2026-09.\n\n'
+              '## Installation\n'
+              'Eclipse → Help → Install New Software → Add… → Location: '
+              'https://j2eeexpert2015.github.io/agentic-debugger-for-eclipse/ (updated when this release is published).\n'
+              'Or Add… → Archive… → select the update-site ZIP below. Install Agentic Debugger for Eclipse IDE and restart.\n\n'
+              '## Release candidate information\n\n' + notes,
+              encoding='utf-8')
+          print(f'Validated for draft: {archive.name}, SHA-256 {digest}')
+          PY
+
+      - name: Create unpublished GitHub Release draft (never auto-publish)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          cd release-draft-input
+          shopt -s nullglob
+          archives=(agentic-debugger-update-site-*.zip)
+          [[ ${#archives[@]} -eq 1 ]] || { echo 'Expected exactly one ZIP'; exit 1; }
+          sha256sum -c SHA256SUMS.txt
+          # Refuse overwriting an existing tag or GitHub Release.
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag already exists: $RELEASE_TAG"; exit 1
+          fi
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists: $RELEASE_TAG"; exit 1
+          fi
+          # Preview and RC tags are pre-releases; a plain vX.Y.Z is a normal release.
+          prerelease=()
+          [[ "$RELEASE_TAG" == *-* ]] && prerelease=(--prerelease)
+          gh release create "$RELEASE_TAG" "${archives[0]}" SHA256SUMS.txt RELEASE_CANDIDATE.md \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Agentic Debugger for Eclipse IDE $RELEASE_TAG" \
+            --notes-file DRAFT_RELEASE_NOTES.md \
+            --draft "${prerelease[@]}"
+          echo 'Draft created; not publicly published. Publishing requires manual owner action.'

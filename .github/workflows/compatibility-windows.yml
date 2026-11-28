@@ -1,0 +1,172 @@
+# Reusable compatibility gate: install the exact ZIP already tested in Stage 3
+# into Eclipse 2026-09 and run the 21-test regression suite. No duplicate build.
+name: Eclipse compatibility (Windows 2026-09)
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  ECLIPSE_RELEASE: '2026-09'
+  ECLIPSE_HOME: 'C:\ci\eclipse'
+  BRIDGE_PORT: '21766'
+
+jobs:
+  compatibility:
+    name: ZIP install and regression / Eclipse 2026-09 / JDK 25
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out source and test fixtures
+        uses: actions/checkout@v5
+
+      # Eclipse 2026-09 distributions require Java 25 (not Java 21).
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Restore pristine Eclipse 2026-09
+        id: eclipse-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: C:\ci\eclipse
+          key: eclipse-java-${{ env.ECLIPSE_RELEASE }}-R-win32-x86_64
+
+      - name: Download Eclipse 2026-09 on cache miss
+        if: steps.eclipse-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = "eclipse-java-$env:ECLIPSE_RELEASE-R-win32-x86_64.zip"
+          $url = "https://download.eclipse.org/technology/epp/downloads/release/$env:ECLIPSE_RELEASE/R/$name"
+          New-Item -ItemType Directory -Force -Path C:\ci | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "C:\ci\$name" -MaximumRetryCount 3 -RetryIntervalSec 10
+          Expand-Archive -LiteralPath "C:\ci\$name" -DestinationPath C:\ci -Force
+          Remove-Item "C:\ci\$name"
+          if (-not (Test-Path "$env:ECLIPSE_HOME\eclipsec.exe")) { throw 'Eclipse executable missing after download' }
+
+      - name: Cache pristine Eclipse 2026-09
+        if: steps.eclipse-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: C:\ci\eclipse
+          key: eclipse-java-${{ env.ECLIPSE_RELEASE }}-R-win32-x86_64
+
+      - name: Download the exact ZIP verified by Stage 3
+        uses: actions/download-artifact@v5
+        with:
+          name: validated-zip-install-windows
+          path: candidate-input
+
+      - name: Extract and install tested ZIP on Eclipse 2026-09
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zips = @(Get-ChildItem 'candidate-input' -Filter 'agentic-debugger-update-site-*.zip' -Recurse -File)
+          if ($zips.Count -ne 1) { throw "Expected exactly one tested ZIP, found $($zips.Count)" }
+          $site = Join-Path $env:RUNNER_TEMP 'agentdebug-compatibility-site'
+          Expand-Archive -LiteralPath $zips[0].FullName -DestinationPath $site
+          foreach ($item in @('plugins', 'features')) {
+            if (-not (Test-Path (Join-Path $site $item))) { throw "Tested ZIP missing $item" }
+          }
+          if (-not (@('content.jar','content.xml','content.xml.xz') | Where-Object { Test-Path (Join-Path $site $_) })) {
+            throw 'Tested ZIP missing p2 content metadata'
+          }
+          $features = @(Get-ChildItem (Join-Path $site 'features') -Filter 'org.learningfromexperience.eclipse.agentdebug.feature_*.jar' -File)
+          if ($features.Count -ne 1) { throw "Expected exactly one debugger feature, found $($features.Count)" }
+          $version = $features[0].BaseName.Substring('org.learningfromexperience.eclipse.agentdebug.feature_'.Length)
+          $featureId = 'org.learningfromexperience.eclipse.agentdebug.feature.feature.group'
+          $siteUri = ([System.Uri]::new((Resolve-Path $site).Path + [IO.Path]::DirectorySeparatorChar)).AbsoluteUri
+          $director = Join-Path $env:ECLIPSE_HOME 'eclipsec.exe'
+          if (-not (Test-Path $director)) { throw 'Eclipse p2 director is unavailable' }
+          Write-Host "Installing $featureId/$version on Eclipse $env:ECLIPSE_RELEASE"
+          & $director '-nosplash' '-application' 'org.eclipse.equinox.p2.director' '-destination' $env:ECLIPSE_HOME '-repository' $siteUri '-installIU' "$featureId/$version"
+          if ($LASTEXITCODE -ne 0) { throw "p2 installation failed: $LASTEXITCODE" }
+          $roots = @(& $director '-nosplash' '-application' 'org.eclipse.equinox.p2.director' '-destination' $env:ECLIPSE_HOME '-listInstalledRoots')
+          if ($LASTEXITCODE -ne 0) { throw 'p2 installed-roots query failed' }
+          if (($roots -join "`n") -notmatch [regex]::Escape("$featureId/$version")) {
+            throw 'Newer Eclipse did not install the expected feature/version'
+          }
+          Write-Host "Installed tested ZIP successfully: $featureId/$version"
+
+      - name: Configure isolated test workspace
+        shell: pwsh
+        run: |
+          $repo = "${{ github.workspace }}".Replace('\', '/')
+          $eclipse = $env:ECLIPSE_HOME.Replace('\', '/')
+          @(
+            '# Generated by compatibility CI; not committed.',
+            "repository=$repo",
+            "eclipse=$eclipse",
+            'workspace=${LOCALAPPDATA}/AgenticDebugger/java-e2e-workspace',
+            "bridgePort=$env:BRIDGE_PORT"
+          ) | Set-Content -Path dev-e2e/e2e.properties -Encoding ascii
+          java dev-e2e/DevE2E.java config
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Start Eclipse 2026-09 with the ZIP-installed debugger
+        shell: pwsh
+        run: |
+          java dev-e2e/DevE2E.java start --trace
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run 21 regression tests on Eclipse 2026-09
+        shell: pwsh
+        run: |
+          mvn -B -ntp -pl testing verify -Pintegration-tests '-Dit.test=RegressionSuite' '-Dfixture.post.approved=true'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Enforce actual test counts and publish results
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $report = 'testing/target/failsafe-reports/failsafe-summary.xml'
+          if (-not (Test-Path $report)) { throw 'Missing regression test report for Eclipse 2026-09' }
+          $s = ([xml](Get-Content -Raw $report)).'failsafe-summary'
+          if ($null -eq $s) { throw 'Invalid Failsafe summary' }
+          $n = [int]$s.completed
+          $f = [int]$s.failures
+          $e = [int]$s.errors
+          $skipped = [int]$s.skipped
+          Write-Host "Eclipse 2026-09: tests=$n failures=$f errors=$e skipped=$skipped"
+          @('### Eclipse 2026-09 compatibility (JDK 25)', '',
+            '| Executed | Failures | Errors | Skipped |', '|---:|---:|---:|---:|',
+            "| $n | $f | $e | $skipped |", '',
+            'Installs the exact artifact already installed/uninstalled/reinstalled on Eclipse 2025-12.') |
+            Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+          if ($n -lt 21 -or $f -ne 0 -or $e -ne 0 -or $skipped -ne 0) {
+            throw 'Eclipse 2026-09 compatibility regression verification failed'
+          }
+
+      - name: Collect compatibility diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ci-out | Out-Null
+          $ws = Join-Path $env:LOCALAPPDATA 'AgenticDebugger\java-e2e-workspace'
+          if (Test-Path "$ws\.metadata\.log") { Copy-Item "$ws\.metadata\.log" ci-out\eclipse-workspace.log }
+          Copy-Item dev-e2e\target\*.log ci-out\ -ErrorAction SilentlyContinue
+          if (Test-Path testing\target\failsafe-reports) {
+            Copy-Item testing\target\failsafe-reports ci-out\failsafe-reports -Recurse
+          }
+
+      - name: Upload compatibility logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: eclipse-2026-09-compatibility-logs-${{ github.run_attempt }}
+          path: ci-out/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Close isolated test Eclipse
+        if: always()
+        continue-on-error: true
+        shell: pwsh
+        run: Get-Process eclipse -ErrorAction SilentlyContinue | Stop-Process -Force

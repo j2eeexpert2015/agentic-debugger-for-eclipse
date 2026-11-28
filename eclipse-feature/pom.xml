@@ -9,7 +9,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>org.learningfromexperience.eclipse.agentdebug.feature</artifactId>
-    <version>1.5.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>eclipse-feature</packaging>
     <name>Agentic Debugger for Eclipse IDE Feature</name>
 </project>

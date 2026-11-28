@@ -1,0 +1,118 @@
+# Eclipse update site on GitHub Pages (OPEN-56, 28 Nov).
+# Runs when a release is published on the Releases page (and by hand). Collects the update-site zip of every
+# published release, unpacks each into releases/<tag>/ and writes a composite p2 repository at the root, so one fixed
+# URL serves every version:
+#   https://j2eeexpert2015.github.io/agentic-debugger-for-eclipse/
+# Eclipse: Help -> Install New Software -> Add... -> that URL; Help -> Check for Updates finds newer releases.
+# One-time setup: Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
+name: Update site (GitHub Pages)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update-site-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the composite update site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Collect the update site of every published release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p site/releases download
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 200 --exclude-drafts \
+            --json tagName --jq '.[].tagName' > tags.txt
+          while read -r tag; do
+            [[ -z "$tag" ]] && continue
+            if gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+                 --pattern 'agentic-debugger-update-site-*.zip' --dir "download/$tag" 2>/dev/null; then
+              # Only zips made by the release pipeline (named with the full version, 1.0.0.<qualifier>); the early
+              # hand-made v1.5.0-preview.1 (agentic-debugger-update-site-1.0.0-SNAPSHOT.zip) is left out.
+              shopt -s nullglob
+              zips=(download/"$tag"/agentic-debugger-update-site-[0-9]*.[0-9]*.[0-9]*.[A-Za-z0-9_-]*.zip)
+              shopt -u nullglob
+              if [[ ${#zips[@]} -eq 0 ]]; then echo "$tag: not a pipeline release, skipped"; continue; fi
+              if [[ ${#zips[@]} -ne 1 ]]; then echo "::warning::$tag: ${#zips[@]} update-site zips, skipped"; continue; fi
+              mkdir -p "site/releases/$tag"
+              unzip -q "${zips[0]}" -d "site/releases/$tag"
+              if ! ls "site/releases/$tag" | grep -Eq '^(content|compositeContent)\.(jar|xml)$'; then
+                echo "::warning::$tag: no p2 metadata at the zip's top level, skipped"; rm -rf "site/releases/$tag"; continue
+              fi
+              echo "$tag" >> included.txt
+            else
+              echo "$tag: no update-site zip attached, skipped"
+            fi
+          done < tags.txt
+          [[ -s included.txt ]] || { echo '::error::No published release has an update-site zip'; exit 1; }
+
+      - name: Write the composite repository and a landing page
+        shell: bash
+        env:
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import html, os, time
+          from pathlib import Path
+          site = Path('site')
+          tags = [t.strip() for t in Path('included.txt').read_text().splitlines() if t.strip()]
+          stamp = str(int(time.time() * 1000))
+          def composite(kind, rtype):
+              children = ''.join(f"    <child location='releases/{t}'/>\n" for t in tags)
+              return (f"<?xml version='1.0' encoding='UTF-8'?>\n<?{kind} version='1.0.0'?>\n"
+                      f"<repository name='Agentic Debugger for Eclipse IDE' type='{rtype}' version='1.0.0'>\n"
+                      f"  <properties size='2'>\n    <property name='p2.timestamp' value='{stamp}'/>\n"
+                      f"    <property name='p2.atomic.composite.loading' value='true'/>\n  </properties>\n"
+                      f"  <children size='{len(tags)}'>\n{children}  </children>\n</repository>\n")
+          (site / 'compositeContent.xml').write_text(composite('compositeMetadataRepository',
+              'org.eclipse.equinox.internal.p2.metadata.repository.CompositeMetadataRepository'), encoding='utf-8')
+          (site / 'compositeArtifacts.xml').write_text(composite('compositeArtifactRepository',
+              'org.eclipse.equinox.internal.p2.artifact.repository.CompositeArtifactRepository'), encoding='utf-8')
+          (site / 'p2.index').write_text('version=1\nmetadata.repository.factory.order=compositeContent.xml,\\!\n'
+                                         'artifact.repository.factory.order=compositeArtifacts.xml,\\!\n', encoding='utf-8')
+          (site / '.nojekyll').write_text('', encoding='utf-8')
+          url = os.environ['PAGES_URL']
+          rows = ''.join(f'<li><code>{html.escape(t)}</code></li>' for t in tags)
+          (site / 'index.html').write_text(
+              '<!doctype html><meta charset="utf-8"><title>Agentic Debugger for Eclipse IDE - update site</title>'
+              '<body style="font-family:system-ui,sans-serif;max-width:46rem;margin:2rem auto;line-height:1.5">'
+              '<h1>Agentic Debugger for Eclipse IDE</h1>'
+              '<p>This is an Eclipse update site. In Eclipse: <b>Help &rarr; Install New Software &rarr; Add&hellip;</b>, '
+              f'Location: <code>{html.escape(url)}</code>, then install <b>Agentic Debugger for Eclipse IDE</b> and restart. '
+              'Later versions arrive with <b>Help &rarr; Check for Updates</b>.</p>'
+              f'<p>Releases on this site:</p><ul>{rows}</ul>'
+              '<p><a href="https://github.com/j2eeexpert2015/agentic-debugger-for-eclipse/releases">Release notes and zips</a></p>',
+              encoding='utf-8')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write(f'### Update site\n\nURL: {url}\n\nReleases: {", ".join(tags)}\n')
+          PY
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Publish on GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
