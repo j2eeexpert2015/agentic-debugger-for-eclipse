@@ -312,6 +312,14 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 
 ## 7. Last delivery
 
+`ci-cross-platform-5.zip` (28 Nov 22:10): with `-e` the macOS log showed that the -4 filter broke resolution:
+`org.eclipse.jdt.launching` requires `org.eclipse.jdt.launching.macosx` on macOS unless `org.eclipse.jdt.buildtime=true`.
+`eclipse-plugin/pom.xml` now sets that profile property (Tycho `dependency-resolution/profileProperties`) instead of
+the filter. First full run (-3) for reference: unit, UI, debugger and install tests all green on Windows and Linux;
+every macOS job failed in the plugin build.
+
+Before it:
+
 `ci-cross-platform-4.zip` (28 Nov 22:00), after the first full run (Ayan 21:53): unit tests on macOS (JDK 21 and 25)
 failed in `eclipse-plugin` before any test ran: "Invalid Collect Request: null", the dependency list included the
 macOS-only fragment `org.eclipse.jdt.launching.macosx`. Fix attempt: `eclipse-plugin/pom.xml` filters that fragment out

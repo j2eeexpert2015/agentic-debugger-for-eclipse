@@ -15,22 +15,22 @@
     <build>
       <plugins>
 
-        <!-- macOS (28 Nov, first all-platform run): the unit-test run failed while collecting dependencies ("Invalid
-             Collect Request: null") with the macOS-only fragment org.eclipse.jdt.launching.macosx among them; this
-             plugin does not need it, so it is left out of this module's build. Linux and Windows have no such
-             fragment, nothing changes there. Remove if the macOS run shows another cause. -->
+        <!-- macOS (28 Nov, all-platform runs): org.eclipse.jdt.launching pulls in the macOS-only fragment
+             org.eclipse.jdt.launching.macosx, and the plain unit-test run (maven-surefire, above) then failed to
+             collect the dependencies ("Invalid Collect Request: null"). Removing the fragment broke resolution, but
+             jdt.launching asks for it only when org.eclipse.jdt.buildtime is not true (its p2 filter): setting that
+             for the build is the way Eclipse provides to leave it out. No effect on Windows and Linux, nor on the
+             installed plugin (the property only applies to this build's dependency resolution). -->
         <plugin>
           <groupId>org.eclipse.tycho</groupId>
           <artifactId>target-platform-configuration</artifactId>
           <version>${tycho.version}</version>
           <configuration>
-            <filters>
-              <filter>
-                <type>eclipse-plugin</type>
-                <id>org.eclipse.jdt.launching.macosx</id>
-                <removeAll/>
-              </filter>
-            </filters>
+            <dependency-resolution>
+              <profileProperties>
+                <org.eclipse.jdt.buildtime>true</org.eclipse.jdt.buildtime>
+              </profileProperties>
+            </dependency-resolution>
           </configuration>
         </plugin>
 
