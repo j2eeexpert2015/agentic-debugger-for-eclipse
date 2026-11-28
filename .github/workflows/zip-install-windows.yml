@@ -1,5 +1,5 @@
 # Install from the distributable ZIP, not Maven's unpacked target/repository.
-# Reusable Stage 3: invoked only after the 43-test FullSuite passes.
+# Reusable Stage 3: invoked only after the FullSuite passes (at least 43 tests).
 # Uploads the SAME ZIP that was extracted and used for installation/reinstall tests.
 name: ZIP install and smoke tests (Windows)
 

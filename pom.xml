@@ -22,12 +22,13 @@
              writer and the page; no dependencies. Used by mcp-server and embedded in eclipse-plugin (lib/report.jar) -->
         <module>report</module>
         <module>mcp-server</module>
-        <!-- Test tooling, not shipped: the Claude transcript grader with its unit tests, and the direct bridge verifiers
-             (package e2e) that dev-e2e/DevE2E.java runs against a live Eclipse; Maven only compiles the verifiers -->
-        <module>testing</module>
         <module>eclipse-plugin</module>
         <module>eclipse-feature</module>
         <module>eclipse-update-site</module>
+        <!-- Test tooling, not shipped: the Claude transcript grader with its unit tests, the debugger tests (package
+             e2e) and the Claude agent trials. Last on purpose (28 Nov): its test runs install the update site just
+             built, so that must exist first. -->
+        <module>testing</module>
     </modules>
     <repositories>
         <repository>
@@ -44,16 +45,81 @@
             <url>https://azuredownloads-g3ahgwb5b8bkbxhd.b01.azurefd.net/github-copilot/</url>
         </repository>
     </repositories>
+    <!--
+      WHAT TO TEST: one switch, -Drun=<name> (28 Nov, docs/local-commands.md, docs/test-plan.md). Each name says what is
+      tested, the kind of test, and which Eclipse it needs:
+        -without-eclipse         no Eclipse at all
+        -with-temporary-eclipse  Maven makes a fresh Eclipse for the run and throws it away; yours is not touched
+        -with-test-eclipse       your test Eclipse (dev-e2e/e2e.properties): closed, given the new build, restarted
+
+        mvn verify                                                       all unit tests (as before)
+        mvn verify -Drun=all-unit-tests-without-eclipse                  the same, by name
+        mvn verify -Drun=report-unit-tests-without-eclipse               only the report module's unit tests
+        mvn verify -Drun=mcp-server-unit-tests-without-eclipse           only the MCP server's
+        mvn verify -Drun=eclipse-plugin-unit-tests-without-eclipse       only the plugin's
+        mvn verify -Drun=claude-grader-unit-tests-without-eclipse        only the Claude trial grader's (module testing)
+        mvn verify -Drun=claude-code-registration-check-without-eclipse  Claude Code's eclipse-debugger entry is fine
+        mvn verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse  SWTBot UI tests
+        mvn verify -Drun=eclipse-plugin-debugger-tests-with-test-eclipse [-Dit.test=FullSuite|BreakpointTests|...]
+        mvn verify -Drun=eclipse-plugin-install-tests-with-test-eclipse  zip install, uninstall, reinstall + RegressionSuite
+        mvn verify -Drun=claude-agent-trial-with-test-eclipse            [-Dit.test=ClaudeAgentEndToEndTests#...]
+      One class of unit tests: add -Dtest=ClaudeRegistrationTest -Dsurefire.failIfNoSpecifiedTests=false.
+
+      How: every module skips its unit tests when "run" is set (profile run-set), except the module(s) the name asks for;
+      the testing module runs the steps of the -with-test-eclipse names (testing/pom.xml); the steps Maven has no
+      plugin for are dev-e2e/TestSteps.java and dev-e2e/DevE2E.java, run through the exec plugin.
+      report, mcp-server and testing have no parent, so each of them has the same run profiles in its own pom.
+    -->
     <profiles>
-        <!-- OPEN-72: the SWTBot UI tests (module eclipse-plugin-ui-tests), with one flag:
-               mvn clean verify              everything as before (unit tests; integration tests stay in testing, -Pintegration-tests)
-               mvn clean verify -Pui-tests   builds everything, skips those tests and runs only the UI tests
-             The UI test module sets skipTests=false for itself. docs/ui-tests.md. -->
         <profile>
-            <id>ui-tests</id>
-            <properties>
-                <skipTests>true</skipTests>
-            </properties>
+            <id>run-set</id>
+            <activation><property><name>run</name></property></activation>
+            <properties><skipTests>true</skipTests></properties>
+        </profile>
+        <profile>
+            <id>run-eclipse-plugin-unit-tests</id>
+            <activation><property><name>run</name><value>eclipse-plugin-unit-tests-without-eclipse</value></property></activation>
+            <properties><skipTests>false</skipTests></properties>
+        </profile>
+        <profile>
+            <id>run-all-unit-tests</id>
+            <activation><property><name>run</name><value>all-unit-tests-without-eclipse</value></property></activation>
+            <properties><skipTests>false</skipTests></properties>
+        </profile>
+        <profile>
+            <id>run-claude-code-registration-check</id>
+            <activation><property><name>run</name><value>claude-code-registration-check-without-eclipse</value></property></activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <inherited>false</inherited>
+                        <executions>
+                            <execution>
+                                <id>claude-code-registration</id>
+                                <phase>validate</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/java</executable>
+                                    <workingDirectory>${project.basedir}</workingDirectory>
+                                    <arguments>
+                                        <argument>dev-e2e/TestSteps.java</argument>
+                                        <argument>claude-code-registration</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- OPEN-72: the SWTBot UI tests (module eclipse-plugin-ui-tests). The UI test module sets skipTests=false for
+             itself. docs/ui-tests.md. -->
+        <profile>
+            <id>run-eclipse-plugin-ui-tests</id>
+            <activation><property><name>run</name><value>eclipse-plugin-ui-tests-with-temporary-eclipse</value></property></activation>
             <modules>
                 <module>eclipse-plugin-ui-tests</module>
             </modules>

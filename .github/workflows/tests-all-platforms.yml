@@ -1,0 +1,280 @@
+# Tests on Windows, Linux and macOS (28 Nov 2026, docs/test-plan.md, docs/ci.md "What runs when").
+#   Push to a work branch (not docs-only):  Windows, unit tests + UI tests: the short check, for early feedback.
+#   Push to a ci/... branch:                all three systems, all four kinds (work on the pipelines themselves; the
+#                                           Run workflow button exists only once this file is on main).
+#   Run workflow (Actions tab, any branch): pick the systems; unit, UI, debugger and install tests.
+#   Every Sunday 02:00 IST on main:         all three systems, all four kinds.
+# Never required for merging; the gate is "CI and release" (release-readiness.yml, Windows) on pull requests into main.
+# Each job stands alone (fail-fast off): a failure shows what to fix and stops nothing else.
+# The same commands as on Ayan's machine: mvn verify -Drun=<name> (root pom.xml, docs/local-commands.md);
+# dev-e2e/TestSteps.java for the CI-only steps (download Eclipse, settings, result tables, logs).
+name: Tests on Windows, Linux and macOS
+
+on:
+  push:
+    branches-ignore: [main]
+    paths-ignore: ['**/*.md', 'docs/**']
+  workflow_dispatch:
+    inputs:
+      systems:
+        description: 'Which systems'
+        type: choice
+        options: [all, linux, macos, windows]
+        default: all
+  schedule:
+    - cron: '30 20 * * 6'   # Saturday 20:30 UTC = Sunday 02:00 IST, on main
+
+permissions:
+  contents: read
+
+concurrency:
+  # A newer push to the same branch replaces a running check.
+  group: tests-all-platforms-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ECLIPSE_RELEASE: '2025-12'
+  BRIDGE_PORT: '21766'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    name: Which systems and tests
+    runs-on: ubuntu-latest
+    outputs:
+      os: ${{ steps.plan.outputs.os }}
+      full: ${{ steps.plan.outputs.full }}
+    steps:
+      - id: plan
+        run: |
+          all='["windows-latest","ubuntu-latest","macos-latest"]'
+          case "${{ github.event_name }}/${{ inputs.systems }}" in
+            push/*) if [[ "${{ github.ref }}" == refs/heads/ci/* ]]; then os="$all"; full=true
+                    else os='["windows-latest"]'; full=false; fi ;;
+            workflow_dispatch/linux)   os='["ubuntu-latest"]';  full=true ;;
+            workflow_dispatch/macos)   os='["macos-latest"]';   full=true ;;
+            workflow_dispatch/windows) os='["windows-latest"]'; full=true ;;
+            *)                     os="$all"; full=true ;;
+          esac
+          echo "os=$os" >> "$GITHUB_OUTPUT"
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Systems: $os; debugger and install tests: $full" >> "$GITHUB_STEP_SUMMARY"
+
+  unit:
+    name: all-unit-tests-without-eclipse / ${{ matrix.os }} / JDK ${{ matrix.java }}
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
+        java: ['21', '25']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+      - name: Build and unit tests
+        run: mvn -B -ntp clean verify -Drun=all-unit-tests-without-eclipse
+      - name: Results
+        if: always()
+        run: >
+          java dev-e2e/TestSteps.java report "Unit tests: ${{ matrix.os }} / JDK ${{ matrix.java }}" 1
+          report/target/surefire-reports mcp-server/target/surefire-reports
+          testing/target/surefire-reports eclipse-plugin/target/surefire-reports
+      - name: Keep reports
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: unit-${{ matrix.os }}-jdk${{ matrix.java }}
+          path: '*/target/surefire-reports/'
+          if-no-files-found: warn
+          retention-days: 14
+
+  ui:
+    name: eclipse-plugin-ui-tests-with-temporary-eclipse / ${{ matrix.os }}
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Claude Code (UI-05 uses it with throw-away settings; no sign-in needed)
+        run: npm install -g @anthropic-ai/claude-code && claude --version
+      - name: Virtual screen (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb metacity
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          sleep 3
+          DISPLAY=:99 metacity --sm-disable --replace > /dev/null 2>&1 &
+      - name: UI tests (SWTBot)
+        run: mvn -B -ntp clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse
+      - name: Results
+        if: always()
+        run: >-
+          java dev-e2e/TestSteps.java report "UI tests: ${{ matrix.os }}" 5 eclipse-plugin-ui-tests/target/surefire-reports
+      - name: Screenshot
+        if: failure()
+        continue-on-error: true
+        run: java -Djava.awt.headless=false dev-e2e/TestSteps.java screenshot ci-out/screen.png
+      - name: Collect logs
+        if: always()
+        run: java dev-e2e/TestSteps.java collect
+      - name: Keep logs and reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: ui-${{ matrix.os }}-${{ github.run_attempt }}
+          path: ci-out/
+          if-no-files-found: warn
+          retention-days: 14
+
+  debugger:
+    name: eclipse-plugin-debugger-tests-with-test-eclipse (FullSuite) / ${{ matrix.os }}
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Eclipse from cache
+        id: cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/eclipse-ci
+          key: eclipse-${{ env.ECLIPSE_RELEASE }}-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Eclipse ${{ env.ECLIPSE_RELEASE }}
+        run: java dev-e2e/TestSteps.java eclipse "$ECLIPSE_RELEASE" "${{ runner.temp }}/eclipse-ci"
+      - name: Save Eclipse to cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ runner.temp }}/eclipse-ci
+          key: eclipse-${{ env.ECLIPSE_RELEASE }}-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Virtual screen (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb metacity
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          sleep 3
+          DISPLAY=:99 metacity --sm-disable --replace > /dev/null 2>&1 &
+      - name: Test settings
+        run: java dev-e2e/TestSteps.java settings && java dev-e2e/DevE2E.java config
+      - name: Build, install into the test Eclipse, start it, debugger tests
+        run: mvn -B -ntp clean verify -Drun=eclipse-plugin-debugger-tests-with-test-eclipse -Dit.test=FullSuite
+      - name: Results
+        if: always()
+        run: >-
+          java dev-e2e/TestSteps.java report "Debugger tests (FullSuite): ${{ matrix.os }}" 43 testing/target/failsafe-reports/failsafe-summary.xml
+      - name: Screenshot
+        if: always()
+        continue-on-error: true
+        run: java -Djava.awt.headless=false dev-e2e/TestSteps.java screenshot ci-out/screen-at-end.png
+      - name: Collect logs
+        if: always()
+        run: java dev-e2e/TestSteps.java collect
+      - name: Keep logs and reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: debugger-${{ matrix.os }}-${{ github.run_attempt }}
+          path: ci-out/
+          if-no-files-found: warn
+          retention-days: 14
+
+  install:
+    name: eclipse-plugin-install-tests-with-test-eclipse / ${{ matrix.os }}
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.plan.outputs.os) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Eclipse from cache
+        id: cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/eclipse-ci
+          key: eclipse-${{ env.ECLIPSE_RELEASE }}-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Eclipse ${{ env.ECLIPSE_RELEASE }}
+        run: java dev-e2e/TestSteps.java eclipse "$ECLIPSE_RELEASE" "${{ runner.temp }}/eclipse-ci"
+      - name: Save Eclipse to cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ runner.temp }}/eclipse-ci
+          key: eclipse-${{ env.ECLIPSE_RELEASE }}-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Virtual screen (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb metacity
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          sleep 3
+          DISPLAY=:99 metacity --sm-disable --replace > /dev/null 2>&1 &
+      - name: Test settings
+        run: java dev-e2e/TestSteps.java settings && java dev-e2e/DevE2E.java config
+      - name: Build, install the zip, uninstall, reinstall, start, RegressionSuite
+        run: mvn -B -ntp clean verify -Drun=eclipse-plugin-install-tests-with-test-eclipse
+      - name: Results
+        if: always()
+        run: >-
+          java dev-e2e/TestSteps.java report "Install tests, then RegressionSuite: ${{ matrix.os }}" 21 testing/target/failsafe-reports/failsafe-summary.xml
+      - name: Screenshot
+        if: always()
+        continue-on-error: true
+        run: java -Djava.awt.headless=false dev-e2e/TestSteps.java screenshot ci-out/screen-at-end.png
+      - name: Collect logs
+        if: always()
+        run: java dev-e2e/TestSteps.java collect
+      - name: Keep logs and reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: install-${{ matrix.os }}-${{ github.run_attempt }}
+          path: ci-out/
+          if-no-files-found: warn
+          retention-days: 14

@@ -13,12 +13,12 @@ One flag picks the suite:
 | Command | Runs |
 |---|---|
 | `mvn clean verify` | Everything as before: build and all unit tests (the integration tests stay in `testing`, `-Pintegration-tests`) |
-| `mvn clean verify -Pui-tests` | Builds everything, skips those tests, and runs only the UI tests |
+| `mvn clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse` | Builds everything, skips those tests, and runs only the UI tests |
 
 On Windows (cmd), from the repository root:
 
 ```cmd
-call mvn clean verify -Pui-tests
+call mvn clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse
 ```
 
 - Maven downloads SWTBot from `download.eclipse.org` the first time.

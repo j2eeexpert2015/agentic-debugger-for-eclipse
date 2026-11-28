@@ -1,5 +1,6 @@
 # CI and release (28 Nov: merged from ci/github-actions into main, docs/ci.md).
-# Every push to main or ci/** and every pull request to main: five serial validation stages, no release writes.
+# Every pull request into main and every push to main: five serial validation stages on Windows, no release writes.
+# Work branches are tested by tests-all-platforms.yml (Windows, Linux, macOS) on every push (28 Nov, docs/test-plan.md).
 # Release: Actions -> "CI and release" -> Run workflow on main, tick create_draft, enter the tag (a preview: v1.0.0-preview.1). After all
 # stages pass it creates a DRAFT release with the tested zip; the owner publishes it on the Releases page, which
 # then updates the Eclipse update site on GitHub Pages (update-site-pages.yml). Never auto-publishes.
@@ -7,7 +8,7 @@ name: CI and release
 
 on:
   push:
-    branches: [main, 'ci/**']
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -36,26 +37,64 @@ jobs:
     name: 'Stage 1: Build and unit tests (JDK 21/25, serial)'
     uses: ./.github/workflows/ci.yml
 
+  ui:
+    name: 'Stage 2b: UI tests (eclipse-plugin-ui-tests-with-temporary-eclipse)'
+    needs: unit
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Claude Code (UI-05 uses it with throw-away settings; no sign-in needed)
+        run: npm install -g @anthropic-ai/claude-code && claude --version
+      - name: UI tests (SWTBot)
+        run: mvn -B -ntp clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse
+      - name: Results
+        if: always()
+        run: >-
+          java dev-e2e/TestSteps.java report "UI tests: Windows" 5 eclipse-plugin-ui-tests/target/surefire-reports
+      - name: Collect logs
+        if: always()
+        run: java dev-e2e/TestSteps.java collect
+      - name: Keep logs and reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-ui-tests-windows-${{ github.run_attempt }}
+          path: ci-out/
+          if-no-files-found: warn
+          retention-days: 14
+
   integration:
-    name: 'Stage 2: FullSuite (43 tests)'
+    name: 'Stage 2: Debugger tests, FullSuite'
     needs: unit
     uses: ./.github/workflows/integration-windows.yml
     with:
       suite: FullSuite
 
   packaged:
-    name: 'Stage 3: ZIP install, uninstall, reinstall (21 tests)'
+    name: 'Stage 3: Install tests: zip install, uninstall, reinstall, RegressionSuite'
     needs: integration
     uses: ./.github/workflows/zip-install-windows.yml
 
   compatibility:
-    name: 'Stage 4: Eclipse 2026-09 compatibility (21 tests)'
+    name: 'Stage 4: Eclipse 2026-09 compatibility, RegressionSuite'
     needs: packaged
     uses: ./.github/workflows/compatibility-windows.yml
 
   candidate:
     name: 'Stage 5: Verified release-candidate bundle (not published)'
-    needs: compatibility
+    needs: [compatibility, ui]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

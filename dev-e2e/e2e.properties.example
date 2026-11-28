@@ -1,5 +1,7 @@
 # Local development machine paths. Update for your environment; never commit machine-specific paths.
 repository=C:/All_GitHub_Desktop/agentic-debugger-for-eclipse
+# eclipse = the installation folder (eclipse.ini is in it). Windows/Linux: the folder with eclipse(.exe);
+# macOS: <where it is>/Eclipse.app/Contents/Eclipse
 eclipse=C:/All_Softwares/eclipse
 workspace=${LOCALAPPDATA}/AgenticDebugger/java-e2e-workspace
 bridgePort=21766

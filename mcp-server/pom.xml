@@ -133,4 +133,22 @@
         </plugins>
     </build>
 
+    <!-- What to test (-Drun=..., root pom.xml): skip this module's unit tests unless the name asks for them -->
+    <profiles>
+        <profile>
+            <id>run-set</id>
+            <activation><property><name>run</name></property></activation>
+            <properties><skipTests>true</skipTests></properties>
+        </profile>
+        <profile>
+            <id>run-mcp-server-unit-tests-without-eclipse</id>
+            <activation><property><name>run</name><value>mcp-server-unit-tests-without-eclipse</value></property></activation>
+            <properties><skipTests>false</skipTests></properties>
+        </profile>
+        <profile>
+            <id>run-all-unit-tests</id>
+            <activation><property><name>run</name><value>all-unit-tests-without-eclipse</value></property></activation>
+            <properties><skipTests>false</skipTests></properties>
+        </profile>
+    </profiles>
 </project>

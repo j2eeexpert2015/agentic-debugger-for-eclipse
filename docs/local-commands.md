@@ -57,33 +57,46 @@ cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && java dev-e2e/DevE2E.
 cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && java dev-e2e/DevE2E.java config
 ```
 
-## 3. Tests
+## 3. Tests: `mvn verify -Drun=<name>`
 
-**3a. Full check before a merge: build with all unit tests, install, remove breakpoints (the line waits for a key), regression suite.**
-```
-cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call dev-e2e\close-test-eclipse.cmd && call mvn clean package && java dev-e2e/DevE2E.java deploy && echo In the test Eclipse: Run - Remove All Breakpoints - Yes. Then press a key here. && pause && call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
-```
-Expected (28 Nov): unit tests report 64, mcp-server 39, testing 23, eclipse-plugin 127; "The test Eclipse is ready"; `RegressionSuite` 27 tests, 0 failures.
+One pattern for every test (28 Nov). The name says what is tested, the kind of test, and the Eclipse it needs:
+`-without-eclipse` (no Eclipse), `-with-temporary-eclipse` (Maven makes a fresh Eclipse and throws it away; yours is
+not touched), `-with-test-eclipse` (your test Eclipse: closed gracefully, given the new build, restarted). Pick the
+row of what you changed; GitHub runs everything on every push anyway. Maven prints `[INFO]` lines for the steps it
+runs (close, install, start) and the test results at the end.
 
-**3b. Integration tests only** (the test Eclipse runs with the current build; remove all breakpoints in it first). Replace `RegressionSuite` with `FullSuite`, `ExtendedSuite`, a class (`BreakpointTests`) or `Class#method`.
-```
-cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call mvn -pl testing verify -Pintegration-tests -Dit.test=RegressionSuite -Dfixture.post.approved=true
-```
+| You changed | Name | What it runs |
+|---|---|---|
+| Reports, Agent Activity | `report-unit-tests-without-eclipse` | the report module (HTML report, Agent Activity page) |
+| MCP server code | `mcp-server-unit-tests-without-eclipse` | the MCP server module |
+| Plugin code without UI | `eclipse-plugin-unit-tests-without-eclipse` | the plugin's logic (registration, setup check, rules), without starting Eclipse |
+| The grader | `claude-grader-unit-tests-without-eclipse` | the grader that scores Claude trials (module `testing`) |
+| Several of the above | `all-unit-tests-without-eclipse` | all four above (the same as plain `mvn verify`) |
+| After a Claude Code setup or update | `claude-code-registration-check-without-eclipse` | your real Claude Code `eclipse-debugger` entry: there, ✓ Connected, our launcher on Windows; changes nothing |
+| Preferences pages, welcome, setup check | `eclipse-plugin-ui-tests-with-temporary-eclipse` | SWTBot clicks through the plugin's screens (UI-01..UI-05) in a fresh Eclipse that is thrown away; keep mouse and keyboard off |
+| Breakpoints, stepping, launching, variables, Spring Boot, clean-up, the bridge | `eclipse-plugin-debugger-tests-with-test-eclipse` | closes the test Eclipse, installs the new build, starts it, runs the `RegressionSuite`; add `-Dit.test=FullSuite`, a class (`BreakpointTests`) or `Class#method` |
+| Feature, update site, packaging | `eclipse-plugin-install-tests-with-test-eclipse` | closes the test Eclipse, installs the built zip, uninstalls, reinstalls, starts it, runs the `RegressionSuite` |
+| Skill, tool descriptions, server instructions | `claude-agent-trial-with-test-eclipse` | closes, installs, starts, then real Claude Code debugs the planted quote bug (costs usage); `-Dit.test=ClaudeAgentEndToEndTests#junitWrongDiscount` or `#springBootValidation400` for the others |
+| Docs only | — | nothing |
+| Build files, CI | — | nothing locally; push and look at GitHub |
 
-**3c. UI tests (SWTBot).** Maven starts its own Eclipse; keep mouse and keyboard off while it runs. Runs only these 5 tests (UI-01..UI-05), with throw-away Claude settings.
+Every line is the same, only the name changes, for example:
 ```
-cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call mvn clean verify -Pui-tests
+cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call mvn verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse
 ```
-Expected (28 Nov 20:06): `Tests run: 5, Failures: 0`. Results in `eclipse-plugin-ui-tests\target\surefire-reports\`.
+```
+cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call mvn verify -Drun=eclipse-plugin-debugger-tests-with-test-eclipse -Dit.test=BreakpointTests
+```
+One class of unit tests: add `-Dtest=ClaudeRegistrationTest -Dsurefire.failIfNoSpecifiedTests=false`.
+Before the `-with-test-eclipse` names: Run → Remove All Breakpoints in the test Eclipse (until the tests clean the
+test projects themselves). Expected (28 Nov): unit tests report 64, mcp-server 39, testing 23, eclipse-plugin 127; UI
+tests 5; `RegressionSuite` 27.
 
-**3d. Claude trial** (costs usage; only when a delivery says "Trial needed: yes").
-```
-cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true -Dclaude.report=true
-```
+By hand only: the Copilot agent run and the manual checks ([release-checks.md](release-checks.md)).
 
 ## 4. Claude Code
 
-**4a. What Claude Code has registered** (Windows should show Command `cmd`, Args `/c …\.eclipse-agentdebug\start-mcp-server.cmd`, Status ✓ Connected).
+**4a. What Claude Code has registered** (Windows should show Command `cmd`, Args `/c …\.eclipse-agentdebug\start-mcp-server.cmd`, Status ✓ Connected). The check `claude-code-registration-check-without-eclipse` (section 3) tests the same.
 ```
 claude mcp get eclipse-debugger
 ```

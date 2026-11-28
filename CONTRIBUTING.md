@@ -10,13 +10,18 @@ Architecture: **Claude Code → MCP stdio server → authenticated localhost bri
 
 ## Build and test commands
 
-All commands run from the repository root. There are two kinds of tests, and they never mix:
+All commands run from the repository root. **The usual way (28 Nov): `mvn verify -Drun=<name>`**, one name per kind
+of test and part, listed in [docs/local-commands.md](docs/local-commands.md) §3 and in the root `pom.xml` ("What to
+test"). The lines below are the underlying commands; the `-Pintegration-tests` ones expect the test Eclipse to be
+running with the current build already.
+
+There are several kinds of tests, and they never mix:
 
 | Kind | What it checks | Needs | Runs with |
 |---|---|---|---|
 | **Unit tests** (JUnit 5) | Logic that needs no Eclipse: bridge protocol, ownership and lease rules, output trimming, MCP timeouts, setup utility paths, Claude grader | JDK 21+, Maven | `mvn clean package`, automatically |
 | **Integration tests** | The installed plugin in a real Eclipse: launches, breakpoints, stops, variables, Spring Boot, HTTP, cleanup | The dedicated test Eclipse (below) | `java dev-e2e/DevE2E.java ...` only, never in the Maven build |
-| **UI tests** (SWTBot, OPEN-72) | The Preferences pages and the welcome dialog as a user sees them: texts, buttons, the setup check | A test Eclipse that Maven starts itself (no DevE2E); keep mouse and keyboard off while it runs | `mvn clean verify -Pui-tests` (runs only these; [docs/ui-tests.md](docs/ui-tests.md)) |
+| **UI tests** (SWTBot, OPEN-72) | The Preferences pages and the welcome dialog as a user sees them: texts, buttons, the setup check | A test Eclipse that Maven starts itself (no DevE2E); keep mouse and keyboard off while it runs | `mvn clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse` (runs only these; [docs/ui-tests.md](docs/ui-tests.md)) |
 
 ### Build and unit tests (no Eclipse needed)
 
@@ -125,7 +130,7 @@ Changes follow an **evidence-first, reviewable process**: reproduce and isolate 
 | [Test guide](dev-e2e/README.md) | `DevE2E` commands, suites, Claude trials, setup checks |
 | [Designs](docs/design/README.md) | Agent Activity view and report designs and requirements |
 | [Copilot integration notes](docs/copilot-integration-notes.md) | How GitHub Copilot for Eclipse finds and runs our server and agent |
-| [Working agreement](docs/working-agreement.md) · [Handoff](docs/handoff.md) · [Local commands](docs/local-commands.md) | How the owner and an assistant work; where the work stands; every local command, one line each |
+| [Working agreement](docs/working-agreement.md) · [Handoff](docs/handoff.md) · [Local commands](docs/local-commands.md) · [Test plan](docs/test-plan.md) | How the owner and an assistant work; where the work stands; every local command, one line each; which tests run where and when |
 | [Coding-agent instructions](AGENTS.md) · [Skill](skills/eclipse-debugger/SKILL.md) | |
 
 Dated phase reports, the old roadmaps, backlog and handoff were removed on 25 Nov 2026 (OPEN-38 step 2); they remain in

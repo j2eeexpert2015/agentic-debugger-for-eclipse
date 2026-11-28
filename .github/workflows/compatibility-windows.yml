@@ -1,5 +1,5 @@
 # Reusable compatibility gate: install the exact ZIP already tested in Stage 3
-# into Eclipse 2026-09 and run the 21-test regression suite. No duplicate build.
+# into Eclipse 2026-09 and run the RegressionSuite (at least 21 tests). No duplicate build.
 name: Eclipse compatibility (Windows 2026-09)
 
 on:

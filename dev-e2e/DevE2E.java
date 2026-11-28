@@ -92,9 +92,10 @@ public class DevE2E {
             if (!Files.isDirectory(eclipseDir))
                 problems.add("'eclipse' folder does not exist: " + eclipseDir + "\n   Set it to the folder that contains eclipse" + (windows() ? ".exe" : "") + ".");
             else {
-                if (!Files.isRegularFile(executable(eclipseDir, "eclipse")))
-                    problems.add("No " + executable(eclipseDir, "eclipse").getFileName() + " in the 'eclipse' folder " + eclipseDir
-                        + "\n   Point 'eclipse' at the installation folder itself (the one with eclipse" + (windows() ? ".exe" : "") + " and eclipse.ini).");
+                if (!Files.isRegularFile(launcherOf(eclipseDir)))
+                    problems.add("No " + launcherOf(eclipseDir) + " for the 'eclipse' folder " + eclipseDir
+                        + "\n   Point 'eclipse' at the installation folder itself (the one with eclipse" + (windows() ? ".exe" : "")
+                        + " and eclipse.ini" + (mac() ? "; on macOS .../Eclipse.app/Contents/Eclipse" : "") + ").");
                 if (windows() && !Files.isRegularFile(eclipseDir.resolve("eclipsec.exe")))
                     problems.add("No eclipsec.exe in " + eclipseDir + " (needed to install the plugin). Use a full Eclipse installation (EPP package).");
             }
@@ -207,6 +208,18 @@ public class DevE2E {
     }
     private static Path absolute(String s) { return Path.of(s).toAbsolutePath().normalize(); }
     private static boolean windows() { return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win"); }
+    private static boolean mac() { return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac"); }
+    /**
+     * The program that starts this Eclipse. Windows and Linux: eclipse(.exe) in the installation folder. macOS: the
+     * installation folder is Eclipse.app/Contents/Eclipse (eclipse.ini, plugins, p2) and the program is
+     * Eclipse.app/Contents/MacOS/eclipse (28 Nov, cross-platform CI).
+     */
+    private static Path launcherOf(Path installation) {
+        if (mac() && !Files.isRegularFile(installation.resolve("eclipse"))
+                && installation.getFileName() != null && installation.getFileName().toString().equals("Eclipse"))
+            return installation.getParent().resolve("MacOS").resolve("eclipse");
+        return executable(installation, "eclipse");
+    }
     private static Path executable(Path dir, String name) {
         return dir.resolve(windows() ? name + ".exe" : name);
     }
@@ -252,8 +265,8 @@ public class DevE2E {
         } catch (IOException e) { return "Cannot read diagnostic log: " + e.getMessage(); }
     }
     private static void check(boolean v, String error) { if (!v) throw new IllegalStateException(error); }
-    private Path eclipseExe() {return executable(eclipse, windows() ? "eclipse" : "eclipse");}
-    private Path directorExe() {return windows() ? eclipse.resolve("eclipsec.exe") : eclipse.resolve("eclipse");}
+    private Path eclipseExe() {return launcherOf(eclipse);}
+    private Path directorExe() {return windows() ? eclipse.resolve("eclipsec.exe") : launcherOf(eclipse);}
 
     private void verifySources() throws Exception {
         check(Files.isRegularFile(repo.resolve("examples/spring-boot-debugging/src/main/java/org/learningfromexperience/bootfixture/orders/FixtureIdentityController.java")),

@@ -10,15 +10,20 @@ GitHub's standard machines are free for this public repository.
 
 | Event | Workflow | What happens |
 |---|---|---|
-| Push to `main` or `ci/**`, pull request to `main` | `release-readiness.yml` "CI and release" | Five stages, one after another (below). Nothing is published. A newer push to the same branch replaces a running check. |
+| Push to a work branch (not `main`; not when only `.md` or `docs/` changed) | `tests-all-platforms.yml` "Tests on Windows, Linux and macOS" | The short check: Windows, `all-unit-tests-without-eclipse` (JDK 21 and 25) and `eclipse-plugin-ui-tests-with-temporary-eclipse`, ~15 min. Early feedback; not required. |
+| Push to a `ci/…` branch | same | All three systems, all four kinds: for work on the pipelines themselves (the Run workflow button appears only once the workflow is on `main`). |
+| Actions → "Tests on Windows, Linux and macOS" → **Run workflow** (any branch; choose all, linux, macos or windows) | same | Unit, UI, debugger (`FullSuite`) and install tests on the chosen systems, all at once, each job alone. For Linux/macOS from time to time. Not required. |
+| Every Sunday 02:00 IST | same, on `main` | All three systems, all four kinds, so Linux/macOS breakage shows within a week. |
+| Pull request into `main`, push to `main` | `release-readiness.yml` "CI and release" | Windows, the release gate: unit tests, then UI tests and the debugger stages (below). Must be green to merge. Runs for docs-only changes too (a required check that is skipped would block the merge). |
 | Actions → "CI and release" → **Run workflow** on `main`, `create_draft` ticked, tag `v1.0.0-preview.1` | same | The five stages again for that commit, then stage 6: a **draft** GitHub Release with the tested zip, `SHA256SUMS.txt` and the notes. Never cancelled by a push. |
 | A release is **published** on the Releases page (or Run workflow) | `update-site-pages.yml` "Update site (GitHub Pages)" | Builds the Eclipse update site from every published release and puts it on GitHub Pages. |
 
 The five stages (`release-readiness.yml` calls the others):
 
-1. `ci.yml`: build and unit tests, Windows, JDK 21 and 25; a test-count table on the run page.
-2. `integration-windows.yml`: Eclipse 2025-12 downloaded (cached), `DevE2E deploy`, `FullSuite` (at least 43 tests) on
-   a fresh Windows machine; logs and screenshots kept.
+1. `ci.yml`: build and unit tests, Windows, JDK 21 and 25; a test-count table on the run page. Then, side by side:
+   stage 2b, the UI tests (`-Drun=eclipse-plugin-ui-tests-with-temporary-eclipse`, since 28 Nov), and stages 2-4.
+2. `integration-windows.yml`: debugger tests: Eclipse 2025-12 downloaded (cached), `DevE2E deploy`, `FullSuite` (at
+   least 43 tests) on a fresh Windows machine; logs and screenshots kept.
 3. `zip-install-windows.yml`: install the built update-site zip into a clean Eclipse, uninstall, reinstall,
    `RegressionSuite` again.
 4. `compatibility-windows.yml`: the same zip on Eclipse 2026-09, `RegressionSuite`.
@@ -26,6 +31,28 @@ The five stages (`release-readiness.yml` calls the others):
    its SHA-256 and notes, kept as the artifact `release-candidate-validated`.
 
 A fresh machine for every run: no leftover breakpoints, no old window layout, nothing from earlier runs.
+
+## Branches and pull requests (agreed 28 Nov 20:32)
+
+- No development branch. Work happens on short branches (`feature/…`, `fix/…`, `ci/…`) made from `main`; each push is
+  tested on all three systems. When it is ready: GitHub Desktop → **Create Pull Request** → merge in the browser when
+  "CI and release" is green, with **Squash and merge** (one commit on `main` per pull request).
+- **`main` ruleset**, set once by Ayan: Settings → Rules → Rulesets → New branch ruleset → name `main`, Enforcement
+  Active, Target branches: Include default branch; tick **Restrict deletions**, **Require a pull request before
+  merging** (Allowed merge methods: Squash), **Require status checks to pass** (add the "CI and release" stages after
+  their first run on a pull request), **Block force pushes** → Create. Linux/macOS jobs are added to the required
+  checks once they are green.
+
+## Undo a bad change
+
+- **Merged, not released:** the merged pull request on GitHub → **Revert** → a new pull request that undoes it; it is
+  checked like any other, then merged. Or GitHub Desktop → History → right-click the commit → Revert changes in
+  commit → push on a branch → pull request.
+- **Released:** a release is separate from `main`. Stop new installs: set the release back to draft (or delete it),
+  then Actions → "Update site (GitHub Pages)" → Run workflow (the site lists only published releases). For those who
+  installed it: publish a fixed preview (`v1.0.0-preview.N+1`) from the reverted `main`; its newer version stamp makes
+  Eclipse offer it as an update. A downgrade cannot be pushed to users.
+- Safety net: a release needs the Run workflow button and stays a draft until Ayan publishes it.
 
 ## Making a release
 
@@ -72,8 +99,8 @@ GitHub → **Actions** → the run:
 
 | Step | What | Tracking |
 |---|---|---|
-| 1.3 | Build and unit tests on Linux and macOS (new matrix rows in `ci.yml`) | OPEN-54 |
+| 1.3, 2.2 | Linux and macOS: all four automated kinds run (`tests-all-platforms.yml`, 28 Nov); green and required next | OPEN-54, OPEN-55 |
 | 1.4 | Copilot launcher on Linux/macOS once CP-U7 passes there | OPEN-54 |
-| 2.2 | Integration tests on Linux (Xvfb), then macOS | OPEN-55 |
+| — | Claude agent trials on GitHub (API key as a secret, Run workflow only; docs/test-plan.md §4) | not decided |
 | — | Signing the plugin (certificate as a GitHub secret) | OPEN-45 |
 | — | Eclipse Marketplace entry | later |

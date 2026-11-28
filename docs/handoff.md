@@ -21,28 +21,21 @@ chats are not. Delivery-by-delivery notes up to 27 Nov 00:30 are in the git hist
 Modules: `report`, `mcp-server` (shaded jar), `testing` (grader, Claude trial runner, integration tests),
 `eclipse-plugin`, `eclipse-feature`, `eclipse-update-site`. Source map: development-workflow.md.
 
-## 2. The standard check (full run before a merge)
+## 2. How tests are run (28 Nov 21:10)
 
-Normal deliveries build with `-DskipTests` (Ayan 28 Nov 09:30); this full run only before a merge.
-
-One line, [local-commands.md](local-commands.md) 3a:
-
-```
-cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && call dev-e2e\close-test-eclipse.cmd && call mvn clean package && java dev-e2e/DevE2E.java deploy && echo In the test Eclipse: Run - Remove All Breakpoints - Yes. Then press a key here. && pause && call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
-```
-
-- **Close Eclipse gracefully** (`dev-e2e\close-test-eclipse.cmd`, `CloseMainWindow`), never with `Stop-Process`:
-  a killed Eclipse does not save its workspace, so breakpoints removed before come back, and the status-bar item
-  added by the plugin stays in the saved window layout (28 Nov 10:43-11:00: two failed regression runs with
-  "Leftover breakpoints", then two status-bar items).
-- **Remove all breakpoints** in the test Eclipse before the integration tests (OPEN-47 guard), until the suite cleans
-  the two disposable test projects itself (planned).
-- For every integration test, `-Dit.test=FullSuite` instead of the default `RegressionSuite`.
-
-Expected (28 Nov 10:41): BUILD SUCCESS with unit tests **report 64, mcp-server 39, testing 23, eclipse-plugin 127**;
-deploy ends with "The test Eclipse is ready"; `RegressionSuite` 27 tests, 0 failures. A Claude trial (costs usage)
-only when the delivery says "Trial needed: yes":
-`call mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true -Dclaude.report=true`.
+- **Locally, only what the change touches:** `call mvn verify -Drun=<name>`, one of the ten names in
+  [local-commands.md](local-commands.md) §3 (each says what is tested, the kind, and which Eclipse it needs). A
+  delivery names its line.
+- **On GitHub, everything:** every push runs all automated kinds on Windows, Linux and macOS
+  (`tests-all-platforms.yml`); a pull request into `main` must pass "CI and release" (Windows). The full local run
+  before a merge is no longer needed.
+- **Close Eclipse gracefully**, never with `Stop-Process` (the `-with-test-eclipse` runs do it themselves): a killed
+  Eclipse does not save its workspace, so breakpoints removed before come back, and the status-bar item added by the
+  plugin stays in the saved window layout (28 Nov 10:43-11:00).
+- **Remove all breakpoints** in the test Eclipse before a `-with-test-eclipse` run (OPEN-47 guard), until the suite
+  cleans the two disposable test projects itself (planned).
+- Expected (28 Nov): unit tests report 64, mcp-server 39, testing 23, eclipse-plugin 127; UI tests 5;
+  `RegressionSuite` 27, 0 failures. A Claude trial only when the delivery says "Trial needed: yes".
 
 ## 3. Done recently (all checked by Ayan, details in the STATUS.md rows)
 
@@ -245,7 +238,7 @@ cause is known.
 the form, the command's existence and Claude's "Status" line; `registration()`, `status()`, `configure()`,
 `migrateExisting()` (Update now also rewrites our own stale or direct-Java entry), `remove()` use them;
 PreferenceStates OLDER text "⚠ Needs an update". Skill 0.1.8: stop and ask when the tools are missing. UI tests: module
-`eclipse-plugin-ui-tests` (eclipse-test-plugin, SWTBot, JUnit 5 limited to `[5,6)`: the first JUnit 5 run with `[5,7)` found "No tests"; JUnit 4 then passed, 28 Nov), root-pom profile `ui-tests` (adds the module and
+`eclipse-plugin-ui-tests` (eclipse-test-plugin, SWTBot, JUnit 5 limited to `[5,6)`: the first JUnit 5 run with `[5,7)` found "No tests"; JUnit 4 then passed, 28 Nov), root-pom profile `ui-tests` (since 28 Nov 21:10 `-Drun=eclipse-plugin-ui-tests-with-temporary-eclipse`; adds the module and
 the SWTBot p2 site, sets skipTests=true for the rest), tests UI-01..05 (UI-05: Needs an update → Update with `CLAUDE_CONFIG_DIR` pointing at target/claude-config, a guard against touching real settings). **Checked by Ayan 28 Nov:** UI tests
 pass, first with JUnit 4 (`open-71-72-3.zip`), then JUnit 5 (`open-71-72-4.zip`, 20:06, 5/5); release check **F15
 passed** (20:22): installed by Archive into an Eclipse with the old plugin (skill 0.1.7 before), the Claude Code page
@@ -288,12 +281,16 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 
 ## 5. Next, in this order
 
-1. **OPEN-54/55 cross-platform CI** on a `ci/…` branch: unit tests and the UI tests (`-Pui-tests`) on Windows, Linux
-   and macOS GitHub runners; the macOS PATH note in OPEN-54; then merge into `main`.
-2. More SWTBot UI tests (OPEN-72), one per feature, starting with the parts of F12-F14 still done by hand.
-3. README screenshots `docs/images/agent-activity.png` and `docs/images/report.png`; LICENSE decision.
-4. Pipeline housekeeping: Node 20 action versions; skip the pipeline for docs-only pushes.
-5. Older list, still open: release checks B-E and one Claude trial (section 4 B); report location and OPEN-04
+1. **Branch `ci/open-73-test-names-all-platforms`** (Ayan 21:21, from `main`; branches: `main` + one short-lived
+   branch per piece of work, `<kind>/<open-nn>-<what>`, no development or Linux/macOS branches), `ci-cross-platform-3.zip`
+   with every change since `main`: test names (`mvn verify -Drun=<name>`), workflow "Tests on Windows, Linux and
+   macOS" (work branches: Windows short check; `ci/…` branches, Run workflow button, Sundays: all systems), UI tests in
+   "CI and release". Next: Ayan pushes, sends the first run; fix system by system; pull request; `main` ruleset.
+2. OPEN-73: Ayan to agree the test plan and pick the new names for `dev-e2e` etc.; rename after the CI work is merged.
+3. More SWTBot UI tests (OPEN-72), one per feature, starting with the parts of F12-F14 still done by hand.
+4. README screenshots `docs/images/agent-activity.png` and `docs/images/report.png`; LICENSE decision.
+5. Pipeline housekeeping: Node 20 action versions; skip the pipeline for docs-only pushes.
+6. Older list, still open: release checks B-E and one Claude trial (section 4 B); report location and OPEN-04
    (release must-haves); OPEN-46, OPEN-57; OPEN-65 deliveries 2 and 3; OPEN-67/68 (future); automatic clean-up of
    breakpoints in the test projects once the cause of leftovers is known; later OPEN-45, OPEN-43, OPEN-51, OPEN-53.
 
@@ -314,6 +311,44 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 | CI | `.github/workflows/ci.yml`, `integration-windows.yml`, `docs/ci.md` (branch `ci/github-actions` until merged) |
 
 ## 7. Last delivery
+
+`ci-cross-platform-3.zip` (28 Nov 21:30), for branch `ci/open-73-test-names-all-platforms`, every change since `main`
+(also OPEN-71/72, local commands, test plan): Ayan 21:14 chose Windows as the only gate, Linux/macOS from time to time.
+`tests-all-platforms.yml`: a `plan` job picks systems and kinds (push to a work branch: Windows unit + UI; push to
+`ci/…`, Run workflow, Sundays 02:00 IST: chosen/all systems with debugger and install tests); docs-only pushes skip
+it. `release-readiness.yml`: new stage 2b UI tests (Windows), the candidate waits for it. Docs: ci.md "What runs
+when", test-plan §2/§3.
+
+Before it:
+
+`ci-cross-platform-2.zip` (28 Nov 21:40): one way to run every test, `mvn verify -Drun=<name>` (Ayan 20:51-21:04
+chose the names: what is tested, the kind, and `-without-eclipse` / `-with-temporary-eclipse` / `-with-test-eclipse`).
+Ten names: root `pom.xml` "What to test" (profiles activated by the property `run`; `testing` moved last in the module
+list so its runs install the update site just built), the same profiles in `report`, `mcp-server`, `testing` (no
+parent pom); `testing` runs close, install, start through the exec plugin and the tests through Failsafe.
+`.github/ci/CiTools.java` became `dev-e2e/TestSteps.java` (new: `close-test-eclipse` for all systems,
+`claude-code-registration`; the test Eclipse from `e2e.properties`); the workflow uses the names. `-Pui-tests` replaced
+everywhere. Not run here: Maven (no access to Maven Central from the assistant's machine).
+
+Before it:
+
+`ci-cross-platform-1.zip` (28 Nov 21:10): new workflow `tests-all-platforms.yml` (four jobs × three systems, each job
+alone), new `.github/ci/CiTools.java` (Eclipse download per system with cache, test settings, zip install/uninstall/
+reinstall, result tables, logs, screenshots); `release-readiness.yml` on pull requests into `main` and pushes to `main`
+only (no longer `ci/**`), stage names without stale counts; `DevE2E.java` knows the macOS layout
+(`Eclipse.app/Contents/Eclipse`, started by `Contents/MacOS/eclipse`); UI tests get `-XstartOnFirstThread` on macOS;
+`e2e.properties.example` comment; docs: test-plan (plain names for the six kinds, where and when, agent trials on
+GitHub, rename options), ci.md (branches and pull requests, `main` ruleset clicks, undo a bad change), STATUS rows
+OPEN-54, OPEN-55, OPEN-73. Checked here: YAML parses, `CiTools` and `DevE2E` compile, the report mode on sample
+files. Not run: any workflow.
+
+Before it:
+
+`test-plan-1.zip` (28 Nov 20:50): new `docs/test-plan.md` (six kinds of test, must per moment, OS table, order of
+work, proposed rename OPEN-73, count mismatches noticed); STATUS row OPEN-73; CONTRIBUTING index; this file §5. Docs
+only.
+
+Before it:
 
 `open-71-72-5.zip` (28 Nov 20:40): docs and a helper, after F15 passed and Ayan asked (20:27) for one page with all
 local commands. New `docs/local-commands.md` (every command as one line, by scenario: delivery, test Eclipse, tests,

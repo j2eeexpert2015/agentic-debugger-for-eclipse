@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- OPEN-72: SWTBot UI tests. Built and run only with the Maven profile "ui-tests" (root pom.xml):
-       mvn clean verify -Pui-tests
-     That profile skips every other test, so one flag picks the suite: no flag = the tests as before, -Pui-tests =
-     only these. They start a real Eclipse (Tycho's UI test runtime) with the plugin, and click through it like a user.
+<!-- OPEN-72: SWTBot UI tests. Built and run only with
+       mvn clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse
+     (root pom.xml, "What to test"): every other module skips its tests, so only these run. They start a fresh,
+     temporary Eclipse (Tycho's UI test runtime) with the plugin, and click through it like a user.
      docs/ui-tests.md says what they check. -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -17,6 +17,11 @@
     <version>1.0.0-SNAPSHOT</version>
     <packaging>eclipse-test-plugin</packaging>
     <name>Agentic Debugger for Eclipse IDE UI Tests</name>
+
+    <properties>
+        <!-- Extra JVM options of the test Eclipse for one operating system (profile "macos" below); empty elsewhere -->
+        <ui.os.args></ui.os.args>
+    </properties>
 
     <build>
         <plugins>
@@ -60,11 +65,24 @@
                         <!-- UI-05: Claude Code keeps its settings here, not in the user's ~/.claude.json -->
                         <CLAUDE_CONFIG_DIR>${project.build.directory}/claude-config</CLAUDE_CONFIG_DIR>
                     </environmentVariables>
-                    <argLine>-Duser.home=${project.build.directory}/home -Xmx1g</argLine>
+                    <argLine>-Duser.home=${project.build.directory}/home -Xmx1g ${ui.os.args}</argLine>
                     <forkedProcessTimeoutInSeconds>1200</forkedProcessTimeoutInSeconds>
                     <trimStackTrace>false</trimStackTrace>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- macOS: SWT must run on the process's first thread (28 Nov, cross-platform CI) -->
+        <profile>
+            <id>macos</id>
+            <activation>
+                <os><family>mac</family></os>
+            </activation>
+            <properties>
+                <ui.os.args>-XstartOnFirstThread</ui.os.args>
+            </properties>
+        </profile>
+    </profiles>
 </project>
