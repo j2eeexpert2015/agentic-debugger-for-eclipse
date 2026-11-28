@@ -74,15 +74,17 @@ public final class CopilotPreferences extends PreferencePage implements IWorkben
         root = new Composite(parent, SWT.NONE);
         root.setLayout(new GridLayout(1, false));
         copilot = CopilotIntegration.copilotInstalled();
-        PrefUi.audience(root, "For GitHub Copilot only.",
-                "Lets Copilot Chat in Eclipse use the debugger, through the Agentic Debugger agent.");
         if (!copilot) {
-            // OPEN-69 (Ayan 28 Nov 10:28): without Copilot nothing on this page means anything, so only this line;
-            // the sections appear after Copilot is installed and Eclipse restarted.
-            PrefUi.wrap(root, "GitHub Copilot isn't installed in this Eclipse. Install it from the Eclipse Marketplace"
-                    + " to use it with the debugger. Not needed for Claude Code.");
+            // OPEN-69/OPEN-70 (Ayan 28 Nov 10:28, 13:15-13:25): without Copilot nothing on this page means anything:
+            // two short lines, the menu path in bold; the sections appear once Copilot is installed and Eclipse restarted.
+            Label missing = PrefUi.wrap(root, "GitHub Copilot isn't installed in this Eclipse.");
+            missing.setFont(org.eclipse.jface.resource.JFaceResources.getFontRegistry()
+                    .getBold(org.eclipse.jface.resource.JFaceResources.DIALOG_FONT));
+            PrefUi.withBold(root, "Install it from ", "Help → Eclipse Marketplace", ", then restart Eclipse.");
             return root;
         }
+        PrefUi.audience(root, "For GitHub Copilot only.",
+                "Lets Copilot Chat in Eclipse use the debugger, through the Agentic Debugger agent.");
 
         Map<Action, String> agentButtons = new LinkedHashMap<>();
         agentButtons.put(Action.INSTALL, "Install");

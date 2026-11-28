@@ -299,6 +299,19 @@ public final class ClaudeIntegration {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
     }
 
+    /**
+     * OPEN-70: whether the {@code claude} command is there (PATH, then ~/.local/bin), for the welcome dialog after
+     * installing. Only looks for the file; starts nothing, so it may run on the UI thread.
+     */
+    public static boolean claudeFound() {
+        try {
+            locateClaude();
+            return true;
+        } catch (IOException | RuntimeException notFound) {
+            return false;
+        }
+    }
+
     private static Path locateClaude() throws IOException {
         String[] names = isWindows() ? new String[]{"claude.exe", "claude.cmd", "claude.bat"} : new String[]{"claude"};
         Map<String,String> env = System.getenv();

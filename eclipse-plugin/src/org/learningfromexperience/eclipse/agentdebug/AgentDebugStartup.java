@@ -7,7 +7,6 @@ import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.ui.IStartup;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.swt.widgets.Display;
-import org.eclipse.jface.dialogs.MessageDialog;
 
 
 import org.learningfromexperience.eclipse.agentdebug.bridge.EclipseBridgeServer;
@@ -23,52 +22,22 @@ public class AgentDebugStartup implements IStartup {
     private static final String PLUGIN_ID =
             "org.learningfromexperience.eclipse.agentdebug";
 
+    /**
+     * OPEN-70: a short welcome at the first start after installing: which agent was found, and "Set up now" opens its
+     * Preferences page. It sets nothing up itself (no Claude Code command runs from here), so it never shows an error;
+     * every setup case is on the Claude Code and GitHub Copilot pages. Shown once.
+     */
     private static void offerFirstRunConfiguration() {
         var prefs = InstanceScope.INSTANCE.getNode(PLUGIN_ID);
         if (prefs.getBoolean("setupPromptShown", false)) return;
         Display.getDefault().asyncExec(() -> {
-            // Mark prompt seen before showing it; users can always configure later from Preferences.
+            // Mark it seen before showing it; the settings stay reachable from Preferences.
             prefs.putBoolean("setupPromptShown", true);
             try { prefs.flush(); } catch (Exception e) { /* non-fatal preference persistence */ }
-            boolean configure = MessageDialog.openQuestion(Display.getDefault().getActiveShell(),
-                    "Agentic Debugger for Eclipse IDE",
-                    "Agentic Debugger is installed. Configure the bundled MCP server for Claude Code now? "
-                    + "Your other MCP registrations will not be modified.");
-            if (configure) {
-                Job configureJob = Job.create("Configure Claude Code MCP integration", monitor -> {
-                    String result;
-                    try { result = new ClaudeIntegration().configure(); }
-                    catch (ClaudeIntegration.MigrationRequiredException migration) {
-                        Display.getDefault().asyncExec(() -> {
-                            boolean approved = MessageDialog.openQuestion(Display.getDefault().getActiveShell(),
-                                    "Update Agentic Debugger Registration",
-                                    migration.getMessage() + "\n\nReplace only the previous user-scoped "
-                                    + "eclipse-debugger entry with the bundled MCP server? "
-                                    + "Other MCP registrations will not be modified.");
-                            if (approved) {
-                                Job migrate = Job.create("Migrate Agentic Debugger MCP", m -> {
-                                    String response;
-                                    try { response = new ClaudeIntegration().migrateExisting(); }
-                                    catch (Exception failure) { response = "Migration failed: " + failure.getMessage(); }
-                                    String text = response;
-                                    Display.getDefault().asyncExec(() -> MessageDialog.openInformation(
-                                            Display.getDefault().getActiveShell(), "Agentic Debugger", text));
-                                    return Status.OK_STATUS;
-                                });
-                                migrate.setSystem(true); migrate.schedule();
-                            }
-                        });
-                        return Status.OK_STATUS;
-                    }
-                    catch (Exception ex) { result = "Configuration failed: " + ex.getMessage()
-                            + "\n\nOpen Window > Preferences > Agentic Debugger > Claude Code to retry."; }
-                    String message = result;
-                    Display.getDefault().asyncExec(() -> MessageDialog.openInformation(
-                            Display.getDefault().getActiveShell(), "Agentic Debugger", message));
-                    return Status.OK_STATUS;
-                });
-                configureJob.setSystem(true);
-                configureJob.schedule();
+            try {
+                org.learningfromexperience.eclipse.agentdebug.ui.WelcomeDialog.open(Display.getDefault().getActiveShell());
+            } catch (RuntimeException | LinkageError failure) {
+                System.err.println("[Eclipse Agentic Debugger] Welcome dialog not shown: " + failure);
             }
         });
     }

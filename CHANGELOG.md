@@ -17,7 +17,8 @@ First release made by the release pipeline ([docs/ci.md](docs/ci.md)).
 - Agent Activity view or window, and an HTML report for every investigation.
 - Safety: the agent changes only the breakpoints and launches it created; cleanup of abandoned investigations;
   optional approval before code runs in the program.
-- Preference pages per agent, with a setup check and a status-bar note when something needs fixing.
+- Preference pages per agent, with a setup check and a status-bar note when something needs fixing; a short welcome
+  after installing that says which agent was found and opens its page.
 - Tested on Windows with Eclipse 2025-12 and 2026-09 (43 integration tests, install, uninstall and reinstall of the
   update-site zip). The plugin is not signed.
 

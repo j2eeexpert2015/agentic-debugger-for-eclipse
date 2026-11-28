@@ -70,7 +70,7 @@ Never enabled: anything that would change an entry that is not ours; two actions
 
 | Case | Agent | Who can use our tools | Skill |
 |---|---|---|---|
-| Copilot not installed | Only the line "GitHub Copilot isn't installed in this Eclipse. Install it from the Eclipse Marketplace to use it with the debugger. Not needed for Claude Code."; no sections (28 Nov 10:29: greyed rows and a ticked, disabled box looked like settings) | — | — |
+| Copilot not installed | Two lines only: **GitHub Copilot isn't installed in this Eclipse.** / "Install it from **Help → Eclipse Marketplace**, then restart Eclipse." (OPEN-70, 28 Nov 13:25: no "For GitHub Copilot only", no "Not needed for Claude Code") | — | — |
 | Copilot installed, agent not installed | ✖ Not installed · **Install** (main) | on | see below |
 | Agent installed, current | ✔ Installed for all workspaces · Remove | on | see below |
 | Agent installed, older | ⚠ Older version installed · **Update** (main), Remove | on | see below |
@@ -146,6 +146,23 @@ Copilot's items on the right). The tooltip lists the problems, numbered, and "Cl
 click opens the main page. It follows a fix made anywhere: a change to Copilot's settings or ours runs the quiet
 check again two seconds later, and while a problem is shown the quiet check runs every minute (it only reads files
 and settings). The main page link reads "GitHub Copilot (not installed)" when Copilot is missing.
+
+## Welcome after installing (OPEN-70)
+
+Shown once, at the first Eclipse start with the plugin (preference `setupPromptShown`; not in the test Eclipse of
+`DevE2E`). It sets nothing up itself, so it never shows an error; `PreferenceStates.welcome`, test PS-U12. Mockup:
+`post-install-welcome-mockup.html` (28 Nov).
+
+| Found | Lines | Buttons | Set up now opens |
+|---|---|---|---|
+| Claude Code and Copilot | **Agentic Debugger is installed.** Connect it to your AI agent: ✔ Claude Code found, ✔ GitHub Copilot found. You can also do this later in **Window → Preferences → Agentic Debugger**. | Later, **Set up now** | Claude Code page |
+| Only Claude Code | … ✔ Claude Code found, – GitHub Copilot not installed (grey) … | Later, **Set up now** | Claude Code page |
+| Only Copilot | … – Claude Code not installed (grey), ✔ GitHub Copilot found … | Later, **Set up now** | GitHub Copilot page |
+| Neither | **Agentic Debugger is installed.** It works with Claude Code or GitHub Copilot for Eclipse. Install one, then restart Eclipse. | **OK** | — |
+
+Claude Code "found" = the `claude` command is on the PATH or in `~/.local/bin` (a file lookup, nothing started).
+Removed: the setup run from the dialog and its popups ("Configured at user scope…", "Already configured (user
+scope)…", "Configuration failed…", "Update Agentic Debugger Registration"); the Claude Code page handles all of them.
 
 ## Tests to add
 

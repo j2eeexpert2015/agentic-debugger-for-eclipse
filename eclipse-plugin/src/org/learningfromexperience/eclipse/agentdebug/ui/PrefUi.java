@@ -47,6 +47,29 @@ final class PrefUi {
         return group;
     }
 
+    /**
+     * OPEN-70: one line with a part in bold (a menu path), e.g. "Install it from **Help → Eclipse Marketplace**, then
+     * restart Eclipse." A read-only {@link org.eclipse.swt.custom.StyledText} on the page's background, as a Label
+     * cannot mix fonts.
+     */
+    static org.eclipse.swt.custom.StyledText withBold(Composite root, String before, String bold, String after) {
+        org.eclipse.swt.custom.StyledText text = new org.eclipse.swt.custom.StyledText(root,
+                SWT.WRAP | SWT.READ_ONLY | SWT.MULTI);
+        text.setText(before + bold + after);
+        text.setEditable(false);
+        text.setCaret(null);
+        text.setBackground(root.getBackground());
+        org.eclipse.swt.custom.StyleRange range = new org.eclipse.swt.custom.StyleRange();
+        range.start = before.length();
+        range.length = bold.length();
+        range.fontStyle = SWT.BOLD;
+        text.setStyleRange(range);
+        GridData data = new GridData(SWT.FILL, SWT.TOP, true, false);
+        data.widthHint = WIDTH;
+        text.setLayoutData(data);
+        return text;
+    }
+
     static Label wrap(Composite root, String text) {
         Label label = new Label(root, SWT.WRAP);
         label.setText(text == null ? "" : text);

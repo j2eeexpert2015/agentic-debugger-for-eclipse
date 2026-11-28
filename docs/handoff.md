@@ -241,6 +241,13 @@ list_breakpoints), and the OPEN-47 guard message shows it ("OrderService:23 (use
 leftover made after the removal can be told from an old one. Automatic clean-up of the test projects waits until the
 cause is known.
 
+**AB. Welcome after installing, OPEN-70 (28 Nov 13:40, `open-70-welcome-1.zip`, Ayan 13:08-13:27, mockup
+`post-install-welcome-mockup.html`):** `ui/WelcomeDialog` (new; a `MessageDialog` with a custom area for the agent
+lines and the bold path), `PreferenceStates.welcome` (PS-U12), `ClaudeIntegration.claudeFound()` (file lookup only),
+`AgentDebugStartup.offerFirstRunConfiguration()` shows it and no longer runs the setup or its popups,
+`CopilotPreferences` without Copilot: two lines (`PrefUi.withBold`). Not shown in the `DevE2E` test Eclipse (as
+before); release check F14 says how to see it again. Not compiled here: `AgentDebugStartup` (Eclipse classes).
+
 **AA. README split (28 Nov 12:30, `readme-split-1.zip`, Ayan 12:12-12:23, after comparing AssistAI, the unofficial
 Claude Code plugin and vogella's Eclipse MCP Server):** README.md is now for users only (what it is, install by
 update-site URL, Claude Code, Copilot, what you get, updating, troubleshooting, uninstall; two screenshots

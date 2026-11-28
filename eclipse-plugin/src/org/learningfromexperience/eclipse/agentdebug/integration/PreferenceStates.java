@@ -287,6 +287,56 @@ public final class PreferenceStates {
                 null, null);
     }
 
+    // ---- Welcome after installing (OPEN-70) -------------------------------------------------------------------------
+
+    /** The Preferences page "Set up now" opens. */
+    public enum WelcomePage { CLAUDE_CODE, COPILOT }
+
+    /** One agent line of the welcome dialog: "✔ Claude Code found" or "– GitHub Copilot not installed". */
+    public record AgentLine(String text, boolean found) { }
+
+    /**
+     * What the welcome dialog shows.
+     *
+     * @param title  the first line, in bold
+     * @param intro  the text under it
+     * @param agents one line per agent; empty when no agent was found
+     * @param open   the page "Set up now" opens; null when there is nothing to set up (then only OK)
+     */
+    public record Welcome(String title, String intro, java.util.List<AgentLine> agents, WelcomePage open) {
+        /** The buttons, the default last: "Later", "Set up now"; or "OK". */
+        public java.util.List<String> buttons() {
+            return open == null ? java.util.List.of("OK") : java.util.List.of("Later", "Set up now");
+        }
+
+        /** The "later" hint with the menu path shown in bold; only when there is something to set up. */
+        public boolean showLaterPath() {
+            return open != null;
+        }
+    }
+
+    /** The menu path in the welcome dialog's last lines (shown in bold). */
+    public static final String PREFERENCES_PATH = "Window → Preferences → Agentic Debugger";
+
+    /**
+     * OPEN-70 (Ayan 28 Nov 13:08-13:27): the dialog at the first start after installing. It only reports what it found
+     * and opens the right page; it sets nothing up itself, so it cannot fail.
+     *
+     * @param claudeFound      the {@code claude} command was found
+     * @param copilotInstalled GitHub Copilot for Eclipse is installed
+     */
+    public static Welcome welcome(boolean claudeFound, boolean copilotInstalled) {
+        String title = "Agentic Debugger is installed.";
+        if (!claudeFound && !copilotInstalled) {
+            return new Welcome(title, "It works with Claude Code or GitHub Copilot for Eclipse.\nInstall one, then restart"
+                    + " Eclipse.", java.util.List.of(), null);
+        }
+        return new Welcome(title, "Connect it to your AI agent:", java.util.List.of(
+                new AgentLine(claudeFound ? "Claude Code found" : "Claude Code not installed", claudeFound),
+                new AgentLine(copilotInstalled ? "GitHub Copilot found" : "GitHub Copilot not installed", copilotInstalled)),
+                claudeFound ? WelcomePage.CLAUDE_CODE : WelcomePage.COPILOT);
+    }
+
     /** Copilot is not installed: the same status, greyed, nothing enabled. */
     private static View off(View v) {
         return new View(v.status(), Tone.MUTED, v.note(), Set.of(), null);

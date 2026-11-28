@@ -234,4 +234,34 @@ class PreferenceStatesTest {
                 PreferenceStates.toolsStatus(true, true, "Restart Eclipse to apply this change.", true, true).status());
         assertTrue(PreferenceStates.toolsStatus(false, true, null, true, true).enabled().isEmpty());
     }
+
+    @Test @DisplayName("PS-U12 welcome after installing: a line per agent, Set up now opens the found agent's page, no agent only OK")
+    void psU12() {
+        PreferenceStates.Welcome both = PreferenceStates.welcome(true, true);
+        assertEquals("Agentic Debugger is installed.", both.title());
+        assertEquals("Connect it to your AI agent:", both.intro());
+        assertEquals(java.util.List.of(new PreferenceStates.AgentLine("Claude Code found", true),
+                new PreferenceStates.AgentLine("GitHub Copilot found", true)), both.agents());
+        assertEquals(PreferenceStates.WelcomePage.CLAUDE_CODE, both.open(), "Claude Code first when both are found");
+        assertEquals(java.util.List.of("Later", "Set up now"), both.buttons());
+        assertTrue(both.showLaterPath());
+
+        PreferenceStates.Welcome claude = PreferenceStates.welcome(true, false);
+        assertEquals(new PreferenceStates.AgentLine("GitHub Copilot not installed", false), claude.agents().get(1));
+        assertEquals(PreferenceStates.WelcomePage.CLAUDE_CODE, claude.open());
+
+        PreferenceStates.Welcome copilot = PreferenceStates.welcome(false, true);
+        assertEquals(new PreferenceStates.AgentLine("Claude Code not installed", false), copilot.agents().get(0));
+        assertEquals(PreferenceStates.WelcomePage.COPILOT, copilot.open());
+        assertEquals(java.util.List.of("Later", "Set up now"), copilot.buttons());
+
+        PreferenceStates.Welcome none = PreferenceStates.welcome(false, false);
+        assertEquals("It works with Claude Code or GitHub Copilot for Eclipse.\nInstall one, then restart Eclipse.",
+                none.intro());
+        assertTrue(none.agents().isEmpty());
+        assertNull(none.open());
+        assertEquals(java.util.List.of("OK"), none.buttons());
+        assertTrue(!none.showLaterPath(), "nothing to set up: no 'later' hint");
+        assertEquals("Window → Preferences → Agentic Debugger", PreferenceStates.PREFERENCES_PATH);
+    }
 }
