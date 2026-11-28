@@ -312,6 +312,15 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 
 ## 7. Last delivery
 
+`ci-cross-platform-6.zip` (28 Nov 22:25): with -5 the macOS build resolved (the macOS-only fragment is gone), and the
+full error appeared: Maven on the macOS runner rejects the dependency classifiers Tycho makes for the jars nested in
+`org.eclipse.m2e.maven.runtime` ("Invalid classifier: must not contain '/': jars/aopalliance-1.0.jar"); the same
+build passes on Windows and Linux, so the macOS runner most likely has a newer Maven with a stricter check (not
+proven). The workflow now installs one Maven version on every system (`MAVEN_VERSION` 3.9.11) and prints `mvn -v`.
+If macOS still fails, the next steps: find which bundle pulls in m2e, or a newer Tycho.
+
+Before it:
+
 `ci-cross-platform-5.zip` (28 Nov 22:10): with `-e` the macOS log showed that the -4 filter broke resolution:
 `org.eclipse.jdt.launching` requires `org.eclipse.jdt.launching.macosx` on macOS unless `org.eclipse.jdt.buildtime=true`.
 `eclipse-plugin/pom.xml` now sets that profile property (Tycho `dependency-resolution/profileProperties`) instead of

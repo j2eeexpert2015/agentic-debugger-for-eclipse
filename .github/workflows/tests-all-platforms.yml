@@ -34,6 +34,9 @@ concurrency:
 
 env:
   ECLIPSE_RELEASE: '2025-12'
+  # One Maven version everywhere (28 Nov): the macOS runner's newer Maven rejected the classifiers Tycho gives to
+  # nested jars ("Invalid classifier: must not contain '/': jars/aopalliance-1.0.jar"); Windows and Linux passed.
+  MAVEN_VERSION: '3.9.11'
   BRIDGE_PORT: '21766'
 
 defaults:
@@ -80,6 +83,16 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
+      - name: Maven ${{ env.MAVEN_VERSION }} (the same on every system)
+        run: |
+          d="$(cygpath -u "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")/maven"
+          mkdir -p "$d"
+          curl -fsSL --retry 3 "https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" | tar -xz -C "$d"
+          bin="$d/apache-maven-$MAVEN_VERSION/bin"
+          if command -v cygpath > /dev/null; then bin="$(cygpath -w "$bin")"; fi
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Versions
+        run: mvn -v
       - name: Build and unit tests
         run: mvn -B -ntp -e clean verify -Drun=all-unit-tests-without-eclipse
       - name: Results
@@ -113,6 +126,16 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Maven ${{ env.MAVEN_VERSION }} (the same on every system)
+        run: |
+          d="$(cygpath -u "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")/maven"
+          mkdir -p "$d"
+          curl -fsSL --retry 3 "https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" | tar -xz -C "$d"
+          bin="$d/apache-maven-$MAVEN_VERSION/bin"
+          if command -v cygpath > /dev/null; then bin="$(cygpath -w "$bin")"; fi
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Versions
+        run: mvn -v
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -166,6 +189,16 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Maven ${{ env.MAVEN_VERSION }} (the same on every system)
+        run: |
+          d="$(cygpath -u "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")/maven"
+          mkdir -p "$d"
+          curl -fsSL --retry 3 "https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" | tar -xz -C "$d"
+          bin="$d/apache-maven-$MAVEN_VERSION/bin"
+          if command -v cygpath > /dev/null; then bin="$(cygpath -w "$bin")"; fi
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Versions
+        run: mvn -v
       - name: Eclipse from cache
         id: cache
         uses: actions/cache/restore@v5
@@ -231,6 +264,16 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+      - name: Maven ${{ env.MAVEN_VERSION }} (the same on every system)
+        run: |
+          d="$(cygpath -u "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")/maven"
+          mkdir -p "$d"
+          curl -fsSL --retry 3 "https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz" | tar -xz -C "$d"
+          bin="$d/apache-maven-$MAVEN_VERSION/bin"
+          if command -v cygpath > /dev/null; then bin="$(cygpath -w "$bin")"; fi
+          echo "$bin" >> "$GITHUB_PATH"
+      - name: Versions
+        run: mvn -v
       - name: Eclipse from cache
         id: cache
         uses: actions/cache/restore@v5
