@@ -37,8 +37,10 @@ public final class ClaudeIntegration {
 
     ClaudeIntegration(Path directory) { this.directory = directory; }
 
-    private Path jar() { return directory.resolve("agentic-debugger-mcp.jar"); }
+    private Path jar() { return directory.resolve("agentic-debugger-mcp.jar").toAbsolutePath(); }
     private Path marker() { return directory.resolve("claude-registration.properties"); }
+    /** OPEN-71: the launcher Claude Code starts on Windows, the same file GitHub Copilot starts. */
+    private Path launcher() { return directory.resolve(CopilotRegistration.launcherName(true)).toAbsolutePath(); }
 
     /**
      * Called on Eclipse startup, silently refreshes only an already-managed payload: the MCP server jar and (OPEN-32)
@@ -47,7 +49,31 @@ public final class ClaudeIntegration {
     public void refreshBundledRuntime() throws Exception {
         if (!Files.isRegularFile(marker())) return;
         stageJar();
+        writeLauncher(); // OPEN-71: names the Java Eclipse runs on now, so Claude Code's entry keeps working
         stageSkill();
+    }
+
+    /** OPEN-71: writes the Windows launcher with Eclipse's current Java and our jar (unchanged file left alone). */
+    private void writeLauncher() throws IOException {
+        if (isWindows()) CopilotRegistration.writeLauncher(directory, locateJava(), jar(), true);
+    }
+
+    /** OPEN-71: the state of an entry Claude Code printed with {@code claude mcp get}. */
+    private PreferenceStates.Registration classify(ClaudeRegistration registration) {
+        ClaudeRegistration.Form form = registration.form(jar(), launcher(), Path.of(System.getProperty("user.home")),
+                isWindows());
+        boolean commandExists;
+        try {
+            commandExists = !registration.command.isBlank() && Files.isRegularFile(Path.of(registration.command));
+        } catch (RuntimeException badPath) {
+            commandExists = false;
+        }
+        return ClaudeRegistration.state(form, isWindows(), commandExists, registration.failedToConnect());
+    }
+
+    /** OPEN-71: true when the entry is ours in its current, working form. */
+    private boolean currentForm(ClaudeRegistration registration) {
+        return isWindows() ? registration.launcher(launcher()) : registration.exactJar(jar());
     }
 
     /**
@@ -128,12 +154,11 @@ public final class ClaudeIntegration {
         Path cli = locateClaude();
         Result r = invoke(cli, "mcp", "get", SERVER);
         if (r.exit() != 0) return "Not configured";
-        ClaudeRegistration registration = ClaudeRegistration.parse(r.text());
-        if (registration.exactJar(jar())) return "Configured (user scope)";
-        if (registration.legacyJar(Path.of(System.getProperty("user.home")), isWindows())) {
-            return "Update available — previous Agentic Debugger registration detected";
-        }
-        return "Existing eclipse-debugger registration is not recognized; no changes made";
+        return switch (classify(ClaudeRegistration.parse(r.text()))) {
+            case CURRENT -> "Configured (user scope)";
+            case OLDER -> "Needs an update: Claude Code can't start the debugger with its current entry";
+            default -> "Existing eclipse-debugger registration is not recognized; no changes made";
+        };
     }
 
     /**
@@ -151,11 +176,7 @@ public final class ClaudeIntegration {
         try {
             Result r = invoke(cli, "mcp", "get", SERVER);
             if (r.exit() != 0) return new RegistrationCheck(PreferenceStates.Registration.NOT_SET_UP, null);
-            ClaudeRegistration registration = ClaudeRegistration.parse(r.text());
-            if (registration.exactJar(jar())) return new RegistrationCheck(PreferenceStates.Registration.CURRENT, null);
-            if (registration.legacyJar(Path.of(System.getProperty("user.home")), isWindows()))
-                return new RegistrationCheck(PreferenceStates.Registration.OLDER, null);
-            return new RegistrationCheck(PreferenceStates.Registration.FOREIGN, null);
+            return new RegistrationCheck(classify(ClaudeRegistration.parse(r.text())), null);
         } catch (Exception | LinkageError failure) {
             String why = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
             return new RegistrationCheck(PreferenceStates.Registration.FAILED, why.endsWith(".") ? why : why + ".");
@@ -188,21 +209,22 @@ public final class ClaudeIntegration {
         Result existing = invoke(cli, "mcp", "get", SERVER);
         if (existing.exit() == 0) {
             ClaudeRegistration registration = ClaudeRegistration.parse(existing.text());
-            if (registration.exactJar(jar())) {
+            PreferenceStates.Registration state = classify(registration);
+            if (state == PreferenceStates.Registration.CURRENT) {
                 stageJar();
+                writeLauncher();
                 writeMarker(); // Adopt our exact, user-scoped registration without touching Claude JSON.
                 stageSkill();
                 return "Already configured (user scope). Bundled MCP runtime and skill refreshed.";
             }
-            if (registration.legacyJar(Path.of(System.getProperty("user.home")), isWindows())) {
+            if (state == PreferenceStates.Registration.OLDER) {
                 throw new MigrationRequiredException(registration.command + " " + registration.args);
             }
             throw new IOException("An unrecognized eclipse-debugger entry exists. Nothing was changed. "
                     + "Inspect it with 'claude mcp get eclipse-debugger'.");
         }
-        Path java = locateJava();
         stageJar();
-        register(cli, java.toString(), jar().toAbsolutePath().toString());
+        registerCurrent(cli);
         verifyCurrent(cli);
         writeMarker();
         stageSkill();
@@ -215,25 +237,27 @@ public final class ClaudeIntegration {
         Result existing = invoke(cli, "mcp", "get", SERVER);
         if (existing.exit() != 0) throw new IOException("No existing entry to migrate. Use Configure instead.");
         ClaudeRegistration previous = ClaudeRegistration.parse(existing.text());
-        if (!previous.legacyJar(Path.of(System.getProperty("user.home")), isWindows())) {
-            throw new IOException("Registration changed or is not a recognized legacy installation. Nothing changed.");
+        // OPEN-71: also our own direct-Java entry (stale after an Eclipse update) and a launcher entry that fails.
+        if (classify(previous) != PreferenceStates.Registration.OLDER) {
+            throw new IOException("Registration changed or is not ours to update. Nothing changed.");
         }
-        Path java = locateJava();
-        stageJar(); // Prepare new JAR before touching Claude configuration.
+        stageJar(); // Prepare new JAR (and the launcher) before touching Claude configuration.
+        writeLauncher();
         Result removed = invoke(cli, "mcp", "remove", SERVER, "--scope", "user");
         if (removed.exit() != 0) throw new IOException("Could not remove previous user entry: " + removed.text());
         try {
-            register(cli, java.toString(), jar().toAbsolutePath().toString());
+            registerCurrent(cli);
             verifyCurrent(cli);
             writeMarker();
         } catch (Exception cause) {
             // Restore the exact old command if replacement fails. Do not modify other MCP servers.
             try {
                 Result current = invoke(cli, "mcp", "get", SERVER);
-                if (current.exit() == 0 && ClaudeRegistration.parse(current.text()).exactJar(jar())) {
+                if (current.exit() == 0 && currentForm(ClaudeRegistration.parse(current.text()))) {
                     invoke(cli, "mcp", "remove", SERVER, "--scope", "user");
                 }
-                register(cli, previous.command, previous.registeredJar());
+                if (previous.launcher(launcher())) registerLauncher(cli);
+                else register(cli, previous.command, previous.registeredJar());
             } catch (Exception rollback) {
                 cause.addSuppressed(rollback);
                 throw new IOException("Migration failed and automatic rollback failed. "
@@ -244,6 +268,26 @@ public final class ClaudeIntegration {
         return "Registration updated to the Eclipse-bundled MCP server. Restart Claude Code.";
     }
 
+    /**
+     * OPEN-71: registers the current form. Windows: {@code cmd /c <launcher>}, a path that stays the same when Eclipse
+     * or its Java is updated (the launcher is rewritten at every Eclipse start). Linux and macOS: Java directly, until
+     * the .sh launcher has been tried there (OPEN-54); a stale entry then shows as "Needs an update".
+     */
+    private void registerCurrent(Path cli) throws Exception {
+        if (isWindows()) {
+            writeLauncher();
+            registerLauncher(cli);
+        } else {
+            register(cli, locateJava().toString(), jar().toAbsolutePath().toString());
+        }
+    }
+
+    private void registerLauncher(Path cli) throws Exception {
+        Result add = invoke(cli, "mcp", "add", "--transport", "stdio", "--scope", "user", SERVER,
+                "--", ClaudeRegistration.LAUNCHER_COMMAND, "/c", launcher().toAbsolutePath().toString());
+        if (add.exit() != 0) throw new IOException("Claude registration failed: " + add.text());
+    }
+
     private void register(Path cli, String command, String serverJar) throws Exception {
         Result add = invoke(cli, "mcp", "add", "--transport", "stdio", "--scope", "user", SERVER,
                 "--", command, "-jar", serverJar);
@@ -252,7 +296,7 @@ public final class ClaudeIntegration {
 
     private void verifyCurrent(Path cli) throws Exception {
         Result verify = invoke(cli, "mcp", "get", SERVER);
-        if (verify.exit() != 0 || !ClaudeRegistration.parse(verify.text()).exactJar(jar())) {
+        if (verify.exit() != 0 || !currentForm(ClaudeRegistration.parse(verify.text()))) {
             throw new IOException("Claude Code registration does not match the bundled MCP server.");
         }
     }
@@ -260,7 +304,10 @@ public final class ClaudeIntegration {
     public String remove() throws Exception {
         Path cli = locateClaude();
         Result current = invoke(cli, "mcp", "get", SERVER);
-        if (current.exit() != 0 || !ClaudeRegistration.parse(current.text()).exactJar(jar())) {
+        ClaudeRegistration.Form form = current.exit() != 0 ? ClaudeRegistration.Form.FOREIGN
+                : ClaudeRegistration.parse(current.text()).form(jar(), launcher(), Path.of(System.getProperty("user.home")),
+                        isWindows());
+        if (form != ClaudeRegistration.Form.LAUNCHER && form != ClaudeRegistration.Form.DIRECT) {
             throw new IOException("Registration is not confirmed as belonging to this plugin; nothing removed.");
         }
         Result removed = invoke(cli, "mcp", "remove", SERVER, "--scope", "user");

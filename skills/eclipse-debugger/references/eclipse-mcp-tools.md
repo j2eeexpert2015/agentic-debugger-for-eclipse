@@ -13,7 +13,7 @@
 | `list_java_applications` | none | Find Java mains (including Boot mains) |
 | `list_run_configurations` | none | Find saved debug-capable Eclipse configurations |
 | `list_junit_tests` | none | Discover source JUnit candidate methods |
-| `begin_debug_investigation` | `mode?` = `NORMAL` or `CONTROLLED`; `request?`; `skill?` (this skill: `eclipse-debugger 0.1.7`); `model` (always: your exact model ID as your instructions state it); `effort?` only if your instructions state it | Returns `investigationId`; defaults NORMAL. With one open investigation, breakpoints and launches without `investigationId` are attached to it; with several, pass it. If the session ends or stops calling for 10 minutes, it is finished automatically |
+| `begin_debug_investigation` | `mode?` = `NORMAL` or `CONTROLLED`; `request?`; `skill?` (this skill: `eclipse-debugger 0.1.8`); `model` (always: your exact model ID as your instructions state it); `effort?` only if your instructions state it | Returns `investigationId`; defaults NORMAL. With one open investigation, breakpoints and launches without `investigationId` are attached to it; with several, pass it. If the session ends or stops calling for 10 minutes, it is finished automatically |
 | `finish_debug_investigation` | `investigationId` | NORMAL scoped cleanup; CONTROLLED preserves debug state. The reply confirms the cleanup (`cleanup`, `breakpointsRemoved`, `ownBreakpointsLeft`) and names the report file (`reportFile`) when reports are on |
 
 ## Breakpoints and launches

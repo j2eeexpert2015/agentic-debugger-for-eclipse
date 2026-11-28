@@ -1,5 +1,6 @@
 package org.learningfromexperience.eclipse.agentdebug.integration;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -12,6 +13,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
+import org.learningfromexperience.eclipse.agentdebug.integration.PreferenceStates.Registration;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -104,5 +106,46 @@ class ClaudeRegistrationTest {
         assertFalse(withoutComments.contains(".claude.json") || withoutComments.contains(".mcp.json"),
                 "the plugin never reads or writes Claude's configuration files itself");
         assertTrue(code.contains("public static final String SERVER = \"eclipse-debugger\";"), "own entry name");
+    }
+
+    private static final Path JAR = HOME.resolve(".eclipse-agentdebug").resolve("agentic-debugger-mcp.jar");
+    private static final Path LAUNCHER = HOME.resolve(".eclipse-agentdebug").resolve("start-mcp-server.cmd");
+    private static final String DIRECT = LEGACY
+            .replace("C:\\Java\\bin\\java.exe",
+                    "C:\\eclipse\\plugins\\org.eclipse.justj.openjdk.hotspot.jre.full.win32.x86_64_25.0.5.v20261030-0959\\jre\\bin\\java.exe")
+            .replace("C:\\Users\\vmadmin\\AppData\\Local\\agentic-debugger-for-eclipse\\mcp-server.jar", JAR.toString());
+    private static final String VIA_LAUNCHER = LEGACY.replace("Command: C:\\Java\\bin\\java.exe", "Command: cmd")
+            .replace("Args: -jar C:\\Users\\vmadmin\\AppData\\Local\\agentic-debugger-for-eclipse\\mcp-server.jar",
+                    "Args: /c " + LAUNCHER);
+
+    @Test
+    @DisplayName("CR-U8 the forms of our entry: launcher (cmd /c), direct Java, the previous installer, someone else's")
+    void crU8() {
+        assertEquals(ClaudeRegistration.Form.LAUNCHER, ClaudeRegistration.parse(VIA_LAUNCHER).form(JAR, LAUNCHER, HOME, true));
+        assertEquals(ClaudeRegistration.Form.LAUNCHER, ClaudeRegistration.parse(VIA_LAUNCHER.replace("Command: cmd", "Command: cmd.exe")
+                .replace("/c " + LAUNCHER, "/C \"" + LAUNCHER + "\"")).form(JAR, LAUNCHER, HOME, true), "cmd.exe, /C, quotes");
+        assertEquals(ClaudeRegistration.Form.DIRECT, ClaudeRegistration.parse(DIRECT).form(JAR, LAUNCHER, HOME, true));
+        assertEquals(ClaudeRegistration.Form.LEGACY, ClaudeRegistration.parse(LEGACY).form(JAR, LAUNCHER, HOME, true));
+        assertEquals(ClaudeRegistration.Form.FOREIGN, ClaudeRegistration.parse(VIA_LAUNCHER.replace("start-mcp-server.cmd", "other.cmd"))
+                .form(JAR, LAUNCHER, HOME, true));
+        assertEquals(ClaudeRegistration.Form.FOREIGN, ClaudeRegistration.parse(VIA_LAUNCHER.replace("Scope: User", "Scope: Local"))
+                .form(JAR, LAUNCHER, HOME, true), "only the user-scope entry is ours");
+        assertFalse(ClaudeRegistration.parse(LEGACY).failedToConnect());
+        assertTrue(ClaudeRegistration.parse(DIRECT.replace("\u2713 Connected", "\u2717 Failed to connect")).failedToConnect());
+    }
+
+    @Test
+    @DisplayName("CR-U9 incident 28 Nov: a direct-Java entry is 'Needs an update' on Windows, and wherever its Java is gone or Claude can't connect")
+    void crU9() {
+        Registration current = Registration.CURRENT, older = Registration.OLDER;
+        assertEquals(current, ClaudeRegistration.state(ClaudeRegistration.Form.LAUNCHER, true, true, false));
+        assertEquals(older, ClaudeRegistration.state(ClaudeRegistration.Form.LAUNCHER, true, true, true), "launcher, Claude can't connect");
+        assertEquals(older, ClaudeRegistration.state(ClaudeRegistration.Form.DIRECT, true, true, false), "Windows: moved to the launcher");
+        assertEquals(older, ClaudeRegistration.state(ClaudeRegistration.Form.DIRECT, true, false, true), "the incident: Java folder gone");
+        assertEquals(current, ClaudeRegistration.state(ClaudeRegistration.Form.DIRECT, false, true, false), "Linux/macOS keep Java directly");
+        assertEquals(older, ClaudeRegistration.state(ClaudeRegistration.Form.DIRECT, false, false, false), "Linux/macOS: Java gone");
+        assertEquals(older, ClaudeRegistration.state(ClaudeRegistration.Form.DIRECT, false, true, true), "Linux/macOS: can't connect");
+        assertEquals(older, ClaudeRegistration.state(ClaudeRegistration.Form.LEGACY, true, true, false));
+        assertEquals(Registration.FOREIGN, ClaudeRegistration.state(ClaudeRegistration.Form.FOREIGN, true, true, true));
     }
 }

@@ -44,6 +44,28 @@
             <url>https://azuredownloads-g3ahgwb5b8bkbxhd.b01.azurefd.net/github-copilot/</url>
         </repository>
     </repositories>
+    <profiles>
+        <!-- OPEN-72: the SWTBot UI tests (module eclipse-plugin-ui-tests), with one flag:
+               mvn clean verify              everything as before (unit tests; integration tests stay in testing, -Pintegration-tests)
+               mvn clean verify -Pui-tests   builds everything, skips those tests and runs only the UI tests
+             The UI test module sets skipTests=false for itself. docs/ui-tests.md. -->
+        <profile>
+            <id>ui-tests</id>
+            <properties>
+                <skipTests>true</skipTests>
+            </properties>
+            <modules>
+                <module>eclipse-plugin-ui-tests</module>
+            </modules>
+            <repositories>
+                <repository>
+                    <id>swtbot</id>
+                    <layout>p2</layout>
+                    <url>https://download.eclipse.org/technology/swtbot/releases/latest/</url>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>

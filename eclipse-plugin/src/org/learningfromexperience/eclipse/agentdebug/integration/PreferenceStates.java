@@ -92,9 +92,10 @@ public final class PreferenceStates {
                     ? "Start a new Claude Code session to use it; sessions already open don't see the change." : usage,
                     null, Action.REMOVE, Action.CHECK);
             // ClaudeIntegration.remove() removes only an entry that points to the current server, so no Remove here.
-            case OLDER -> view("⚠ Set up by an older version of this plugin", Tone.WARN,
-                    "Claude Code would start the old server. Update points it to this version.", Action.UPDATE,
-                    Action.CHECK);
+            // OPEN-71: also an entry Claude Code can no longer start (Eclipse's Java changed) or one in the old form.
+            case OLDER -> view("⚠ Needs an update", Tone.WARN,
+                    "Claude Code can't start the debugger with its current entry. Update fixes it; then start a new"
+                            + " Claude Code session.", Action.UPDATE, Action.CHECK);
             case FOREIGN -> view("⚠ Another 'eclipse-debugger' entry exists", Tone.WARN,
                     "It isn't ours, so it was left unchanged. See it with: claude mcp get eclipse-debugger",
                     null, Action.CHECK);

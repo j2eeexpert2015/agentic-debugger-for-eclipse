@@ -16,6 +16,7 @@ All commands run from the repository root. There are two kinds of tests, and the
 |---|---|---|---|
 | **Unit tests** (JUnit 5) | Logic that needs no Eclipse: bridge protocol, ownership and lease rules, output trimming, MCP timeouts, setup utility paths, Claude grader | JDK 21+, Maven | `mvn clean package`, automatically |
 | **Integration tests** | The installed plugin in a real Eclipse: launches, breakpoints, stops, variables, Spring Boot, HTTP, cleanup | The dedicated test Eclipse (below) | `java dev-e2e/DevE2E.java ...` only, never in the Maven build |
+| **UI tests** (SWTBot, OPEN-72) | The Preferences pages and the welcome dialog as a user sees them: texts, buttons, the setup check | A test Eclipse that Maven starts itself (no DevE2E); keep mouse and keyboard off while it runs | `mvn clean verify -Pui-tests` (runs only these; [docs/ui-tests.md](docs/ui-tests.md)) |
 
 ### Build and unit tests (no Eclipse needed)
 

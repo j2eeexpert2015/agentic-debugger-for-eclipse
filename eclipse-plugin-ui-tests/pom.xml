@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OPEN-72: SWTBot UI tests. Built and run only with the Maven profile "ui-tests" (root pom.xml):
+       mvn clean verify -Pui-tests
+     That profile skips every other test, so one flag picks the suite: no flag = the tests as before, -Pui-tests =
+     only these. They start a real Eclipse (Tycho's UI test runtime) with the plugin, and click through it like a user.
+     docs/ui-tests.md says what they check. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.learningfromexperience</groupId>
+        <artifactId>agentic-debugger-distribution</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>org.learningfromexperience.eclipse.agentdebug.uitests</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>eclipse-test-plugin</packaging>
+    <name>Agentic Debugger for Eclipse IDE UI Tests</name>
+
+    <build>
+        <plugins>
+            <!-- The test Eclipse also needs the IDE application and the Java tools, not only what the tests import -->
+            <plugin>
+                <groupId>org.eclipse.tycho</groupId>
+                <artifactId>target-platform-configuration</artifactId>
+                <version>${tycho.version}</version>
+                <configuration>
+                    <dependency-resolution>
+                        <extraRequirements>
+                            <requirement>
+                                <type>eclipse-feature</type>
+                                <id>org.eclipse.platform</id>
+                                <versionRange>0.0.0</versionRange>
+                            </requirement>
+                            <requirement>
+                                <type>eclipse-feature</type>
+                                <id>org.eclipse.jdt</id>
+                                <versionRange>0.0.0</versionRange>
+                            </requirement>
+                        </extraRequirements>
+                    </dependency-resolution>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.eclipse.tycho</groupId>
+                <artifactId>tycho-surefire-plugin</artifactId>
+                <version>${tycho.version}</version>
+                <configuration>
+                    <!-- Explicit, so the profile's skipTests=true (for every other module) does not skip these -->
+                    <skipTests>false</skipTests>
+                    <useUIHarness>true</useUIHarness>
+                    <!-- SWTBot drives the UI from another thread -->
+                    <useUIThread>false</useUIThread>
+                    <product>org.eclipse.platform.ide</product>
+                    <application>org.eclipse.ui.ide.workbench</application>
+                    <!-- Own port and own home folder: never the user's normal Eclipse (8765) or ~/.eclipse-agentdebug -->
+                    <environmentVariables>
+                        <AGENTDEBUG_PORT>21799</AGENTDEBUG_PORT>
+                        <!-- UI-05: Claude Code keeps its settings here, not in the user's ~/.claude.json -->
+                        <CLAUDE_CONFIG_DIR>${project.build.directory}/claude-config</CLAUDE_CONFIG_DIR>
+                    </environmentVariables>
+                    <argLine>-Duser.home=${project.build.directory}/home -Xmx1g</argLine>
+                    <forkedProcessTimeoutInSeconds>1200</forkedProcessTimeoutInSeconds>
+                    <trimStackTrace>false</trimStackTrace>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

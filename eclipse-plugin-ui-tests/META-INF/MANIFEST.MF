@@ -1,0 +1,16 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Agentic Debugger for Eclipse IDE UI Tests
+Bundle-SymbolicName: org.learningfromexperience.eclipse.agentdebug.uitests
+Bundle-Version: 1.0.0.qualifier
+Bundle-Vendor: Ayan Dutta
+Require-Bundle: org.learningfromexperience.eclipse.agentdebug,
+ org.eclipse.ui,
+ org.eclipse.swt,
+ org.eclipse.jface,
+ org.eclipse.swtbot.swt.finder,
+ org.eclipse.swtbot.eclipse.finder,
+ org.hamcrest
+Import-Package: org.junit.jupiter.api;version="[5.0.0,6.0.0)"
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Automatic-Module-Name: org.learningfromexperience.eclipse.agentdebug.uitests

@@ -50,7 +50,7 @@ investigation's time is stored), shown only when Setup is OK.
 | Set up, nothing recorded | ✔ Set up | No debugging session recorded yet. Start Claude Code and ask it to debug | off | off | on | on |
 | Set up, debugging now | ✔ Set up | ● Debugging now: (title), started (time) · Open Agent Activity | off | off | on | on |
 | Set up, used before | ✔ Set up | Last debugging session: (when), (title), (outcome) | off | off | on | on |
-| Older entry of this plugin | ⚠ Set up by an older version | Claude Code would start the old server | off | **on** (main) | **off** | on |
+| Our entry no longer works (OPEN-71): the old form, its Java gone after an Eclipse update, or Claude Code's own check says "Failed to connect" | ⚠ Needs an update | Claude Code can't start the debugger with its current entry. Update fixes it; then start a new Claude Code session. | off | **on** (main) | **off** | on |
 | Someone else's `eclipse-debugger` entry | ⚠ Another 'eclipse-debugger' entry exists | Left unchanged; commands to see and remove it | **off** | **off** | **off** | on |
 | Removed while a session is open | ✖ Not set up | The open session keeps our tools until it ends | on (main) | off | off | on |
 

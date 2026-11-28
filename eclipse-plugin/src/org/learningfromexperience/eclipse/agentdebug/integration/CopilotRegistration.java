@@ -19,6 +19,7 @@ import java.nio.file.StandardCopyOption;
  * and is rewritten when it changes, while the JSON names only the script and stays the same. Copilot starts it
  * through cross-spawn (a {@code .cmd} works on Windows) and stops it with {@code taskkill /t}, so the Java process
  * ends with it.
+ * <p>OPEN-71 (28 Nov): Claude Code is given the same launcher on Windows ({@code cmd /c <launcher>}).
  * <p><b>Windows only for now</b> (Ayan, 26 Nov): Linux and macOS keep the direct command ({@link #jsonDirect}) until
  * the {@code .sh} launcher has run there in a real build (CP-U7 on a Linux and a macOS machine, README OPEN-54).
  * <p>Pure functions and plain files, no Eclipse and no Copilot needed (unit tests CP-U1..U7).
@@ -49,15 +50,15 @@ public final class CopilotRegistration {
     static String launcherText(Path java, Path jar, boolean windows) {
         if (windows) {
             return "@echo off\r\n"
-                    + "rem Starts the eclipse-debugger MCP server for GitHub Copilot (Agentic Debugger for Eclipse).\r\n"
+                    + "rem Starts the eclipse-debugger MCP server for Claude Code and GitHub Copilot (Agentic Debugger for Eclipse).\r\n"
                     + "rem Written by the plugin at every Eclipse start: when Eclipse's Java changes, only this file\r\n"
-                    + "rem changes, so GitHub Copilot keeps its approval. Do not edit.\r\n"
+                    + "rem changes, so their settings keep working. Do not edit.\r\n"
                     + "\"" + batch(java.toString()) + "\" -jar \"" + batch(jar.toString()) + "\" %*\r\n";
         }
         return "#!/bin/sh\n"
-                + "# Starts the eclipse-debugger MCP server for GitHub Copilot (Agentic Debugger for Eclipse).\n"
+                + "# Starts the eclipse-debugger MCP server for Claude Code and GitHub Copilot (Agentic Debugger for Eclipse).\n"
                 + "# Written by the plugin at every Eclipse start: when Eclipse's Java changes, only this file\n"
-                + "# changes, so GitHub Copilot keeps its approval. Do not edit.\n"
+                + "# changes, so their settings keep working. Do not edit.\n"
                 + "exec " + shell(java.toString()) + " -jar " + shell(jar.toString()) + " \"$@\"\n";
     }
 

@@ -14,6 +14,8 @@ First release made by the release pipeline ([docs/ci.md](docs/ci.md)).
 - Claude Code: set up from Preferences → Agentic Debugger → Claude Code; optional `eclipse-debugger` skill.
 - GitHub Copilot for Eclipse: the server offered to Copilot; the **Agentic Debugger** agent; by default only that agent
   uses the debugger tools, without asking each time.
+- Claude Code keeps working after an Eclipse update (Windows: started through a launcher; everywhere: a stale
+  entry shows "Needs an update" with an Update button); the skill stops and asks when the debugger isn't connected.
 - Agent Activity view or window, and an HTML report for every investigation.
 - Safety: the agent changes only the breakpoints and launches it created; cleanup of abandoned investigations;
   optional approval before code runs in the program.

@@ -241,6 +241,16 @@ list_breakpoints), and the OPEN-47 guard message shows it ("OrderService:23 (use
 leftover made after the removal can be told from an old one. Automatic clean-up of the test projects waits until the
 cause is known.
 
+**AC. OPEN-71 and OPEN-72 (28 Nov 16:30, `open-71-72-1.zip`, Ayan 15:44-15:57):** Claude Code entry on Windows
+= `cmd /c <~/.eclipse-agentdebug/start-mcp-server.cmd>` (the Copilot launcher, now written also by
+`ClaudeIntegration.refreshBundledRuntime`, configure and Update); `ClaudeRegistration.form/state` (CR-U8, CR-U9) read
+the form, the command's existence and Claude's "Status" line; `registration()`, `status()`, `configure()`,
+`migrateExisting()` (Update now also rewrites our own stale or direct-Java entry), `remove()` use them;
+PreferenceStates OLDER text "⚠ Needs an update". Skill 0.1.8: stop and ask when the tools are missing. UI tests: module
+`eclipse-plugin-ui-tests` (eclipse-test-plugin, SWTBot, JUnit 5 limited to `[5,6)`: the first JUnit 5 run with `[5,7)` found "No tests"; JUnit 4 then passed, 28 Nov), root-pom profile `ui-tests` (adds the module and
+the SWTBot p2 site, sets skipTests=true for the rest), tests UI-01..05 (UI-05: Needs an update → Update with `CLAUDE_CONFIG_DIR` pointing at target/claude-config, a guard against touching real settings). Open: whether Claude Code starts `cmd /c`
+fine on Ayan's machine (F15); the Tycho/SWTBot setup was never run here, so expect one fix round.
+
 **AB. Welcome after installing, OPEN-70 (28 Nov 13:40, `open-70-welcome-1.zip`, Ayan 13:08-13:27, mockup
 `post-install-welcome-mockup.html`):** `ui/WelcomeDialog` (new; a `MessageDialog` with a custom area for the agent
 lines and the bold path), `PreferenceStates.welcome` (PS-U12), `ClaudeIntegration.claudeFound()` (file lookup only),
