@@ -192,6 +192,30 @@ sequence diagram per HTTP request, no AI); concept pages `petclinic-flow-find-ow
 enabled buttons per case in `docs/design/preferences-pages.md`. Not started; to be built carefully, a pure state class
 with one unit test per table row first.
 
+**W. `open-69-preferences.zip` (28 Nov 05:10), OPEN-69 built:** `integration/PreferenceStates` (every case and its
+enabled buttons, PS-U1..U8), `ClaudeIntegration.registration()`/`installSkill()`/`claudeSkillFolder()`,
+`SetupCheck.summary()` (grouped, problems first) and new fix texts pointing to the pages; `ui/PrefUi` (sections),
+`ui/ClaudeCodePreferences` (new page, id `...preferences.claude`), `ui/ClaudeIntegrationPreferences` (main page, all
+agents), `ui/CopilotPreferences` (rebuilt), `ui/ClaudeUsage` (last Claude Code investigation, stored), plugin.xml,
+`ActivityPage.agent` public. Checked here: integration tests 65/65 and report activity tests with the JUnit stand-in;
+the UI classes compiled against SWT/JFace stand-ins only. To check in Eclipse: release check F12.
+`open-69-preferences-2.zip` (28 Nov 09:50, Ayan 09:37-09:40): setup check in colour (`StyledText`, `SetupCheck.spans`,
+PS-U9) and re-run by itself when the page is shown again after a problem, with a line saying so. From now on builds
+use `-DskipTests` (Ayan 09:30: all tests before a merge); not yet run in his build: OPEN-66, OPEN-69.
+
+**X. `open-69-preferences-3.zip` (28 Nov 10:30, Ayan 10:00 "proceed"):** setup check runs when the main page opens
+(last result at once with its time, `SetupCheckRunner.lastDeepRows/lastDeepAt`), button "Check again";
+`SetupCheck.summary` numbered problems first, then "Everything else is fine (N checks)" (PS-U7, PS-U9 rewritten).
+Copilot after an approval in the session: `Snapshot.isolatedAtStart` (`CopilotIntegration.isolatedThisSession()`) gives
+one amber "Restart Eclipse to finish the Copilot setup." instead of the red row (SC-U8); `CopilotIntegration.watch`
+listens to Copilot's `mcpToolsModeStatus`/`mcpToolsStatus` and takes back our own auto-approval (re-added at the next
+start). Copilot page: approval line first with "Open Copilot's MCP page" (`PreferenceStates.approval`, PS-U10), box
+"Only the Agentic Debugger agent, without asking each time" with the new tooltip, live status
+(`PreferenceStates.toolsStatus`, PS-U11). Checked here: integration tests 69/69 with the JUnit stand-in; the pages
+compiled against SWT/JFace stand-ins; `SetupCheckRunner` and the watcher not compiled here (Eclipse classes). Open:
+whether Copilot honours the withdrawn auto-approval without a restart (F12). Tests not yet run in his build: OPEN-66,
+OPEN-69.
+
 
 
 

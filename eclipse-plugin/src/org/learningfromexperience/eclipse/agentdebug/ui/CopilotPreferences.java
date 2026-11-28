@@ -3,16 +3,19 @@ package org.learningfromexperience.eclipse.agentdebug.ui;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.preference.IPreferenceNode;
+import org.eclipse.jface.preference.PreferenceManager;
 import org.eclipse.jface.preference.PreferencePage;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
@@ -20,58 +23,113 @@ import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.preferences.IWorkbenchPreferenceContainer;
+import org.learningfromexperience.eclipse.agentdebug.integration.ClaudeIntegration;
 import org.learningfromexperience.eclipse.agentdebug.integration.CopilotAgentInstaller;
+import org.learningfromexperience.eclipse.agentdebug.integration.CopilotAgentTools;
 import org.learningfromexperience.eclipse.agentdebug.integration.CopilotIntegration;
+import org.learningfromexperience.eclipse.agentdebug.integration.CopilotSettings;
 import org.learningfromexperience.eclipse.agentdebug.integration.CopilotSkill;
+import org.learningfromexperience.eclipse.agentdebug.integration.PreferenceStates;
+import org.learningfromexperience.eclipse.agentdebug.integration.PreferenceStates.Action;
 
 /**
- * Preferences &gt; Agentic Debugger &gt; GitHub Copilot:
+ * Preferences &gt; Agentic Debugger &gt; GitHub Copilot, for GitHub Copilot only (OPEN-69 layout):
  * <ul>
- *   <li>OPEN-60: "Use eclipse-debugger tools only in the Agentic Debugger agent, without confirmations" (on by default,
- *       {@link CopilotIntegration});</li>
- *   <li>OPEN-23 (d): the agent for all workspaces ({@code ~/.copilot/agents}), Install and Remove, with a warning when it
- *       is also in projects (Copilot lists every copy);</li>
- *   <li>the eclipse-debugger skill for Copilot (moved here from the main page).</li>
+ *   <li><b>Agentic Debugger agent</b> for all workspaces ({@code ~/.copilot/agents}, OPEN-23 d): Install, Update,
+ *       Remove (asks when you changed the file), with a note when it is also in projects (Copilot lists every copy);</li>
+ *   <li><b>Who can use our tools</b> (OPEN-60, {@link CopilotIntegration}): first whether our server is approved in
+ *       Copilot (with "Open Copilot's MCP page"), then "Only the Agentic Debugger agent, without asking each time"
+ *       (applied when Copilot starts, so a change shows "Restart Eclipse to apply"), then what is in effect now;</li>
+ *   <li><b>Skill</b>: Copilot uses the Claude Code copy when there is one (managed on the Claude Code page), else its
+ *       own ({@link CopilotSkill}): Install, Update, Remove (only the files the plugin wrote).</li>
  * </ul>
+ * When Copilot is not installed, the page says so and nothing can be changed. Every case, and which button is enabled
+ * in it, is {@link PreferenceStates} (tests PS-U4, PS-U5). Same preference keys and actions as before.
  *
  * @author Ayan Dutta
  */
 public final class CopilotPreferences extends PreferencePage implements IWorkbenchPreferencePage {
 
-    private static final int WIDTH = 520;
+    /** This page's id in plugin.xml (unchanged). */
+    public static final String ID = "org.learningfromexperience.eclipse.agentdebug.preferences.copilot";
+
+    /** The "only our agent" setting as it was when this Eclipse first showed the page: applied when Copilot starts. */
+    private static Boolean agentOnlyAtStart;
+
+    private Composite root;
+    private boolean copilot;
+    private PrefUi.Section agent;
+    private PrefUi.Section skill;
+    private PrefUi.Section approval;
+    private Button box;
+    private Label toolsStatus;
+    private Label duplicates;
 
     @Override public void init(IWorkbench workbench) { noDefaultAndApplyButton(); }
 
     @Override
     protected Control createContents(Composite parent) {
-        Composite root = new Composite(parent, SWT.NONE);
+        root = new Composite(parent, SWT.NONE);
         root.setLayout(new GridLayout(1, false));
-        if (!CopilotIntegration.copilotInstalled()) {
-            wrap(root, "GitHub Copilot is not installed.");
+        copilot = CopilotIntegration.copilotInstalled();
+        PrefUi.audience(root, "For GitHub Copilot only.",
+                "Lets Copilot Chat in Eclipse use the debugger, through the Agentic Debugger agent.");
+        if (!copilot) {
+            Label missing = PrefUi.wrap(root, "GitHub Copilot isn't installed in this Eclipse. Install it from the"
+                    + " Eclipse Marketplace to use it with the debugger. Not needed for Claude Code.");
+            missing.setForeground(PrefUi.colour(PreferenceStates.Tone.WARN));
         }
-        agentOnly(root);
-        userAgent(root);
-        skill(root);
+
+        Map<Action, String> agentButtons = new LinkedHashMap<>();
+        agentButtons.put(Action.INSTALL, "Install");
+        agentButtons.put(Action.UPDATE, "Update");
+        agentButtons.put(Action.REMOVE, "Remove");
+        Composite agentGroup = PrefUi.group(root, "Agentic Debugger agent", "The agent you pick in Copilot Chat's mode"
+                + " list. Installed once for every workspace (~/.copilot/agents).");
+        agent = new PrefUi.Section(agentGroup, agentButtons, this::agentAction);
+        duplicates = PrefUi.wrap(agentGroup, "");
+
+        agentOnly();
+
+        Map<Action, String> skillButtons = new LinkedHashMap<>();
+        skillButtons.put(Action.INSTALL, "Install");
+        skillButtons.put(Action.UPDATE, "Update");
+        skillButtons.put(Action.REMOVE, "Remove");
+        skill = new PrefUi.Section(PrefUi.group(root, "Skill", "Tells the agent how to debug with these tools. Copilot"
+                + " reads the Claude Code copy (~/.claude/skills) when there is one; otherwise it gets its own copy in"
+                + " ~/.copilot/skills. Remove deletes only the files this plugin wrote and you did not change."),
+                skillButtons, this::skillAction);
+        draw();
         return root;
     }
 
-    /** OPEN-60. */
-    private void agentOnly(Composite root) {
-        heading(root, "Copilot modes");
-        Button box = new Button(root, SWT.CHECK);
-        box.setText("Use eclipse-debugger only in the Agentic Debugger agent, without confirmations");
-        box.setSelection(CopilotIntegration.agentOnly());
-        wrap(root, "Off: every Copilot mode may use it, with confirmations.\nApplies after an Eclipse restart.");
-        Label result = wrap(root, "Status: " + CopilotIntegration.lastResult());
+    /**
+     * OPEN-60, OPEN-69: first the approval step (Copilot's MCP page), then the box, then what is in effect now, read
+     * from Copilot's settings each time the page is drawn (not the last apply).
+     */
+    private void agentOnly() {
+        Composite group = PrefUi.group(root, "Who can use our tools", null);
+        Map<Action, String> approvalButtons = new LinkedHashMap<>();
+        approvalButtons.put(Action.OPEN, "Open Copilot's MCP page");
+        approval = new PrefUi.Section(group, approvalButtons, action -> openCopilotMcpPage());
+        boolean now = CopilotIntegration.agentOnly();
+        if (agentOnlyAtStart == null) agentOnlyAtStart = now;
+        box = PrefUi.check(group, "Only the Agentic Debugger agent, without asking each time",
+                "Ticked: only the Agentic Debugger agent can use our tools, and Copilot runs them without asking you"
+                        + " first. Unticked: every Copilot mode can use them, and Copilot asks you before each one.", now);
+        box.setEnabled(PreferenceStates.agentOnlyEditable(copilot));
+        toolsStatus = PrefUi.wrap(group, "");
         box.addListener(SWT.Selection, event -> {
             boolean on = box.getSelection();
-            result.setText("Applying...");
+            box.setEnabled(false);
             Job job = Job.create("Agentic Debugger: Copilot setting", monitor -> {
-                String said = CopilotIntegration.setAgentOnly(on);
+                CopilotIntegration.setAgentOnly(on);
                 if (!root.isDisposed()) root.getDisplay().asyncExec(() -> {
                     if (root.isDisposed()) return;
-                    result.setText("Status: " + said + "\nRestart Eclipse to be sure.");
-                    root.layout(true, true);
+                    box.setEnabled(PreferenceStates.agentOnlyEditable(copilot));
+                    drawTools();
                 });
                 return Status.OK_STATUS;
             });
@@ -80,74 +138,129 @@ public final class CopilotPreferences extends PreferencePage implements IWorkben
         });
     }
 
-    /** OPEN-23 (d). */
-    private void userAgent(Composite root) {
-        heading(root, "Agent for all workspaces");
-        Label status = wrap(root, userAgentStatus());
-        Composite buttons = new Composite(root, SWT.NONE);
-        buttons.setLayout(new GridLayout(2, false));
-        Button install = new Button(buttons, SWT.PUSH);
-        install.setText("Install for all workspaces");
-        Button remove = new Button(buttons, SWT.PUSH);
-        remove.setText("Remove for all workspaces");
-        install.addListener(SWT.Selection, event -> {
-            String message;
+    /** The approval line and the live status, from Copilot's settings now. */
+    private void drawTools() {
+        if (root == null || root.isDisposed()) return;
+        Boolean approved = null;
+        boolean off = false;
+        boolean autoApproved = false;
+        if (copilot) {
             try {
-                CopilotAgentInstaller.Result r = CopilotAgentInstaller.installForUser(home(), CopilotIntegration.template());
-                Path file = CopilotAgentInstaller.userAgentFile(home());
-                message = (switch (r) {
-                    case CREATED -> "Installed.";
-                    case UPDATED -> "Updated.";
-                    case UNCHANGED -> "Already up to date.";
-                    case KEPT_EDITED -> "Kept your changed file; the new version is next to it (.new).";
-                }) + "\nIn Copilot Chat, pick \"Agentic Debugger\" in the mode list.";
-                try { CopilotSkill.install(); } catch (Exception skillFailure) { /* optional */ }
-            } catch (Exception failure) {
-                message = "Could not install the agent: " + failure.getMessage();
+                CopilotSettings.Store store = CopilotIntegration.copilotStore();
+                approved = CopilotSettings.approval(store, CopilotIntegration.PLUGIN_ID).approved();
+                off = CopilotSettings.agentModeToolsOff(store, CopilotAgentTools.SERVER_GROUP,
+                        CopilotAgentTools.mcpToolNames(CopilotIntegration.template()));
+                autoApproved = CopilotSettings.autoApproved(store, CopilotAgentTools.SERVER_GROUP);
+            } catch (Exception | LinkageError unreadable) {
+                // shown as not approved / not in effect: the setup check names the cause
             }
-            status.setText(join(message, duplicates()));
-            root.layout(true, true);
-        });
-        remove.addListener(SWT.Selection, event -> {
-            String message;
-            try {
-                CopilotAgentInstaller.Removal r = CopilotAgentInstaller.removeForUser(home(), false);
-                if (r == CopilotAgentInstaller.Removal.EDITED_NEEDS_CONFIRMATION) {
-                    boolean confirmed = MessageDialog.openQuestion(getShell(), "Agentic Debugger for GitHub Copilot",
-                            "You changed the agent file. Remove it anyway?");
-                    r = confirmed ? CopilotAgentInstaller.removeForUser(home(), true) : r;
-                }
-                message = switch (r) {
-                    case REMOVED -> "Removed.";
-                    case NOT_PRESENT -> "Not installed.";
-                    case EDITED_NEEDS_CONFIRMATION -> "Kept your changed file.";
-                };
-            } catch (Exception failure) {
-                message = "Could not remove the agent: " + failure.getMessage();
-            }
-            status.setText(join(message, duplicates()));
-            root.layout(true, true);
-        });
-    }
-
-    private static String join(String first, String second) {
-        return second.isEmpty() ? first : first + "\n" + second;
-    }
-
-    private String userAgentStatus() {
-        Path file = CopilotAgentInstaller.userAgentFile(home());
-        String state;
-        try {
-            state = switch (CopilotAgentInstaller.state(file, CopilotIntegration.template())) {
-                case MISSING -> "Not installed.";
-                case CURRENT -> "Installed.";
-                case OLDER -> "Installed (older version): click Install to update.";
-                case EDITED -> "Installed (changed by you).";
-            };
-        } catch (Exception unreadable) {
-            state = "Could not read " + file + ".";
         }
-        return join(state, duplicates());
+        approval.show(PreferenceStates.approval(copilot, approved));
+        PreferenceStates.View status = PreferenceStates.toolsStatus(copilot, box.getSelection(),
+                PreferenceStates.agentOnlyNote(agentOnlyAtStart, box.getSelection()), off, autoApproved);
+        toolsStatus.setText(status.status());
+        toolsStatus.setForeground(PrefUi.colour(status.tone()));
+        root.layout(true, true);
+    }
+
+    /** OPEN-69: back from Copilot's MCP page (or another page): draw the current state again. */
+    @Override
+    public void setVisible(boolean visible) {
+        super.setVisible(visible);
+        if (visible && root != null && !root.isDisposed()) draw();
+    }
+
+    /** Opens Copilot's MCP page in this dialog, found by its label; else says where it is. */
+    private void openCopilotMcpPage() {
+        String id = copilotMcpPageId();
+        if (id != null && getContainer() instanceof IWorkbenchPreferenceContainer container
+                && container.openPage(id, null)) return;
+        MessageDialog.openInformation(getShell(), "Agentic Debugger for GitHub Copilot",
+                "Open Preferences > GitHub Copilot > Model Context Protocol (MCP). Under Edit MCP Servers from Plug-ins,"
+                        + " approve 'Agentic Debugger for Eclipse IDE'.");
+    }
+
+    /** The id of Copilot's preference page whose label contains "Model Context Protocol", or null. */
+    static String copilotMcpPageId() {
+        try {
+            for (Object element : PlatformUI.getWorkbench().getPreferenceManager().getElements(PreferenceManager.PRE_ORDER)) {
+                IPreferenceNode node = (IPreferenceNode) element;
+                String label = node.getLabelText();
+                if (label != null && label.contains("Model Context Protocol")) return node.getId();
+            }
+        } catch (RuntimeException | LinkageError notFound) { /* fall back to the message */ }
+        return null;
+    }
+
+    private void agentAction(Action action) {
+        String message = null;
+        try {
+            switch (action) {
+                case INSTALL, UPDATE -> {
+                    CopilotAgentInstaller.Result r = CopilotAgentInstaller.installForUser(home(), CopilotIntegration.template());
+                    if (r == CopilotAgentInstaller.Result.KEPT_EDITED)
+                        message = "Your changed file was kept; this version is next to it (.new).";
+                    // As before: the agent comes with the skill when there is none yet.
+                    try { CopilotSkill.install(); } catch (Exception skillFailure) { /* optional */ }
+                }
+                case REMOVE -> {
+                    CopilotAgentInstaller.Removal r = CopilotAgentInstaller.removeForUser(home(), false);
+                    if (r == CopilotAgentInstaller.Removal.EDITED_NEEDS_CONFIRMATION) {
+                        boolean confirmed = MessageDialog.openQuestion(getShell(), "Agentic Debugger for GitHub Copilot",
+                                "You changed the agent file. Remove it anyway?");
+                        if (confirmed) CopilotAgentInstaller.removeForUser(home(), true);
+                    }
+                }
+                default -> { }
+            }
+        } catch (Exception failure) {
+            message = "Could not change the agent: " + failure.getMessage();
+        }
+        draw();
+        if (message != null) MessageDialog.openInformation(getShell(), "Agentic Debugger for GitHub Copilot", message);
+    }
+
+    private void skillAction(Action action) {
+        String message = null;
+        try {
+            switch (action) {
+                case INSTALL, UPDATE -> CopilotSkill.install();
+                case REMOVE -> {
+                    String said = CopilotSkill.remove();
+                    if (said.contains("kept")) message = said;
+                }
+                default -> { }
+            }
+        } catch (Exception failure) {
+            message = "The skill could not be changed: " + failure.getMessage();
+        }
+        draw();
+        if (message != null) MessageDialog.openInformation(getShell(), "Skill for GitHub Copilot", message);
+    }
+
+    private void draw() {
+        Path file = CopilotAgentInstaller.userAgentFile(home());
+        CopilotAgentInstaller.State state;
+        try {
+            state = CopilotAgentInstaller.state(file, CopilotIntegration.template());
+        } catch (Exception unreadable) {
+            state = CopilotAgentInstaller.State.EDITED;   // cannot read it: offer only what keeps the user's file
+        }
+        agent.show(PreferenceStates.copilotAgent(copilot, state));
+        String dup = duplicates();
+        duplicates.setText(dup);
+        duplicates.setVisible(!dup.isEmpty());
+        ((org.eclipse.swt.layout.GridData) duplicates.getLayoutData()).exclude = dup.isEmpty();
+        duplicates.setForeground(PrefUi.colour(PreferenceStates.Tone.WARN));
+
+        String bundled = ClaudeIntegration.bundledSkillVersion();
+        Path claude = ClaudeIntegration.claudeSkillFolder();
+        Path own = home().resolve(".copilot").resolve("skills").resolve("eclipse-debugger");
+        PreferenceStates.CopilotSkillState s = PreferenceStates.copilotSkillState(claude, own, bundled);
+        String installed = PreferenceStates.version((s == PreferenceStates.CopilotSkillState.USES_CLAUDE_COPY ? claude : own)
+                .resolve("SKILL.md"));
+        skill.show(PreferenceStates.copilotSkill(copilot, s, installed, bundled));
+        drawTools();
     }
 
     /** A warning when the agent is in several places: Copilot lists each copy separately. */
@@ -164,33 +277,10 @@ public final class CopilotPreferences extends PreferencePage implements IWorkben
         } catch (RuntimeException | LinkageError noWorkspace) { /* outside a workspace */ }
         if (places.size() <= 1) return "";
         return "Installed in " + places.size() + " places: " + String.join(", ", places)
-                + ".\nCopilot lists each copy; keep one.";
+                + ". Copilot lists each copy; keep one.";
     }
 
-    /** The eclipse-debugger skill for Copilot (before OPEN-60 on the main page). */
-    private void skill(Composite root) {
-        heading(root, "Skill for Copilot");
-        Label status = wrap(root, CopilotSkill.status());
-        Composite buttons = new Composite(root, SWT.NONE);
-        buttons.setLayout(new GridLayout(2, false));
-        Button install = new Button(buttons, SWT.PUSH);
-        install.setText("Install skill for GitHub Copilot");
-        Button remove = new Button(buttons, SWT.PUSH);
-        remove.setText("Remove skill for GitHub Copilot");
-        install.addListener(SWT.Selection, event -> {
-            String message;
-            try { message = CopilotSkill.install(); } catch (Exception error) { message = "Failed: " + error.getMessage(); }
-            status.setText(message);
-            root.layout(true, true);
-        });
-        remove.addListener(SWT.Selection, event -> {
-            String message;
-            try { message = CopilotSkill.remove(); } catch (Exception error) { message = "Failed: " + error.getMessage(); }
-            status.setText(message);
-            root.layout(true, true);
-        });
-    }
-
+    /** A bold heading (used by older callers). */
     static void heading(Composite root, String text) {
         Label label = new Label(root, SWT.WRAP);
         label.setText("\n" + text);
@@ -198,12 +288,7 @@ public final class CopilotPreferences extends PreferencePage implements IWorkben
     }
 
     static Label wrap(Composite root, String text) {
-        Label label = new Label(root, SWT.WRAP);
-        label.setText(text == null ? "" : text);
-        GridData layout = new GridData(SWT.FILL, SWT.TOP, true, false);
-        layout.widthHint = WIDTH;
-        label.setLayoutData(layout);
-        return label;
+        return PrefUi.wrap(root, text);
     }
 
     private static Path home() { return Path.of(System.getProperty("user.home")); }

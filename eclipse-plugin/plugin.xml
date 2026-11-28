@@ -46,6 +46,12 @@
           id="org.learningfromexperience.eclipse.agentdebug.preferences"
           name="Agentic Debugger"
           class="org.learningfromexperience.eclipse.agentdebug.ui.ClaudeIntegrationPreferences"/>
+      <!-- OPEN-69: Claude Code's setup and skill, moved from the main page to a page of its own. -->
+      <page
+          id="org.learningfromexperience.eclipse.agentdebug.preferences.claude"
+          name="Claude Code"
+          category="org.learningfromexperience.eclipse.agentdebug.preferences"
+          class="org.learningfromexperience.eclipse.agentdebug.ui.ClaudeCodePreferences"/>
       <!-- OPEN-60, OPEN-23 (d): which Copilot modes may use our tools, the agent for all workspaces, the skill. -->
       <page
           id="org.learningfromexperience.eclipse.agentdebug.preferences.copilot"

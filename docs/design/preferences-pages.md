@@ -7,6 +7,19 @@ when its action can work and is safe.
 
 This is a layout and wording change. Preference keys, defaults and the actions behind the buttons stay the same.
 
+**Built 28 Nov (`open-69-preferences.zip`).** Three corrections against the first version of this note, found while
+reading the code behind each button:
+1. The skill is not always shared. Copilot reads the Claude Code copy (`~/.claude/skills`) only when it exists;
+   otherwise it gets its own copy in `~/.copilot/skills` (`CopilotSkill`). Removing on the Copilot page removes only
+   that copy, and there is no Remove for the Claude Code copy (none existed; the plugin refreshes it at each start once
+   Claude Code is set up). So no "remove for both" question is needed.
+2. Remove is not offered for an entry of an older version: `ClaudeIntegration.remove()` removes only an entry that
+   points to the current server. Update is the button there.
+3. Eclipse cannot see an idle Claude Code session (the client name arrives only when an investigation starts), so the
+   page shows "Debugging now", "Last debugging session" or "No debugging session recorded yet", never "session open".
+
+Every case below is `PreferenceStates` (tests PS-U1..U8); the pages only draw what it returns.
+
 ## Pages
 
 | Page (tree) | Badge | Contents |
@@ -30,49 +43,100 @@ investigation's time is stored), shown only when Setup is OK.
 |---|---|---|---|---|---|---|
 | Check running (page opened, or after a click) | Checking… | — | off | off | off | off |
 | Action running (Set up, Update, Remove) | Setting up… / Updating… / Removing… | — | off | off | off | off |
-| Claude Code not found (no `claude` on the PATH) | ✖ Claude Code not found | Install it, open a new terminal, click Check again | off | off | off | **on** |
+| Claude Code not found (no `claude` on Eclipse's PATH) | ✖ Claude Code not found | Install it, then restart Eclipse (Eclipse reads the PATH when it starts) | off | off | off | **on** |
 | Check failed (timeout 30 s, error) | ⚠ Couldn't check | What failed; nothing was changed | off | off | off | **on** (main) |
 | Not set up | ✖ Not set up | — | **on** (main) | off | off | on |
 | Set up, this version, just set up | ✔ Set up | Start a new Claude Code session; open sessions don't see the change | off | off | on | on |
-| Set up, never used | ✔ Set up | Not used yet. Start Claude Code and ask it to debug | off | off | on | on |
-| Set up, a session open, idle | ✔ Set up | ● A Claude Code session is open with our tools (version) | off | off | on | on |
+| Set up, nothing recorded | ✔ Set up | No debugging session recorded yet. Start Claude Code and ask it to debug | off | off | on | on |
 | Set up, debugging now | ✔ Set up | ● Debugging now: (title), started (time) · Open Agent Activity | off | off | on | on |
 | Set up, used before | ✔ Set up | Last debugging session: (when), (title), (outcome) | off | off | on | on |
-| Older entry of this plugin | ⚠ Set up by an older version | Claude Code would start the old server | off | **on** (main) | on | on |
+| Older entry of this plugin | ⚠ Set up by an older version | Claude Code would start the old server | off | **on** (main) | **off** | on |
 | Someone else's `eclipse-debugger` entry | ⚠ Another 'eclipse-debugger' entry exists | Left unchanged; commands to see and remove it | **off** | **off** | **off** | on |
 | Removed while a session is open | ✖ Not set up | The open session keeps our tools until it ends | on (main) | off | off | on |
 
 Never enabled: anything that would change an entry that is not ours; two actions at once.
 
-**Skill** (folder `~/.claude/skills/eclipse-debugger`, shared with Copilot; works without the `claude` command):
+**Skill** (`~/.claude/skills/eclipse-debugger`; refreshed by the plugin at each Eclipse start once Claude Code is set up):
 
-| Case | Line | Install | Update | Remove |
-|---|---|---|---|---|
-| Up to date | ✔ eclipse-debugger 0.1.7, up to date | off | off | on |
-| Older | ⚠ 0.1.6 installed, 0.1.7 available | off | **on** (main) | on |
-| Missing | ✖ Not installed | **on** (main) | off | off |
-| Folder there but not ours (no version we know) | ⚠ A different skill with this name | off | off | off (left unchanged) |
-| Action running | Installing… / Updating… / Removing… | off | off | off |
-
-Remove always asks first: "The skill is shared: removing it here also removes it for GitHub Copilot."
+| Case | Line | Install | Update |
+|---|---|---|---|
+| Missing | ✖ Not installed | **on** (main) | off |
+| Up to date | ✔ eclipse-debugger 0.1.7, up to date · "Updated by itself when Eclipse starts." | off | off |
+| Older | ⚠ 0.1.6 installed, 0.1.7 available | off | **on** (main) |
+| Changed by you (a `.new` file next to it: the plugin kept your copy) | ⚠ Changed by you; kept · compare the .new files | off | off |
+| Action running | Working… | off | off |
 
 ## GitHub Copilot page
 
 | Case | Agent | Who can use our tools | Skill |
 |---|---|---|---|
-| Copilot not installed | Banner "GitHub Copilot isn't installed in this Eclipse. Not needed for Claude Code."; all controls **off** | off | off (managed on the Claude Code page) |
-| Copilot installed, agent not installed | ✖ Not installed · **Install** (main) on, Remove off | on | as on the Claude Code page; Remove asks, naming Claude Code |
-| Agent installed, current | ✔ Installed for all workspaces · Install off, Remove on | on | same |
-| Agent installed, older | ⚠ Older version · **Update** (main) on, Remove on | on | same |
-| Checkbox changed since Eclipse started | — | note "Restart Eclipse to apply this change." (only then) | — |
-| Server not approved in Copilot | Shown in the setup check with a link to Copilot's MCP page; we cannot approve it for the user | — | — |
+| Copilot not installed | Note "GitHub Copilot isn't installed in this Eclipse. … Not needed for Claude Code."; status greyed, no buttons | off | greyed, no buttons |
+| Copilot installed, agent not installed | ✖ Not installed · **Install** (main) | on | see below |
+| Agent installed, current | ✔ Installed for all workspaces · Remove | on | see below |
+| Agent installed, older | ⚠ Older version installed · **Update** (main), Remove | on | see below |
+| Agent changed by you | ⚠ Installed, changed by you · Update (keeps your file, writes .new), Remove (asks) | on | see below |
+| Checkbox changed since Eclipse started | — | "Restart Eclipse to apply this change." (only then; it replaces the live status) | — |
+| Server not approved in Copilot | — | first line "Server approved in Copilot: ✖ Not yet" · **Open Copilot's MCP page** (main); we cannot approve it for the user | — |
+| Server approved | — | "Server approved in Copilot: ✔ Approved", no button | — |
 | Action running | all buttons off | off | off |
+
+"Who can use our tools" (OPEN-69, 28 Nov 10:00): box "Only the Agentic Debugger agent, without asking each time"
+(tooltip: ticked = only our agent, no asking; unticked = every mode, Copilot asks before each tool). Under it a live
+status read from Copilot's settings each time the page is drawn (`PreferenceStates.toolsStatus`, PS-U11):
+
+| Box | Tools off for Agent mode | Auto-approved | Status |
+|---|---|---|---|
+| on | yes | yes | ✔ In effect: only the Agentic Debugger agent uses our tools, without asking each time |
+| on | no | any | ⚠ Not in effect yet: restart Eclipse. Copilot's Agent mode can still use our tools. |
+| on | yes | no | ⚠ Not in effect yet: restart Eclipse. Copilot asks before each of our tools. |
+| off | any | any | Every Copilot mode can use our tools; Copilot asks before each one. |
+
+The box does not untick itself after an approval: it is the user's choice, and the next start applies it again.
+"Open Copilot's MCP page" finds Copilot's page by its label "Model Context Protocol" in the workbench's preference
+pages and opens it in the same window; if it is not found, a message says where it is. The page draws again when it
+is shown again (back from Copilot's page).
+
+**Approval during a session (Ayan's video, 28 Nov):** approving our server makes Copilot switch our tools on for its
+Agent mode again, while our auto-approval stays. The plugin watches Copilot's settings (`mcpToolsModeStatus`,
+`mcpToolsStatus`) and takes back the auto-approval it added itself; the next start switches the tools off and adds it
+back. The setup check then shows one amber row "Restart Eclipse to finish the Copilot setup." instead of the red
+failure; the red one stays for the case where the start did not switch the tools off. Whether Copilot honours the
+withdrawn auto-approval without a restart is not verified (release check F12).
+
+Copilot's skill: uses the Claude Code copy (✔, no buttons: managed on the Claude Code page); own copy up to date
+(Remove); own copy older (**Update** main, Remove); none (**Install** main). Remove deletes only the files the plugin
+wrote and you did not change.
 
 ## Setup check (main page)
 
-Results grouped under Eclipse, Claude Code and GitHub Copilot; problems first, each with one line saying what to do
-and a link to the page that fixes it. All fine: one line "✔ All N checks OK". Copilot not installed is not a problem
-(Claude Code users do not need it). Check setup is off while a check runs. Copy report copies the full text report.
+Runs by itself when the page opens: the last result of this session is shown at once with "Checked at 09:49", then
+a fresh check runs in the background ("Checked at 09:49. Checking again…"). The button is "Check again"; it is off
+while a check runs. Copy report copies the full text report. Copilot not installed is not a problem (Claude Code users
+do not need it).
+
+Layout (`SetupCheck.summary`, PS-U7), problems first and numbered, failures before warnings:
+
+```
+⚠ 2 things to fix
+ 1. ✖ Claude Code: ...
+      → what to do
+ 2. ⚠ GitHub Copilot: ...
+      → what to do
+
+After you fix something, come back to this page or click Check again.
+
+Everything else is fine (9 checks)
+  Eclipse:  ✔ 3 OK
+  Claude Code:  ✔ 2 OK
+  GitHub Copilot:  ✔ 4 OK
+  ℹ GitHub Copilot: a note
+      → what to do
+```
+
+All fine: "✔ All N checks OK" and the same group lines. In colour (`SetupCheck.spans`, PS-U9): headline and "✔ N OK"
+green or amber, numbered warnings amber, failures red, notes blue, group names bold, "→ what to do" and the hint
+plain. When a problem was found, the check runs again when the page is shown again in the same Preferences window
+(`setVisible`), so the result is never stale after a fix on another page.
 
 ## Tests to add
 

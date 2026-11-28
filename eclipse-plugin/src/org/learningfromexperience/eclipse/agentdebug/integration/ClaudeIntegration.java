@@ -136,6 +136,52 @@ public final class ClaudeIntegration {
         return "Existing eclipse-debugger registration is not recognized; no changes made";
     }
 
+    /**
+     * OPEN-69: Claude Code's entry for our server, for the Claude Code preference page ({@link PreferenceStates}). The
+     * same check as {@link #status()} (which stays for the setup check), as a state. Never throws; runs the
+     * {@code claude} command, so never on the UI thread.
+     */
+    public RegistrationCheck registration() {
+        Path cli;
+        try {
+            cli = locateClaude();
+        } catch (IOException notFound) {
+            return new RegistrationCheck(PreferenceStates.Registration.CLI_MISSING, notFound.getMessage());
+        }
+        try {
+            Result r = invoke(cli, "mcp", "get", SERVER);
+            if (r.exit() != 0) return new RegistrationCheck(PreferenceStates.Registration.NOT_SET_UP, null);
+            ClaudeRegistration registration = ClaudeRegistration.parse(r.text());
+            if (registration.exactJar(jar())) return new RegistrationCheck(PreferenceStates.Registration.CURRENT, null);
+            if (registration.legacyJar(Path.of(System.getProperty("user.home")), isWindows()))
+                return new RegistrationCheck(PreferenceStates.Registration.OLDER, null);
+            return new RegistrationCheck(PreferenceStates.Registration.FOREIGN, null);
+        } catch (Exception | LinkageError failure) {
+            String why = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+            return new RegistrationCheck(PreferenceStates.Registration.FAILED, why.endsWith(".") ? why : why + ".");
+        }
+    }
+
+    /** The result of {@link #registration()}: the state and, when the check failed, why. */
+    public record RegistrationCheck(PreferenceStates.Registration state, String detail) { }
+
+    /** OPEN-69: the folder of the Claude Code skill, {@code ~/.claude/skills/eclipse-debugger}. */
+    public static Path claudeSkillFolder() {
+        return skillFolder();
+    }
+
+    /**
+     * OPEN-69: installs or updates the Claude Code skill now (the Install and Update buttons), keeping a copy the user
+     * changed (SkillInstaller). Unlike the silent start-up refresh, failures are reported.
+     */
+    public String installSkill() throws IOException {
+        Map<String, byte[]> files = bundledSkillFiles();
+        if (files.isEmpty()) throw new IOException("The skill is not packed in this plugin.");
+        Files.createDirectories(directory);
+        List<String> done = SkillInstaller.install(files, skillFolder(), directory.resolve("skill-installed.properties"));
+        return done.isEmpty() ? "Skill already up to date." : "Skill installed.";
+    }
+
     /** Registers on first use; recognizes same-path registrations even without a marker. */
     public String configure() throws Exception {
         Path cli = locateClaude();

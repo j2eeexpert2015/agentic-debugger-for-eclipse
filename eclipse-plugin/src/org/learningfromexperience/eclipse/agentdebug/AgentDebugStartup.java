@@ -61,7 +61,7 @@ public class AgentDebugStartup implements IStartup {
                         return Status.OK_STATUS;
                     }
                     catch (Exception ex) { result = "Configuration failed: " + ex.getMessage()
-                            + "\n\nOpen Window > Preferences > Agentic Debugger to retry."; }
+                            + "\n\nOpen Window > Preferences > Agentic Debugger > Claude Code to retry."; }
                     String message = result;
                     Display.getDefault().asyncExec(() -> MessageDialog.openInformation(
                             Display.getDefault().getActiveShell(), "Agentic Debugger", message));
@@ -85,6 +85,9 @@ public class AgentDebugStartup implements IStartup {
 
         // OPEN-36: the agent status in the status bar (an E4 tool control, 27 Nov: the toolbar item was 7 px high).
         org.learningfromexperience.eclipse.agentdebug.ui.StatusTrim.install();
+
+        // OPEN-69: remembers Claude Code's last finished investigation for the Claude Code preference page.
+        org.learningfromexperience.eclipse.agentdebug.ui.ClaudeUsage.install();
 
         // OPEN-61: a quiet setup check about 30 s later, only for the integrations in use (nothing is started).
         org.learningfromexperience.eclipse.agentdebug.ui.SetupCheckRunner.scheduleQuietCheck();

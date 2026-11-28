@@ -34,6 +34,11 @@ public final class CopilotIntegration {
     static final String APPROVED_BY_US = "copilotAutoApproveAddedByPlugin";
 
     private static volatile String lastResult = "Not applied yet.";
+    /** OPEN-69: true when this Eclipse start switched our tools off for Copilot's Agent mode (or found them off). */
+    private static volatile boolean isolatedThisSession;
+    /** OPEN-69: set while {@link #apply} writes, so the watcher ignores our own changes. */
+    private static volatile boolean applying;
+    private static volatile IEclipsePreferences.IPreferenceChangeListener watcher;
 
     private CopilotIntegration() { }
 
@@ -56,6 +61,12 @@ public final class CopilotIntegration {
         // Unchecking the box asks for confirmations, so our server leaves auto-approve even if the plugin did not add it.
         return apply(!on);
     }
+
+    /**
+     * OPEN-69: true when this Eclipse start switched our tools off for Copilot's Agent mode. If they are on again later,
+     * Copilot switched them on (it does when the user approves our server during the session) and a restart fixes it.
+     */
+    public static boolean isolatedThisSession() { return isolatedThisSession; }
 
     /** What the last {@link #apply} did, for the preferences page and the setup check. */
     public static String lastResult() { return lastResult; }
@@ -91,10 +102,13 @@ public final class CopilotIntegration {
             CopilotSettings.Store copilot = copilotStore();
             String server = CopilotAgentTools.SERVER_GROUP;
             StringBuilder said = new StringBuilder();
+            applying = true;
             if (agentOnly()) {
                 CopilotSettings.Result isolation = CopilotSettings.agentModeTools(copilot, server, tools, false);
                 said.append(isolation.message());
+                isolatedThisSession = isolation.ok();
                 if (isolation.ok()) {
+                    watch(tools);
                     if (isolation.outcome() == CopilotSettings.Outcome.CHANGED) prefs.putBoolean(ISOLATED_BY_US, true);
                     CopilotSettings.Result approval = CopilotSettings.autoApprove(copilot, server);
                     if (approval.outcome() == CopilotSettings.Outcome.CHANGED) prefs.putBoolean(APPROVED_BY_US, true);
@@ -104,6 +118,7 @@ public final class CopilotIntegration {
                     said.append('\n').append(withdrawOwnApproval(copilot, prefs, server));
                 }
             } else {
+                isolatedThisSession = false;
                 if (prefs.getBoolean(ISOLATED_BY_US, false)) {
                     CopilotSettings.Result back = CopilotSettings.agentModeTools(copilot, server, tools, true);
                     said.append(back.message());
@@ -119,9 +134,43 @@ public final class CopilotIntegration {
             lastResult = said.toString().strip();
         } catch (Exception | LinkageError failure) {
             lastResult = "Not applied: " + failure.getMessage();
+        } finally {
+            applying = false;
         }
         System.out.println("[Eclipse Agentic Debugger] Copilot: " + lastResult.replace('\n', ' '));
         return lastResult;
+    }
+
+    /**
+     * OPEN-69 (Ayan's video, 28 Nov): when the user approves our server during a session, Copilot switches our tools on
+     * for its Agent mode again, while our auto-approval stays: Agent mode could then run them unasked until the next
+     * start, which switches them off again ({@link #apply}). This listener on Copilot's settings takes back the
+     * auto-approval the plugin added as soon as that happens; the next start adds it back. Installed once.
+     */
+    private static void watch(List<String> tools) {
+        if (watcher != null) return;
+        IEclipsePreferences node = InstanceScope.INSTANCE.getNode(COPILOT_UI);
+        IEclipsePreferences.IPreferenceChangeListener listener = event -> {
+            String key = event.getKey();
+            if (applying || !(CopilotSettings.MODE_STATUS.equals(key) || CopilotSettings.LEGACY_STATUS.equals(key))) return;
+            try {
+                CopilotSettings.Store copilot = copilotStore();
+                IEclipsePreferences prefs = ours();
+                String server = CopilotAgentTools.SERVER_GROUP;
+                if (!agentOnly() || !prefs.getBoolean(APPROVED_BY_US, false)
+                        || CopilotSettings.agentModeToolsOff(copilot, server, tools)) return;
+                String said = withdrawOwnApproval(copilot, prefs, server);
+                flush(node);
+                flush(prefs);
+                lastResult = "Copilot turned our tools on for its Agent mode; our auto-approval is withdrawn until"
+                        + " Eclipse restarts. " + said;
+                System.out.println("[Eclipse Agentic Debugger] Copilot: " + lastResult);
+            } catch (Exception | LinkageError failure) {
+                System.err.println("[Eclipse Agentic Debugger] Copilot watcher: " + failure.getMessage());
+            }
+        };
+        node.addPreferenceChangeListener(listener);
+        watcher = listener;
     }
 
     private static String withdrawOwnApproval(CopilotSettings.Store copilot, IEclipsePreferences prefs, String server) {

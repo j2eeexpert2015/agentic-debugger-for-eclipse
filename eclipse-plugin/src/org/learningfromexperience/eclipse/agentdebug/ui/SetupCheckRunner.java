@@ -26,7 +26,7 @@ import org.learningfromexperience.eclipse.agentdebug.integration.SetupCheck;
 /**
  * OPEN-61: gathers what {@link SetupCheck} looks at from this Eclipse, runs it, and keeps the last result for the status
  * bar ({@link AgentStatusControl}). The quiet start-up check ({@link #scheduleQuietCheck}) only reads files and
- * settings; "Check setup" on the preferences page ({@link #run(boolean)} with {@code deep}) also starts the MCP server
+ * settings; the preferences page (opened, or "Check again") ({@link #run(boolean)} with {@code deep}) also starts the MCP server
  * once and asks Claude Code.
  *
  * @author Ayan Dutta
@@ -34,6 +34,9 @@ import org.learningfromexperience.eclipse.agentdebug.integration.SetupCheck;
 public final class SetupCheckRunner {
 
     private static volatile List<SetupCheck.Row> lastRows = List.of();
+    /** OPEN-69: the last full check (from the preferences page) and when it ran, shown at once when the page opens. */
+    private static volatile List<SetupCheck.Row> lastDeepRows;
+    private static volatile java.time.LocalTime lastDeepAt;
     private static final List<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
 
     private SetupCheckRunner() { }
@@ -45,6 +48,15 @@ public final class SetupCheckRunner {
         if (worst == SetupCheck.Level.OK) return null;
         for (SetupCheck.Row row : rows) if (row.level() == worst) return row.area() + ": " + row.text();
         return null;
+    }
+
+    /** OPEN-69: the last full check's rows, or null when none ran in this session. */
+    public static List<SetupCheck.Row> lastDeepRows() { return lastDeepRows; }
+
+    /** OPEN-69: when the last full check ran ("09:49"), or null. */
+    public static String lastDeepAt() {
+        java.time.LocalTime at = lastDeepAt;
+        return at == null ? null : at.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
     }
 
     static void addListener(Runnable listener) { LISTENERS.add(listener); }
@@ -61,6 +73,10 @@ public final class SetupCheckRunner {
                     "The setup check itself failed: " + failure, "Copy this report into an issue."));
         }
         lastRows = rows;
+        if (deep) {
+            lastDeepRows = rows;
+            lastDeepAt = java.time.LocalTime.now();
+        }
         for (Runnable listener : LISTENERS) {
             try { listener.run(); } catch (RuntimeException ignored) { /* a closed status bar */ }
         }
@@ -86,7 +102,7 @@ public final class SetupCheckRunner {
             if (worst != SetupCheck.Level.OK) {
                 ILog.of(SetupCheckRunner.class).log(new Status(worst == SetupCheck.Level.FAIL ? IStatus.ERROR
                         : IStatus.WARNING, CopilotIntegration.PLUGIN_ID, "Agentic Debugger setup needs attention"
-                        + " (Window > Preferences > Agentic Debugger > Check setup):\n" + report(rows)));
+                        + " (Window > Preferences > Agentic Debugger, setup check):\n" + report(rows)));
             }
             System.out.println("[Eclipse Agentic Debugger] Setup check: " + worst);
             return Status.OK_STATUS;
@@ -138,6 +154,7 @@ public final class SetupCheckRunner {
         return new SetupCheck.Snapshot(port, Activator.bridgeRunning(), Files.isRegularFile(jar), template, copilot,
                 CopilotIntegration.copilotVersion(), CopilotIntegration.agentOnly(),
                 copilot ? CopilotIntegration.copilotStore() : null, CopilotIntegration.PLUGIN_ID, copilot ? launcher : null,
-                agents, claudeConfigured, claudeSkill, ClaudeIntegration.bundledSkillVersion(), claudeStatus, probe);
+                agents, claudeConfigured, claudeSkill, ClaudeIntegration.bundledSkillVersion(), claudeStatus, probe,
+                CopilotIntegration.isolatedThisSession());
     }
 }

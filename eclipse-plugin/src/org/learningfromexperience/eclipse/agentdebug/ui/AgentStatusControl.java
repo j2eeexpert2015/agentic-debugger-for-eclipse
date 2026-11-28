@@ -103,7 +103,7 @@ public final class AgentStatusControl {
         if (showingSetup) {
             // OPEN-61: no investigation to show, but the setup check found something: a quiet note, never a popup.
             label.setText("\u26A0 Agentic Debugger: check setup");
-            label.setToolTipText(setup + "\nClick to open Preferences > Agentic Debugger (Check setup).");
+            label.setToolTipText(setup + "\nClick to open Preferences > Agentic Debugger (setup check).");
             label.setForeground(ENDED);
             label.getParent().layout(true);
             return;

@@ -47,8 +47,13 @@ class SetupCheckTest {
 
     private SetupCheck.Snapshot snapshot(boolean copilot, MapStore store, boolean agentOnly, Map<String, Path> agents,
                                          boolean claude, SetupCheck.Probe probe) {
+        return snapshot(copilot, store, agentOnly, agents, claude, probe, false);
+    }
+
+    private SetupCheck.Snapshot snapshot(boolean copilot, MapStore store, boolean agentOnly, Map<String, Path> agents,
+                                         boolean claude, SetupCheck.Probe probe, boolean isolatedAtStart) {
         return new SetupCheck.Snapshot(8765, true, true, TEMPLATE, copilot, "0.22.0.v1", agentOnly, store, "p", null,
-                agents, claude, claude ? "0.1.7" : null, "0.1.7", null, probe);
+                agents, claude, claude ? "0.1.7" : null, "0.1.7", null, probe, isolatedAtStart);
     }
 
     private static boolean has(List<SetupCheck.Row> rows, SetupCheck.Level level, String text) {
@@ -151,14 +156,34 @@ class SetupCheckTest {
         assertEquals("", SetupCheck.skillVersion("# no version here"));
         assertNull(SetupCheck.skillVersion(null));
         SetupCheck.Snapshot older = new SetupCheck.Snapshot(8765, true, true, TEMPLATE, false, null, true, null, "p", null,
-                Map.of(), true, "0.1.6", "0.1.7", "Configured (user scope)", null);
+                Map.of(), true, "0.1.6", "0.1.7", "Configured (user scope)", null, false);
         List<SetupCheck.Row> rows = SetupCheck.rows(older);
         assertTrue(rows.stream().anyMatch(r -> r.level() == SetupCheck.Level.WARN && r.text().contains("0.1.6")
                 && r.text().contains("0.1.7")), rows::toString);
         assertTrue(rows.stream().anyMatch(r -> r.text().equals("Configured (user scope)")), rows::toString);
         SetupCheck.Snapshot same = new SetupCheck.Snapshot(8765, true, true, TEMPLATE, false, null, true, null, "p", null,
-                Map.of(), true, "0.1.7", "0.1.7", null, null);
+                Map.of(), true, "0.1.7", "0.1.7", null, null, false);
         assertTrue(SetupCheck.rows(same).stream().anyMatch(r -> r.level() == SetupCheck.Level.OK
                 && r.text().equals("eclipse-debugger skill 0.1.7 installed.")));
+    }
+
+    @Test @DisplayName("SC-U8 tools on again after an approval in this session: one calm WARN to restart, no FAIL")
+    void scU8() throws Exception {
+        CopilotAgentInstaller.installForUser(home, TEMPLATE);
+        Map<String, Path> agents = Map.of("all workspaces", CopilotAgentInstaller.userAgentFile(home));
+        MapStore approvedOn = approved();
+        CopilotSettings.autoApprove(approvedOn, SERVER);
+        List<SetupCheck.Row> rows = SetupCheck.rows(snapshot(true, approvedOn, true, agents, false, null, true));
+        assertEquals(SetupCheck.Level.WARN, SetupCheck.worst(rows), SetupCheck.report(rows, "rows"));
+        assertTrue(has(rows, SetupCheck.Level.WARN, "Restart Eclipse to finish the Copilot setup."));
+        assertTrue(rows.stream().noneMatch(r -> r.text().contains("still on for Copilot's Agent mode")));
+        SetupCheck.Row calm = rows.stream().filter(r -> r.text().startsWith("Restart Eclipse to finish")).findFirst().orElseThrow();
+        assertTrue(!calm.fix().contains("Until then"), "still auto-approved: no 'asks' sentence");
+        MapStore withdrawn = approved();
+        rows = SetupCheck.rows(snapshot(true, withdrawn, true, agents, false, null, true));
+        calm = rows.stream().filter(r -> r.text().startsWith("Restart Eclipse to finish")).findFirst().orElseThrow();
+        assertTrue(calm.fix().contains("Until then Copilot asks before each of our tools."), calm.fix());
+        assertEquals(1, rows.stream().filter(r -> r.level() == SetupCheck.Level.WARN || r.level() == SetupCheck.Level.FAIL)
+                .count(), "one row, not two: " + rows);
     }
 }

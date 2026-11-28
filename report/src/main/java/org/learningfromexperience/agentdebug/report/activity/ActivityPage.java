@@ -580,7 +580,7 @@ public final class ActivityPage {
             "codex", "Codex", "gemini-cli", "Gemini CLI", "claude-ai", "Claude");
 
     /** {@code "claude-code 2.1.331"} -> {@code ["Claude Code", "2.1.331"]}; no client -> {@code ["unknown agent", null]}. */
-    static String[] agent(String client) {
+    public static String[] agent(String client) {
         String text = blankToNull(client);
         if (text == null) return new String[] {"unknown agent", null};
         int space = text.indexOf(' ');

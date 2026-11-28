@@ -50,12 +50,16 @@ public final class SetupCheck {
      * @param bundledSkill   the version of the skill packed into this plugin, null when unknown
      * @param claudeStatus   Claude Code's answer ("Configured (user scope)", ...), null when not asked
      * @param probe          a real start of the MCP server, null in the quiet start-up check
+     * @param isolatedAtStart true when this Eclipse start switched our tools off for Copilot's Agent mode
+     *                       ({@link CopilotIntegration#isolatedThisSession()}); a later "on" then comes from an approval
+     *                       in this session and a restart fixes it
      */
     public record Snapshot(int port, boolean bridgeListening, boolean jarStaged, String template,
                            boolean copilotInstalled, String copilotVersion, boolean agentOnly,
                            CopilotSettings.Store copilot, String pluginId, Path launcher,
                            Map<String, Path> agentFiles, boolean claudeConfigured, String claudeSkill,
-                           String bundledSkill, String claudeStatus, Probe probe) { }
+                           String bundledSkill, String claudeStatus, Probe probe,
+                           boolean isolatedAtStart) { }
 
     /** Copilot versions the isolation was checked with (docs/release-checks.md). */
     static final List<String> TESTED_COPILOT = List.of("0.22.");
@@ -76,7 +80,7 @@ public final class SetupCheck {
         rows.add(s.jarStaged()
                 ? new Row("MCP server", Level.OK, "Server jar staged.", "")
                 : new Row("MCP server", Level.WARN, "Server jar not staged yet.",
-                        "It is staged when Copilot or Claude Code is set up; use Configure Claude Code or restart."));
+                        "It is staged when Claude Code or GitHub Copilot is set up (their pages under Agentic Debugger), or at the next Eclipse start."));
         if (s.probe() != null) {
             if (s.probe().error() != null) {
                 rows.add(new Row("MCP server", Level.FAIL, "Could not start the server: " + s.probe().error(),
@@ -144,7 +148,7 @@ public final class SetupCheck {
             switch (state) {
                 case CURRENT -> rows.add(new Row("GitHub Copilot", Level.OK, where + " up to date.", ""));
                 case OLDER -> rows.add(new Row("GitHub Copilot", Level.WARN, where + " is an older version.",
-                        "Add the agent again (project menu or preferences page) to update it."));
+                        "Agentic Debugger > GitHub Copilot page: Update."));
                 default -> {
                     boolean ok = CopilotAgentTools.userOnly(text)
                             && CopilotAgentTools.mcpToolNames(text).containsAll(agentTools);
@@ -158,7 +162,7 @@ public final class SetupCheck {
         }
         if (agents == 0) {
             rows.add(new Row("GitHub Copilot", Level.INFO, "No Agentic Debugger agent installed.",
-                    "Preferences page: Install for all workspaces, or project menu > Agentic Debugger > Add."));
+                    "Agentic Debugger > GitHub Copilot page: Install; or project menu > Agentic Debugger > Add."));
         } else if (agents > 1) {
             rows.add(new Row("GitHub Copilot", Level.WARN, "The agent is installed " + agents
                     + " times; Copilot lists each copy separately.",
@@ -169,17 +173,27 @@ public final class SetupCheck {
         boolean autoApproved = s.copilot() != null
                 && CopilotSettings.autoApproved(s.copilot(), CopilotAgentTools.SERVER_GROUP);
         if (s.agentOnly()) {
-            rows.add(off ? new Row("GitHub Copilot", Level.OK,
-                            "Our tools are off for Agent mode and Copilot's other agents; only our agent uses them.", "")
-                    : new Row("GitHub Copilot", Level.WARN, "Our tools are still on for Copilot's Agent mode.",
-                            "Restart Eclipse (applied when Copilot starts). If it stays, untick our tools for mode"
-                                    + " 'Agent' on Copilot's Tools page and send us the report."));
-            if (autoApproved && !off) {
-                rows.add(new Row("GitHub Copilot", Level.FAIL,
-                        "Our tools are auto-approved while Agent mode can still use them.",
-                        "Restart Eclipse; until then, remove our server from Copilot's Tool Auto Approve list."));
+            if (off) {
+                rows.add(new Row("GitHub Copilot", Level.OK,
+                        "Our tools are off for Agent mode and Copilot's other agents; only our agent uses them.", ""));
+                rows.add(autoApproved ? new Row("GitHub Copilot", Level.OK, "Our tools run without asking each time.", "")
+                        : new Row("GitHub Copilot", Level.WARN, "Copilot asks before each of our tools.",
+                                "Restart Eclipse, or tick our server in Copilot's Tool Auto Approve list."));
+            } else if (s.isolatedAtStart()) {
+                // Approving the server in this session made Copilot switch our tools on for Agent mode; the next
+                // start switches them off again. One calm row instead of an alarm.
+                rows.add(new Row("GitHub Copilot", Level.WARN, "Restart Eclipse to finish the Copilot setup.",
+                        "Copilot turned our tools on for its Agent mode when you approved the server; the restart"
+                                + " turns them off again." + (autoApproved ? ""
+                                        : " Until then Copilot asks before each of our tools.")
+                                + " If this is still here after the restart, send us the report."));
             } else {
-                rows.add(autoApproved ? new Row("GitHub Copilot", Level.OK, "Our tools run without confirmations.", "")
+                rows.add(new Row("GitHub Copilot", Level.WARN, "Our tools are still on for Copilot's Agent mode.",
+                        "Restart Eclipse (applied when Copilot starts). If it stays, untick our tools for mode"
+                                + " 'Agent' on Copilot's Tools page and send us the report."));
+                rows.add(autoApproved ? new Row("GitHub Copilot", Level.FAIL,
+                                "Our tools are auto-approved while Agent mode can still use them.",
+                                "Restart Eclipse; until then, remove our server from Copilot's Tool Auto Approve list.")
                         : new Row("GitHub Copilot", Level.WARN, "Copilot asks before each of our tools.",
                                 "Restart Eclipse, or tick our server in Copilot's Tool Auto Approve list."));
             }
@@ -196,7 +210,7 @@ public final class SetupCheck {
         if (s.claudeStatus() != null) {
             boolean ok = s.claudeStatus().startsWith("Configured");
             rows.add(new Row("Claude Code", ok ? Level.OK : Level.WARN, s.claudeStatus(),
-                    ok ? "" : "Click Configure Claude Code."));
+                    ok ? "" : "Agentic Debugger > Claude Code page: Set up or Update."));
         } else {
             rows.add(new Row("Claude Code", Level.OK, "Set up by this plugin (registration recorded).", ""));
         }
@@ -204,7 +218,7 @@ public final class SetupCheck {
         String bundled = s.bundledSkill();
         if (installed == null) {
             rows.add(new Row("Claude Code", Level.WARN, "eclipse-debugger skill missing in ~/.claude/skills.",
-                    "Click Configure Claude Code."));
+                    "Agentic Debugger > Claude Code page: Skill, Install."));
         } else if (bundled == null || installed.equals(bundled)) {
             rows.add(new Row("Claude Code", Level.OK, "eclipse-debugger skill "
                     + (installed.isEmpty() ? "" : installed + " ") + "installed.", ""));
@@ -212,8 +226,8 @@ public final class SetupCheck {
             // The plugin keeps a copy the user edited and writes its own next to it (SkillInstaller).
             rows.add(new Row("Claude Code", Level.WARN, "eclipse-debugger skill " + (installed.isEmpty() ? "(no version)"
                     : installed) + " installed; this plugin has " + bundled + ".",
-                    "Your copy was kept because it was edited. Move ~/.claude/skills/eclipse-debugger away, then"
-                    + " click Configure Claude Code."));
+                    "Your copy was kept because it was edited (this version is next to it as .new files), or the"
+                    + " skill is older: Agentic Debugger > Claude Code page, Skill."));
         }
     }
 
@@ -222,6 +236,109 @@ public final class SetupCheck {
         if (skillMd == null) return null;
         Matcher m = Pattern.compile("skill v(\\d+(?:\\.\\d+)*)").matcher(skillMd);
         return m.find() ? m.group(1) : "";
+    }
+
+    /** The groups of the setup check on the preferences page, in this order, and the areas each covers. */
+    static final List<List<String>> GROUPS = List.of(List.of("Eclipse", "Eclipse", "MCP server"),
+            List.of("Claude Code", "Claude Code"), List.of("GitHub Copilot", "GitHub Copilot"));
+
+    /** The hint under the numbered problems. */
+    public static final String HINT = "After you fix something, come back to this page or click Check again.";
+
+    /**
+     * OPEN-69 (Ayan 28 Nov: "issues at top, one issue, two issue; the checks users are not interested in below"):
+     * the rows for the preferences page.
+     * <pre>
+     * ⚠ 2 things to fix
+     *  1. ✖ GitHub Copilot: ...
+     *       → what to do
+     *  2. ⚠ Claude Code: ...
+     *       → what to do
+     *
+     * After you fix something, come back to this page or click Check again.
+     *
+     * Everything else is fine (7 checks)
+     *   Eclipse:  ✔ 3 OK
+     *   GitHub Copilot:  ✔ 4 OK
+     *   ℹ GitHub Copilot: a note
+     * </pre>
+     * With no problems the headline is "✔ All N checks OK" and the group lines follow. Failures are numbered before
+     * warnings, each in the order of {@link #GROUPS}. "Copy report" still copies {@link #report}.
+     */
+    public static String summary(List<Row> rows) {
+        if (rows.isEmpty()) return "Nothing to check yet: neither Claude Code nor GitHub Copilot is set up.";
+        List<Row> ordered = new ArrayList<>();
+        for (List<String> group : GROUPS)
+            for (Row r : rows) if (group.subList(1, group.size()).contains(r.area())) ordered.add(r);
+        for (Row r : rows) if (!ordered.contains(r)) ordered.add(r);
+        List<Row> problems = new ArrayList<>();
+        for (Level level : List.of(Level.FAIL, Level.WARN))
+            for (Row r : ordered) if (r.level() == level) problems.add(r);
+        long ok = rows.stream().filter(r -> r.level() == Level.OK).count();
+        boolean notes = rows.stream().anyMatch(r -> r.level() == Level.INFO);
+        StringBuilder out = new StringBuilder();
+        if (problems.isEmpty()) {
+            out.append("✔ All ").append(ok).append(ok == 1 ? " check OK" : " checks OK");
+        } else {
+            out.append("⚠ ").append(problems.size()).append(problems.size() == 1 ? " thing to fix" : " things to fix");
+            int n = 0;
+            for (Row r : problems) {
+                out.append("\n ").append(++n).append(". ").append(r.level() == Level.FAIL ? "✖ " : "⚠ ")
+                        .append(r.area()).append(": ").append(r.text());
+                if (!r.fix().isEmpty()) out.append("\n      → ").append(r.fix());
+            }
+            out.append("\n\n").append(HINT);
+            if (ok == 0 && !notes) return out.toString();
+            out.append("\n\n").append(ok == 0 ? "Notes"
+                    : "Everything else is fine (" + ok + (ok == 1 ? " check)" : " checks)"));
+        }
+        for (List<String> group : GROUPS) {
+            long good = rows.stream().filter(r -> r.level() == Level.OK && group.subList(1, group.size()).contains(r.area()))
+                    .count();
+            if (good > 0) out.append("\n  ").append(group.get(0)).append(":  ✔ ").append(good).append(" OK");
+        }
+        for (Row r : ordered) {
+            if (r.level() != Level.INFO) continue;
+            out.append("\n  ℹ ").append(r.area()).append(": ").append(r.text());
+            if (!r.fix().isEmpty()) out.append("\n      → ").append(r.fix());
+        }
+        return out.toString();
+    }
+
+    /** OPEN-69: how a part of {@link #summary} is drawn. */
+    public enum Style { OK, WARN, FAIL, INFO, BOLD }
+
+    /** A part of the summary text to draw in a style: {@code start} and {@code length} in characters. */
+    public record Span(int start, int length, Style style) { }
+
+    private static final Pattern NUMBERED = Pattern.compile("^ \\d+\\. ([⚠✖]) ");
+    private static final Pattern COUNTS = Pattern.compile(
+            "⚠ \\d+ things? to fix|✔ All \\d+ checks? OK|Everything else is fine \\(\\d+ checks?\\)|✔ \\d+ OK");
+
+    /**
+     * OPEN-69 (Ayan 28 Nov: "can the icons be colourful?"): the coloured parts of a {@link #summary}: the headline and
+     * "✔ N OK" green or amber, a numbered warning amber, a numbered failure red, a note blue, a group name bold. What
+     * to do ("→ ...") and the hint stay plain. Pure, so it is a unit test; the page only applies the spans.
+     */
+    public static List<Span> spans(String summary) {
+        List<Span> out = new ArrayList<>();
+        int at = 0;
+        for (String line : summary.split("\n", -1)) {
+            Matcher numbered = NUMBERED.matcher(line);
+            if (numbered.find()) {
+                out.add(new Span(at, line.length(), numbered.group(1).equals("✖") ? Style.FAIL : Style.WARN));
+            } else if (line.startsWith("  ℹ ")) {
+                out.add(new Span(at, line.length(), Style.INFO));
+            } else if (!line.stripLeading().startsWith("→")) {
+                int colon = line.indexOf(":  ");
+                if (colon > 2 && line.startsWith("  ")) out.add(new Span(at + 2, colon - 1, Style.BOLD));
+                Matcher m = COUNTS.matcher(line);
+                while (m.find()) out.add(new Span(at + m.start(), m.end() - m.start(),
+                        m.group().startsWith("⚠") ? Style.WARN : Style.OK));
+            }
+            at += line.length() + 1;
+        }
+        return out;
     }
 
     /** The worst level in the rows (OK when empty). */
