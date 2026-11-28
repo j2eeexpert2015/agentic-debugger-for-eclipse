@@ -312,6 +312,12 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 
 ## 7. Last delivery
 
+`ci-cross-platform-7.zip` (28 Nov 22:40), docs only: run #6 (with -6) was green on every job, all three systems
+(6 min 55 s); STATUS rows OPEN-54/55, test-plan §2, this file. Next: pull request `ci/open-73-test-names-all-platforms`
+→ `main` ("CI and release" must pass), squash merge, then the `main` ruleset (docs/ci.md).
+
+Before it:
+
 `ci-cross-platform-6.zip` (28 Nov 22:25): with -5 the macOS build resolved (the macOS-only fragment is gone), and the
 full error appeared: Maven on the macOS runner rejects the dependency classifiers Tycho makes for the jars nested in
 `org.eclipse.m2e.maven.runtime` ("Invalid classifier: must not contain '/': jars/aopalliance-1.0.jar"); the same

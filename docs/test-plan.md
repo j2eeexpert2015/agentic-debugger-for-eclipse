@@ -34,8 +34,8 @@ what is tested, the kind of test and which Eclipse it needs (`-without-eclipse`,
 | **Locally, recommended** | The `-Drun` name of the area changed (unit tests of that module; debugger tests of that class, since branch pushes do not run them) | Local | No |
 | **Before publishing a release** | Manual checks of everything changed since the last release; one Claude trial; one Copilot run | Local | Yes (Ayan) |
 
-Linux and macOS are not required for a merge. Until the debugger tests pass there, a release says it is **tested on
-Windows**. No separate Linux/macOS branches: the button tests exactly the code chosen, nothing to keep in sync.
+Linux and macOS are not required for a merge. Since 28 Nov 22:25 all four automated kinds pass on all three systems
+(run #6); a release can say **tested on Windows, Linux and macOS** for the commit of a green all-systems run. No separate Linux/macOS branches: the button tests exactly the code chosen, nothing to keep in sync.
 
 Not a must (on purpose only): `ExtendedSuite` alone, single classes (`integration-tests.md` "Which check for which
 change"), all three Claude trials together.
