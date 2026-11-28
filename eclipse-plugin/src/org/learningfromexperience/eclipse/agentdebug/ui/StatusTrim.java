@@ -70,8 +70,17 @@ public final class StatusTrim {
                 return;
             }
             MTrimBar bottom = models.getTrim(trimmed, SideValue.BOTTOM);
-            // Left over from a session that did not shut down cleanly: placed again below, at the current position.
-            bottom.getChildren().removeIf(child -> ID.equals(child.getElementId()));
+            // Already there: left over from a session that did not shut down cleanly (the test chain stops Eclipse
+            // with Stop-Process), or added twice. Keep the first, drop any extra, never add another (28 Nov 11:00:
+            // removing the rendered one and adding a new one showed two items).
+            boolean found = false;
+            for (var it = bottom.getChildren().iterator();
+                    it.hasNext(); ) {
+                if (!ID.equals(it.next().getElementId())) continue;
+                if (found) it.remove();
+                found = true;
+            }
+            if (found) return;
             MToolControl control = models.createModelElement(MToolControl.class);
             control.setElementId(ID);
             control.setContributionURI(CLASS);

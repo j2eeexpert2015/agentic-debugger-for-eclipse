@@ -106,7 +106,8 @@ abstract class EclipseIntegrationTest {
                 + ". A test did not set them, and they change where the programs stop (OPEN-47). In the test Eclipse:"
                 + " Window > Show View > Breakpoints, Remove All Breakpoints, then run the tests again."
                 + " Owner 'agent' = left by an agent investigation that did not finish; 'user' = set by hand or by"
-                + " another tool (for example Copilot's own java_debugger).");
+                + " another tool (for example Copilot's own java_debugger). 'created' = when Eclipse made it; if that"
+                + " is after you removed them, something set them again: send us this message.");
         // OPEN-58: the plugin can ask the user before code runs in the program (evaluation, tracepoints; since OPEN-60
         // only when the user turned that on). The tests preset "allow" so they never depend on that preference; the
         // consent tests switch to "deny" themselves. Reset to "ask" (no preset) at the end.
@@ -127,9 +128,23 @@ abstract class EclipseIntegrationTest {
             String type = str(bp.get("typeName"));
             // num(): the JSON reader gives numbers as doubles ("22.0" before, seen 26 Nov 23:02).
             left.add(type.substring(type.lastIndexOf('.') + 1) + ":" + num(bp.get("lineNumber"))
-                    + " (" + (bp.get("owner") == null ? "user" : str(bp.get("owner"))) + ")");
+                    + " (" + (bp.get("owner") == null ? "user" : str(bp.get("owner"))) + created(bp.get("createdAt")) + ")");
         }
         return left;
+    }
+
+    /**
+     * ", created 28 Nov 10:45:12" in local time from the plugin's ISO time, "" when the plugin does not send one (28 Nov
+     * 11:05, Ayan: "I removed them, and they are back": the time tells an old breakpoint from one made after the removal).
+     */
+    static String created(Object iso) {
+        if (iso == null) return "";
+        try {
+            return ", created " + java.time.Instant.parse(String.valueOf(iso)).atZone(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ofPattern("d MMM HH:mm:ss", java.util.Locale.ENGLISH));
+        } catch (RuntimeException unreadable) {
+            return ", created " + iso;
+        }
     }
 
     @BeforeEach

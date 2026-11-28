@@ -20,21 +20,30 @@ chats are not. Delivery-by-delivery notes up to 27 Nov 00:30 are in the git hist
 Modules: `report`, `mcp-server` (shaded jar), `testing` (grader, Claude trial runner, integration tests),
 `eclipse-plugin`, `eclipse-feature`, `eclipse-update-site`. Source map: development-workflow.md.
 
-## 2. The standard check
+## 2. The standard check (full run before a merge)
+
+Normal deliveries build with `-DskipTests` (Ayan 28 Nov 09:30); this full run only before a merge.
 
 ```
 cd /d C:\All_GitHub_Desktop\agentic-debugger-for-eclipse && ^
 <close-test-Eclipse step from working-agreement.md §4> && ^
 call mvn clean package && ^
 java dev-e2e/DevE2E.java deploy && ^
+echo. && echo In the test Eclipse: Run - Remove All Breakpoints - Yes. Then press a key here. && pause && ^
 call mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 ```
 
-Expected today: BUILD SUCCESS with unit tests **report 54, mcp-server 38, testing 23, eclipse-plugin 114** (114 since
-`open-60-copilot-agent-only.zip`; 91 before); deploy
-ends with "The test Eclipse is ready"; `RegressionSuite` 27 tests, 0 failures (from `open-58-23b-12.zip`; before it
-mcp-server 34, eclipse-plugin 84, regression 21). A Claude trial (costs usage) only when
-the delivery says "Trial needed: yes":
+- **Close Eclipse gracefully** (the step in working-agreement.md §4, `CloseMainWindow`), never with `Stop-Process`:
+  a killed Eclipse does not save its workspace, so breakpoints removed before come back, and the status-bar item
+  added by the plugin stays in the saved window layout (28 Nov 10:43-11:00: two failed regression runs with
+  "Leftover breakpoints", then two status-bar items).
+- **Remove all breakpoints** in the test Eclipse before the integration tests (OPEN-47 guard), until the suite cleans
+  the two disposable test projects itself (planned).
+- For every integration test, `-Dit.test=FullSuite` instead of the default `RegressionSuite`.
+
+Expected (28 Nov 10:41): BUILD SUCCESS with unit tests **report 64, mcp-server 39, testing 23, eclipse-plugin 127**;
+deploy ends with "The test Eclipse is ready"; `RegressionSuite` 27 tests, 0 failures. A Claude trial (costs usage)
+only when the delivery says "Trial needed: yes":
 `call mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true -Dclaude.report=true`.
 
 ## 3. Done recently (all checked by Ayan, details in the README rows)
@@ -223,6 +232,14 @@ re-runs the quiet check 2 s after a change to Copilot's settings node or ours, a
 (no new Error Log entry for these re-checks). Without Copilot its page shows one line only; main page link "(not
 installed)". Not compiled here: `SetupCheckRunner`, `AgentStatusControl`, `StatusTrim` (Eclipse classes). Release
 check F13.
+`open-69-preferences-5.zip` (28 Nov 11:10): two status-bar items after a killed Eclipse (Ayan 11:00). `StatusTrim`
+keeps an existing item instead of removing and re-adding it; `AgentStatusControl` shows one item per window (a second
+one stays empty, 0 px). Standard check above: graceful close and the breakpoint step.
+`open-69-preferences-7.zip` (28 Nov 11:10; -6 had a compile error in StatusTrim, Ayan 11:04 "I removed them and they are back"): the plugin's breakpoint
+list gives each breakpoint's creation time (`createdAt`, from the marker; also visible to agents in
+list_breakpoints), and the OPEN-47 guard message shows it ("OrderService:23 (user, created 28 Nov 10:45:12)"), so a
+leftover made after the removal can be told from an old one. Automatic clean-up of the test projects waits until the
+cause is known.
 
 
 

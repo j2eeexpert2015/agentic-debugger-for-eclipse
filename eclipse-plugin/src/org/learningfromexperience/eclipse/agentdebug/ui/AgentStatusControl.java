@@ -54,12 +54,23 @@ public final class AgentStatusControl {
         createControl(parent);
     }
 
+    /** One live item per window: a second one (a model left over from a killed Eclipse) stays empty and 0 px wide. */
+    private static final java.util.Map<org.eclipse.swt.widgets.Shell, AgentStatusControl> LIVE = new java.util.WeakHashMap<>();
+
     private Control createControl(Composite parent) {
         Composite box = new Composite(parent, SWT.NONE);
         GridLayout layout = new GridLayout(1, false);
         layout.marginHeight = 0;
-        layout.marginWidth = 4;
+        layout.marginWidth = 0;
         box.setLayout(layout);
+        org.eclipse.swt.widgets.Shell shell = parent.getShell();
+        AgentStatusControl other = LIVE.get(shell);
+        if (other != null && other.label != null && !other.label.isDisposed()) {
+            System.err.println("[Eclipse Agentic Debugger] Status bar item already shown in this window; second one left empty");
+            return box;
+        }
+        LIVE.put(shell, this);
+        layout.marginWidth = 4;
         label = new Label(box, SWT.NONE);
         GridData data = new GridData(SWT.FILL, SWT.CENTER, true, true);
         data.widthHint = 270;   // the label keeps its width even while empty, so a later text is not clipped to nothing
@@ -78,6 +89,7 @@ public final class AgentStatusControl {
         label.addDisposeListener(event -> {
             ActivityStore.global().removeListener(listener);
             SetupCheckRunner.removeListener(setupListener);
+            if (LIVE.get(shell) == this) LIVE.remove(shell);
         });
         refresh();
         return box;

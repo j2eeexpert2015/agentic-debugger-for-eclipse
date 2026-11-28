@@ -131,9 +131,10 @@ public class EclipseBreakpointService {
         return removed;
     }
 
+    /** @param createdAt when Eclipse created the breakpoint's marker (epoch ms), 0 when unknown (28 Nov: to trace leftovers) */
     public record BreakpointInfo(String typeName, int lineNumber,
                                  String projectName, boolean enabled,
-                                 String owner, String condition, boolean tracepoint) {}
+                                 String owner, String condition, boolean tracepoint, long createdAt) {}
 
     public List<BreakpointInfo> listBreakpoints() throws CoreException {
         List<BreakpointInfo> result = new ArrayList<>();
@@ -154,7 +155,7 @@ public class EclipseBreakpointService {
                         resource.getProject().getName(), javaBreakpoint.isEnabled(),
                         getOwner(javaBreakpoint), javaBreakpoint.isConditionEnabled()
                                 ? javaBreakpoint.getCondition() : null,
-                        marker.getAttribute(TRACEPOINT_ATTRIBUTE, false)));
+                        marker.getAttribute(TRACEPOINT_ATTRIBUTE, false), marker.getCreationTime()));
             } catch (CoreException staleBreakpoint) {
                 // Another thread may remove the marker during enumeration.
                 System.err.println("[Eclipse Agentic Debugger] Skipped stale breakpoint: "

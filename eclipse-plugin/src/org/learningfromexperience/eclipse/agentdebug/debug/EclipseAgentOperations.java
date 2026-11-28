@@ -522,7 +522,9 @@ public final class EclipseAgentOperations {
         for (var bp : all) items.add("{\"typeName\":" + q(bp.typeName())
                 + ",\"lineNumber\":" + bp.lineNumber() + ",\"projectName\":" + q(bp.projectName())
                 + ",\"enabled\":" + bp.enabled() + ",\"owner\":" + q(bp.owner())
-                + ",\"condition\":" + q(bp.condition()) + ",\"tracepoint\":" + bp.tracepoint() + "}");
+                + ",\"condition\":" + q(bp.condition()) + ",\"tracepoint\":" + bp.tracepoint()
+                + (bp.createdAt() > 0 ? ",\"createdAt\":" + q(java.time.Instant.ofEpochMilli(bp.createdAt()).toString()) : "")
+                + "}");
         return ok(",\"breakpoints\":[" + String.join(",", items) + "]");
     }
 

@@ -54,12 +54,15 @@ Plain Windows `cmd`, one block Ayan can paste at once:
 - Add a **`findstr` guard line** that proves the new files are in place before building, e.g.
   `findstr /c:"<text only in the new version>" <file> >nul && echo <file> OK`.
 - When the test Eclipse must be closed (deploy, file locks), the block starts (after `cd`) with this step, which
-  closes **only** the test Eclipse and stops if a dialog is open:
+  closes **only** the test Eclipse and stops if a dialog is open. Never kill it with `Stop-Process`: a killed Eclipse
+  does not save its workspace (removed breakpoints come back) nor run the plugin's shutdown clean-up (28 Nov):
 
 ```
 powershell -Command "$p = Get-Process eclipse -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq 'C:\All_Softwares\eclipse\eclipse.exe' }; if ($p) { $p | ForEach-Object { [void]$_.CloseMainWindow() }; $p | Wait-Process -Timeout 60 -ErrorAction SilentlyContinue; if (Get-Process -Id $p.Id -ErrorAction SilentlyContinue) { Write-Host 'Test Eclipse did not close: a dialog is waiting in it. Answer it, then run again.'; exit 1 } else { Write-Host 'Test Eclipse closed.' } } else { Write-Host 'Test Eclipse is not running.' }" && ^
 ```
 
+- Before the integration tests: Run > Remove All Breakpoints in the test Eclipse (a `pause` step in the block), see
+  handoff.md §2.
 - No git commands. Deletions only with `del /q` / `rmdir /s /q`, and only when the delivery says so.
 - For a Copilot or Claude check inside Eclipse, give the exact prompt to paste.
 
