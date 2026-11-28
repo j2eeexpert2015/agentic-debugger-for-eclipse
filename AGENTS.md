@@ -9,7 +9,9 @@ anything in the git history.
 
 | Read | Purpose |
 |---|---|
-| [README](README.md) | Product, current plan, and **Status and tracking**: the single list of open and finished work with its latest evidence |
+| [README](README.md) | Product: install and use |
+| [STATUS.md](STATUS.md) | Current plan, and **Status and tracking**: the single list of open and finished work with its latest evidence |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Build, tests, development workflow, documentation index |
 | [Development workflow](docs/development-workflow.md) | Architecture and source map; investigation, changes, testing and handoff |
 | [Architecture decisions](docs/decisions.md) | Safety and ownership contracts (ADRs) |
 | [Capabilities](docs/capabilities.md) | What is implemented versus verified; Spring Boot scenarios SB-01 to SB-10 |
@@ -52,4 +54,4 @@ mvn -pl testing verify -Pintegration-tests -Dfixture.post.approved=true
 
 ## Handoff and documentation
 
-Update the README tracking table, capabilities, the feature catalog and architecture decisions only as the evidence warrants. Run `git diff --check` and inspect the diff. Provide exact files/commands, test outcomes, remaining gaps, deployment/rollback needs and next priority. See [full workflow](docs/development-workflow.md).
+Update the tracking table (STATUS.md), capabilities, the feature catalog and architecture decisions only as the evidence warrants. Run `git diff --check` and inspect the diff. Provide exact files/commands, test outcomes, remaining gaps, deployment/rollback needs and next priority. See [full workflow](docs/development-workflow.md).

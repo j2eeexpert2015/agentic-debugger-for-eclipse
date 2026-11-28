@@ -81,7 +81,7 @@ Record a **baseline before deploying** a bridge change: 3 full `RegressionSuite`
 - [ ] Ownership checks 32/32: `mvn -pl testing verify -Pintegration-tests -Dit.test=UserResourceSafetyTests` (8 tests)
 - [ ] Old MCP server JAR with new plugin, and new MCP server with old plugin: `ping`, `eclipse_ping`, Phase 1 pass
 - [ ] Manual: Preferences → Configure/Verify; one real Claude investigation; your own breakpoints and session untouched while Claude debugs
-- [ ] Record commit, bundle, JDK and date in the README tracking table
+- [ ] Record commit, bundle, JDK and date in the tracking table (STATUS.md)
 
 Rollback: install the previous plugin build (the single-threaded `legacy` bridge mode was removed on 25 Nov 2026, OPEN-38 step 3).
 

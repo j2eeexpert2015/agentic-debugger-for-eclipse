@@ -82,4 +82,4 @@ MCP server approval is **separate** from whether the plugin JARs are signed. The
 - **Claude cannot reach Eclipse:** confirm Eclipse is running, the correct project is imported, `/mcp` lists `eclipse-debugger`, and a normal Eclipse start staged the runtime JAR. Check that another Eclipse instance is not using the bridge port.
 - **Copilot says `Denied`:** approve the MCP server in Copilot preferences. A changed server command configuration may require renewed approval.
 
-For more details see the [main README](../README.md#install-and-use). For what release maintainers must verify before publication, see the [release verification checklist](release-verification-checklist.md).
+For more details see the [main README](../README.md#install). For what release maintainers must verify before publication, see the [release verification checklist](release-verification-checklist.md).

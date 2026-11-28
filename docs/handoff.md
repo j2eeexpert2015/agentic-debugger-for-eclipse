@@ -1,7 +1,7 @@
 # Handoff for a new chat (27 Nov 2026, 15:30 IST)
 
 Read [working-agreement.md](working-agreement.md) first (how we work), then this file (where the work stands), then
-the README section **Status and tracking** (the single list of all items). The repository is the truth; earlier
+**Status and tracking** in `STATUS.md` (the single list of all items). The repository is the truth; earlier
 chats are not. Delivery-by-delivery notes up to 27 Nov 00:30 are in the git history of this file.
 
 ## 1. Environment
@@ -46,7 +46,7 @@ deploy ends with "The test Eclipse is ready"; `RegressionSuite` 27 tests, 0 fail
 only when the delivery says "Trial needed: yes":
 `call mvn -pl testing verify -Pintegration-tests -Dit.test=ClaudeAgentEndToEndTests#springBootWrongQuote -Dclaude.approved=true -Dfixture.post.approved=true -Dclaude.report=true`.
 
-## 3. Done recently (all checked by Ayan, details in the README rows)
+## 3. Done recently (all checked by Ayan, details in the STATUS.md rows)
 
 - **OPEN-44** quiet MCP server (slf4j-nop; extra stderr only with `AGENTDEBUG_VERBOSE=1`).
 - **OPEN-47** integration tests fail early when breakpoints are left in the test projects.
@@ -240,6 +240,15 @@ list gives each breakpoint's creation time (`createdAt`, from the marker; also v
 list_breakpoints), and the OPEN-47 guard message shows it ("OrderService:23 (user, created 28 Nov 10:45:12)"), so a
 leftover made after the removal can be told from an old one. Automatic clean-up of the test projects waits until the
 cause is known.
+
+**AA. README split (28 Nov 12:30, `readme-split-1.zip`, Ayan 12:12-12:23, after comparing AssistAI, the unofficial
+Claude Code plugin and vogella's Eclipse MCP Server):** README.md is now for users only (what it is, install by
+update-site URL, Claude Code, Copilot, what you get, updating, troubleshooting, uninstall; two screenshots
+`docs/images/agent-activity.png`, `docs/images/report.png`). Moved, unchanged: current plan, implementation and test
+status, evidence snapshot, **Status and tracking** → `STATUS.md` (top level, same anchors); developer quickstart,
+build and test commands, development workflow, documentation index → `CONTRIBUTING.md`. New `CHANGELOG.md`. Links in
+AGENTS.md, the working agreement, this file and docs/ point to STATUS.md / CONTRIBUTING.md. No LICENSE file in the
+repository (noticed, not decided).
 
 **Z. CI and release pipeline on `main` (28 Nov 11:40, `ci-release-1.zip`, Ayan 11:21):** the CI work of branch
 `ci/github-actions` (made with ChatGPT 27-28 Nov, CI files only) brought into `main`: the five workflows, `docs/ci.md`

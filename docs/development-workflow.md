@@ -1,10 +1,10 @@
 # Evidence-Driven Development Workflow
 
-[README](../README.md#development-workflow) · [Agent instructions](../AGENTS.md) · [Architecture decisions](decisions.md) · [Java E2E runner](../dev-e2e/README.md) · [Feature catalog](feature-roadmap.md)
+[Contributing](../CONTRIBUTING.md#development-workflow) · [Agent instructions](../AGENTS.md) · [Architecture decisions](decisions.md) · [Java E2E runner](../dev-e2e/README.md) · [Feature catalog](feature-roadmap.md)
 
 This is the **current engineering procedure** for changing *Agentic Debugger for Eclipse IDE*. Follow it whether work is performed by a human, ChatGPT, Claude Code, Codex, or another coding agent. It governs a **change**, not a specific editor, agent, or temporary chat session. The repository and verified evidence—not prior chat summaries—are authoritative.
 
-At the start of a new session, read the README: its first section is the current plan, and **Status and tracking** is the single list of open and finished work with its latest evidence.
+At the start of a new session, read `STATUS.md`: its first section is the current plan, and **Status and tracking** is the single list of open and finished work with its latest evidence. The README is for people installing the plugin.
 
 ## Architecture and source map
 
@@ -32,7 +32,7 @@ Claude Code → MCP stdio server → authenticated localhost Eclipse bridge → 
 
 ## 2. Start-of-task checklist
 
-1. Read `README.md`, `AGENTS.md`, this page, `docs/decisions.md`, `dev-e2e/README.md`, and the relevant capability/scenario documentation. Check `git status --short`, current branch/commit, and local diffs **before editing**. GitHub `main` may differ from the user's uncommitted working tree.
+1. Read `STATUS.md`, `CONTRIBUTING.md`, `AGENTS.md`, this page, `docs/decisions.md`, `dev-e2e/README.md`, and the relevant capability/scenario documentation. Check `git status --short`, current branch/commit, and local diffs **before editing**. GitHub `main` may differ from the user's uncommitted working tree.
 2. State the requested behavior, affected module, safety boundary, acceptance oracle, and the **smallest relevant test**. Identify whether the change requires an MCP JAR build, Eclipse plugin redeployment, or only a Java harness/documentation update.
 3. Reproduce or inspect the problem. Retain command output, raw MCP tool results, relevant frames/variables, exact error, and fixture/process identity. If blocked, say what evidence is missing instead of inventing it.
 4. Inspect existing APIs, fixtures, and tests for reuse. For high-impact changes, document a small reversible plan and an explicit rollback path.
@@ -124,9 +124,12 @@ The 23 November 2026 one-off review found a successful JUnit discount diagnosis 
 
 ## 7. Documentation and status updates after verification
 
-- **`README.md`:** current capabilities, simple usage, development-workflow link, accurately scoped status, next priorities. Keep it concise.
+- **`README.md`:** for users: what it is, install, use with each agent, troubleshooting. Keep it concise; no status, test evidence or plans.
+- **`STATUS.md`:** current plan, implementation and test status, the tracking table.
+- **`CONTRIBUTING.md`:** build and test commands, development workflow, documentation index.
+- **`CHANGELOG.md`:** what each release contains.
 - **`docs/capabilities.md`:** implemented vs installed-tested vs supported-by-JDT vs unverified; no speculative capability claims.
-- **`docs/feature-roadmap.md` (feature catalog):** feature IDs, status and evidence, EV scenarios, research; stable IDs. Order and priority live only in the README tracking table.
+- **`docs/feature-roadmap.md` (feature catalog):** feature IDs, status and evidence, EV scenarios, research; stable IDs. Order and priority live only in the tracking table (STATUS.md).
 - **SB scenarios in `docs/capabilities.md`:** acceptance criteria and scenario coverage; do not rewrite historical entries as if old tests ran on new binaries.
 - **`docs/decisions.md`:** architecture, safety, and tooling decisions with the reason and tradeoff when warranted.
 - **`dev-e2e/README.md`:** exact runnable commands, configuration, test groups, interpretation and permissions.

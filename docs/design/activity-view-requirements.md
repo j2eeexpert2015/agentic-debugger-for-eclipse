@@ -1,6 +1,6 @@
 # Agent Activity view and related changes — agreed requirements
 
-**Status:** requirements agreed 24 Nov 2026, not implemented. Tracked as OPEN-35, OPEN-36 and OPEN-37 in the [README](../../README.md#status-and-tracking), done in that order.
+**Status:** requirements agreed 24 Nov 2026, not implemented. Tracked as OPEN-35, OPEN-36 and OPEN-37 in the [status list](../../STATUS.md#status-and-tracking), done in that order.
 **Background:** the external design in [AGENTIC_DEBUGGER_LIVE_VIEW_AND_REPORT_DESIGN.md](AGENTIC_DEBUGGER_LIVE_VIEW_AND_REPORT_DESIGN.md) and its [review notes](README.md). Where this document and the external design differ, this document applies.
 
 ## Why

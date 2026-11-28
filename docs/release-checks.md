@@ -1,6 +1,6 @@
 # Release checks with Copilot and Agent Activity (OPEN-23, OPEN-36, OPEN-58, OPEN-12)
 
-[README](../README.md#status-and-tracking) · [Handoff](handoff.md) · [Copilot notes](copilot-integration-notes.md)
+[Status and tracking](../STATUS.md#status-and-tracking) · [Handoff](handoff.md) · [Copilot notes](copilot-integration-notes.md)
 
 Manual checks in the test Eclipse that the automated tests cannot do: a real agent (GitHub Copilot) and what the user
 sees. Run them after the build, deploy and regression of the delivery (handoff §2). Each check says what to type, what

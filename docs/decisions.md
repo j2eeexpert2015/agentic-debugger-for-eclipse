@@ -1,6 +1,6 @@
 # Architecture Decisions and Documentation Rules
 
-[Documentation index](../README.md#documentation) · [Roadmap](feature-roadmap.md)
+[Documentation index](../CONTRIBUTING.md#documentation) · [Roadmap](feature-roadmap.md)
 
 ## ADR-001 — Skills are optional and replaceable
 

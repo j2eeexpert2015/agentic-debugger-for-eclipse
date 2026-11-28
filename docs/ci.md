@@ -1,6 +1,6 @@
 # Continuous integration and releases (GitHub Actions)
 
-[README](../README.md#status-and-tracking) · [Working agreement](working-agreement.md) · [Handoff](handoff.md) ·
+[Status and tracking](../STATUS.md#status-and-tracking) · [Working agreement](working-agreement.md) · [Handoff](handoff.md) ·
 [Release checklist](release-verification-checklist.md) · [Install guide](install-from-github-releases.md)
 
 Built on branch `ci/github-actions` (27-28 Nov, Windows first), merged into `main` on 28 Nov (README OPEN-54..56).

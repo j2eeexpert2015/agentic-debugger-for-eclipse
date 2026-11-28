@@ -1,7 +1,7 @@
 # GitHub Copilot for Eclipse: the chat mode list misses custom agents (OPEN-51)
 
 Status: found and analysed 26 Nov 2026; not yet reported to Microsoft. Work on it when there is time.
-Tracked in the README "Status and tracking" table as OPEN-51.
+Tracked in the "Status and tracking" table (STATUS.md) as OPEN-51.
 
 ## Summary
 

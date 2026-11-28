@@ -3,7 +3,7 @@
 Every feature ID (CORE, JAVA, BOOT, SKILL, EVAL), what it gives the developer, its status and its evidence, plus the
 agent behaviour scenarios (EV) and the external research (RS) behind them. Feature IDs are stable and never reused.
 
-> **Tracking:** open work and its priority are tracked only in the README [Status and tracking](../README.md#status-and-tracking)
+> **Tracking:** open work and its priority are tracked only in [Status and tracking](../STATUS.md#status-and-tracking)
 > table (OPEN-xx IDs). This file holds feature definitions and evidence. Spring Boot scenarios (SB) are in
 > [capabilities](capabilities.md#spring-boot-and-junit-scenarios-sb-01-to-sb-10). Dated phase reports that used to be
 > linked here were removed on 25 Nov 2026 (OPEN-38); they are in the git history.
@@ -123,7 +123,7 @@ The installed fixture audit (in the git history) records direct checks for disco
 - Source observations, IDE documentation, an API spike, installed direct test and explicit/implicit agent result are different evidence levels.
 - Every new feature requires **feature ID, user problem, expected runtime observation, fixture, explicit prompt, symptom-only prompt, direct test, negative/safety tests, limitations, source revision and tested artifact**.
 - Keep old feature IDs unchanged after moving phases, and never reuse a rejected ID.
-- Order and priority live only in the README tracking table (OPEN-xx); feature evidence lives here.
+- Order and priority live only in the tracking table (STATUS.md) (OPEN-xx); feature evidence lives here.
 
 ## Agent behaviour scenarios (EV-01 to EV-16)
 

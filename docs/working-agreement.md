@@ -33,7 +33,7 @@ complements [development-workflow.md](development-workflow.md) (the engineering 
    development-workflow §6).
 4. **The commands** (section 4), in one block.
 5. **What the assistant checked and what it could not.**
-6. Update `docs/handoff.md` (a "Last delivery" section) and the README tracking table with each delivery.
+6. Update `docs/handoff.md` (a "Last delivery" section) and the tracking table in `STATUS.md` with each delivery.
 
 Never in a delivery: `dev-e2e/e2e.properties` (machine-specific, never committed), anything under `examples/` (the
 buggy fixtures stay unchanged), generated files, secrets.
@@ -79,7 +79,7 @@ java dev-e2e/DevE2E.java deploy
 
 ## 5. Recording
 
-- The README **"Status and tracking"** table is the single tracking list. New items get the next `OPEN-nn` number;
+- The **"Status and tracking"** table in `STATUS.md` is the single tracking list. New items get the next `OPEN-nn` number;
   a row's last cell holds the status and the evidence ("Done, checked <date time>" plus what was seen).
 - `docs/handoff.md` says where the work stands for the next chat; older deliveries live in the git history.
 - Findings about outside tools go in their own document (e.g. `docs/copilot-integration-notes.md`,
@@ -98,7 +98,7 @@ java dev-e2e/DevE2E.java deploy
 Ayan attaches or links the repository (branch with the latest commits) and these two files, and says what comes next.
 The assistant then:
 
-1. reads `docs/working-agreement.md`, `docs/handoff.md`, the README tracking table and the documents the next item
+1. reads `docs/working-agreement.md`, `docs/handoff.md`, the tracking table in `STATUS.md` and the documents the next item
    links to;
 2. asks for the output of the last check if the handoff says one is pending and it was not given;
 3. continues with the single next step from the handoff, following sections 2 to 4.
