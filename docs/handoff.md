@@ -216,6 +216,14 @@ compiled against SWT/JFace stand-ins; `SetupCheckRunner` and the watcher not com
 whether Copilot honours the withdrawn auto-approval without a restart (F12). Tests not yet run in his build: OPEN-66,
 OPEN-69.
 
+**Y. `open-69-preferences-4.zip` (28 Nov 10:40, Ayan 10:23-10:29):** status bar item moved to the left
+(`StatusTrim`: before `org.eclipse.ui.StatusLine`, else first); text "⚠ Agentic Debugger: N things to fix", tooltip
+lists them (`SetupCheckRunner.problemCount/problemLines`); the warning follows a fix: `SetupCheckRunner.watchSettings`
+re-runs the quiet check 2 s after a change to Copilot's settings node or ours, and every minute while a problem shows
+(no new Error Log entry for these re-checks). Without Copilot its page shows one line only; main page link "(not
+installed)". Not compiled here: `SetupCheckRunner`, `AgentStatusControl`, `StatusTrim` (Eclipse classes). Release
+check F13.
+
 
 
 

@@ -19,6 +19,7 @@ import org.eclipse.swt.widgets.Link;
 import org.eclipse.ui.IWorkbench;
 import org.eclipse.ui.IWorkbenchPreferencePage;
 import org.eclipse.ui.preferences.IWorkbenchPreferenceContainer;
+import org.learningfromexperience.eclipse.agentdebug.integration.CopilotIntegration;
 import org.learningfromexperience.eclipse.agentdebug.integration.PreferenceStates;
 import org.learningfromexperience.eclipse.agentdebug.integration.SetupCheck;
 
@@ -45,7 +46,8 @@ public final class ClaudeIntegrationPreferences extends PreferencePage implement
         PrefUi.audience(root, "For every agent.", null);
         Link pages = new Link(root, SWT.NONE);
         pages.setText("Agent setup: <a href=\"" + ClaudeCodePreferences.ID + "\">Claude Code</a>  ·  <a href=\""
-                + CopilotPreferences.ID + "\">GitHub Copilot</a>");
+                + CopilotPreferences.ID + "\">GitHub Copilot</a>"
+                + (CopilotIntegration.copilotInstalled() ? "" : " (not installed)"));
         pages.addListener(SWT.Selection, event -> open(event.text));
 
         IEclipsePreferences settings = InstanceScope.INSTANCE.getNode("org.learningfromexperience.eclipse.agentdebug");

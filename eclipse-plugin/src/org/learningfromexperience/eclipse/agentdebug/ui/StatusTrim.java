@@ -1,6 +1,5 @@
 package org.learningfromexperience.eclipse.agentdebug.ui;
 
-import org.eclipse.e4.ui.model.application.ui.MUIElement;
 import org.eclipse.e4.ui.model.application.ui.SideValue;
 import org.eclipse.e4.ui.model.application.ui.basic.MTrimBar;
 import org.eclipse.e4.ui.model.application.ui.basic.MTrimmedWindow;
@@ -27,6 +26,8 @@ import org.eclipse.ui.PlatformUI;
 public final class StatusTrim {
 
     static final String ID = "org.learningfromexperience.eclipse.agentdebug.agentStatus";
+    /** Eclipse's status line (the message area at the left of the bottom trim). */
+    private static final String STATUS_LINE = "org.eclipse.ui.StatusLine";
     private static final String CLASS = "bundleclass://org.learningfromexperience.eclipse.agentdebug/"
             + AgentStatusControl.class.getName();
 
@@ -69,16 +70,22 @@ public final class StatusTrim {
                 return;
             }
             MTrimBar bottom = models.getTrim(trimmed, SideValue.BOTTOM);
-            for (MUIElement child : bottom.getChildren()) {
-                if (ID.equals(child.getElementId())) return;          // already there (an earlier session)
-            }
+            // Left over from a session that did not shut down cleanly: placed again below, at the current position.
+            bottom.getChildren().removeIf(child -> ID.equals(child.getElementId()));
             MToolControl control = models.createModelElement(MToolControl.class);
             control.setElementId(ID);
             control.setContributionURI(CLASS);
             control.setToBeRendered(true);
             control.setVisible(true);
-            // Before Eclipse's own items on the right (heap, progress), after the message area on the left.
-            int at = Math.max(0, bottom.getChildren().size() - 1);
+            // OPEN-69 (Ayan 28 Nov 10:25): on the left, just before Eclipse's message area, away from Copilot's and
+            // Eclipse's items on the right. Without that area, first.
+            int at = 0;
+            for (int i = 0; i < bottom.getChildren().size(); i++) {
+                if (STATUS_LINE.equals(bottom.getChildren().get(i).getElementId())) {
+                    at = i;
+                    break;
+                }
+            }
             bottom.getChildren().add(at, control);
             System.out.println("[Eclipse Agentic Debugger] Status bar item added at " + at + " of "
                     + bottom.getChildren().size());

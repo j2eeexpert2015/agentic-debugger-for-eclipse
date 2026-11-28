@@ -70,7 +70,7 @@ Never enabled: anything that would change an entry that is not ours; two actions
 
 | Case | Agent | Who can use our tools | Skill |
 |---|---|---|---|
-| Copilot not installed | Note "GitHub Copilot isn't installed in this Eclipse. … Not needed for Claude Code."; status greyed, no buttons | off | greyed, no buttons |
+| Copilot not installed | Only the line "GitHub Copilot isn't installed in this Eclipse. Install it from the Eclipse Marketplace to use it with the debugger. Not needed for Claude Code."; no sections (28 Nov 10:29: greyed rows and a ticked, disabled box looked like settings) | — | — |
 | Copilot installed, agent not installed | ✖ Not installed · **Install** (main) | on | see below |
 | Agent installed, current | ✔ Installed for all workspaces · Remove | on | see below |
 | Agent installed, older | ⚠ Older version installed · **Update** (main), Remove | on | see below |
@@ -137,6 +137,15 @@ All fine: "✔ All N checks OK" and the same group lines. In colour (`SetupCheck
 green or amber, numbered warnings amber, failures red, notes blue, group names bold, "→ what to do" and the hint
 plain. When a problem was found, the check runs again when the page is shown again in the same Preferences window
 (`setVisible`), so the result is never stale after a fix on another page.
+
+## Status bar (all pages)
+
+When the setup check found something and no investigation is shown: "⚠ Agentic Debugger: 1 thing to fix" (or "N
+things to fix") at the **left** of the bottom bar, just before Eclipse's message area (Ayan 28 Nov 10:25: not next to
+Copilot's items on the right). The tooltip lists the problems, numbered, and "Click to open the setup check."; a
+click opens the main page. It follows a fix made anywhere: a change to Copilot's settings or ours runs the quiet
+check again two seconds later, and while a problem is shown the quiet check runs every minute (it only reads files
+and settings). The main page link reads "GitHub Copilot (not installed)" when Copilot is missing.
 
 ## Tests to add
 

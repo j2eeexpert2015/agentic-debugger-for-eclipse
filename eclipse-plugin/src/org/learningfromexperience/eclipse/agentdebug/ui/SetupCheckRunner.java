@@ -16,6 +16,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.learningfromexperience.eclipse.agentdebug.Activator;
 import org.learningfromexperience.eclipse.agentdebug.integration.ClaudeIntegration;
 import org.learningfromexperience.eclipse.agentdebug.integration.CopilotAgentInstaller;
@@ -40,6 +41,20 @@ public final class SetupCheckRunner {
     private static final List<Runnable> LISTENERS = new CopyOnWriteArrayList<>();
 
     private SetupCheckRunner() { }
+
+    /** OPEN-69: how many problems (WARN, FAIL) the last check found; 0 when none or not checked yet. */
+    public static int problemCount() {
+        return (int) lastRows.stream().filter(r -> r.level() == SetupCheck.Level.WARN || r.level() == SetupCheck.Level.FAIL)
+                .count();
+    }
+
+    /** OPEN-69: the last check's problems, failures first, one line each ("GitHub Copilot: ..."), for a tooltip. */
+    public static List<String> problemLines() {
+        List<String> out = new ArrayList<>();
+        for (SetupCheck.Level level : List.of(SetupCheck.Level.FAIL, SetupCheck.Level.WARN))
+            for (SetupCheck.Row row : lastRows) if (row.level() == level) out.add(row.area() + ": " + row.text());
+        return out;
+    }
 
     /** The last check's problems in one line for the status bar, or null when none (or not checked yet). */
     public static String problemLine() {
@@ -80,6 +95,7 @@ public final class SetupCheckRunner {
         for (Runnable listener : LISTENERS) {
             try { listener.run(); } catch (RuntimeException ignored) { /* a closed status bar */ }
         }
+        if (deep && SetupCheck.worst(rows) != SetupCheck.Level.OK) recheck(EVERY_MINUTE);
         return rows;
     }
 
@@ -89,6 +105,47 @@ public final class SetupCheckRunner {
                 : Platform.getBundle(CopilotIntegration.PLUGIN_ID).getVersion().toString();
         return SetupCheck.report(rows, "Agentic Debugger " + plugin + " setup check, Java "
                 + System.getProperty("java.version") + ", " + System.getProperty("os.name"));
+    }
+
+    /** OPEN-69: the quiet re-check, one job reused so that several triggers in a row run it once. */
+    private static final Job RECHECK = recheckJob();
+    private static final long EVERY_MINUTE = 60_000;
+    private static volatile boolean watching;
+
+    private static Job recheckJob() {
+        Job job = Job.create("Agentic Debugger: setup check", monitor -> {
+            List<SetupCheck.Row> rows = run(false);
+            // While something is wrong, look again every minute: it only reads files and settings.
+            if (SetupCheck.worst(rows) != SetupCheck.Level.OK) recheck(EVERY_MINUTE);
+            return Status.OK_STATUS;
+        });
+        job.setSystem(true);
+        job.setPriority(Job.DECORATE);
+        return job;
+    }
+
+    /** Runs the quiet check again in {@code delay} ms (a later call replaces an earlier one that has not run yet). */
+    static void recheck(long delay) {
+        RECHECK.cancel();
+        RECHECK.schedule(delay);
+    }
+
+    /**
+     * OPEN-69 (Ayan 28 Nov 10:27: "the warning stays although the issue is resolved"): the status bar follows a fix
+     * made anywhere: a change to Copilot's settings (approval, tools, auto-approve) or to ours runs the quiet check
+     * again two seconds later; while a problem is shown it also runs every minute (Claude Code's registration and the
+     * agent files are not settings). Installed once.
+     */
+    private static void watchSettings() {
+        if (watching) return;
+        watching = true;
+        for (String node : List.of(CopilotIntegration.COPILOT_UI, CopilotIntegration.PLUGIN_ID)) {
+            try {
+                InstanceScope.INSTANCE.getNode(node).addPreferenceChangeListener(event -> recheck(2_000));
+            } catch (RuntimeException | LinkageError notAvailable) {
+                // the minute re-check still runs
+            }
+        }
     }
 
     /**
@@ -105,6 +162,8 @@ public final class SetupCheckRunner {
                         + " (Window > Preferences > Agentic Debugger, setup check):\n" + report(rows)));
             }
             System.out.println("[Eclipse Agentic Debugger] Setup check: " + worst);
+            if (worst != SetupCheck.Level.OK) recheck(EVERY_MINUTE);
+            watchSettings();
             return Status.OK_STATUS;
         });
         job.setSystem(true);

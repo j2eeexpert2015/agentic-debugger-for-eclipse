@@ -45,7 +45,7 @@ import org.learningfromexperience.eclipse.agentdebug.integration.PreferenceState
  *   <li><b>Skill</b>: Copilot uses the Claude Code copy when there is one (managed on the Claude Code page), else its
  *       own ({@link CopilotSkill}): Install, Update, Remove (only the files the plugin wrote).</li>
  * </ul>
- * When Copilot is not installed, the page says so and nothing can be changed. Every case, and which button is enabled
+ * When Copilot is not installed, the page shows only one line saying so (OPEN-69). Every case, and which button is enabled
  * in it, is {@link PreferenceStates} (tests PS-U4, PS-U5). Same preference keys and actions as before.
  *
  * @author Ayan Dutta
@@ -77,9 +77,11 @@ public final class CopilotPreferences extends PreferencePage implements IWorkben
         PrefUi.audience(root, "For GitHub Copilot only.",
                 "Lets Copilot Chat in Eclipse use the debugger, through the Agentic Debugger agent.");
         if (!copilot) {
-            Label missing = PrefUi.wrap(root, "GitHub Copilot isn't installed in this Eclipse. Install it from the"
-                    + " Eclipse Marketplace to use it with the debugger. Not needed for Claude Code.");
-            missing.setForeground(PrefUi.colour(PreferenceStates.Tone.WARN));
+            // OPEN-69 (Ayan 28 Nov 10:28): without Copilot nothing on this page means anything, so only this line;
+            // the sections appear after Copilot is installed and Eclipse restarted.
+            PrefUi.wrap(root, "GitHub Copilot isn't installed in this Eclipse. Install it from the Eclipse Marketplace"
+                    + " to use it with the debugger. Not needed for Claude Code.");
+            return root;
         }
 
         Map<Action, String> agentButtons = new LinkedHashMap<>();
@@ -239,6 +241,7 @@ public final class CopilotPreferences extends PreferencePage implements IWorkben
     }
 
     private void draw() {
+        if (!copilot) return;
         Path file = CopilotAgentInstaller.userAgentFile(home());
         CopilotAgentInstaller.State state;
         try {

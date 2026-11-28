@@ -24,7 +24,8 @@ import org.osgi.framework.FrameworkUtil;
 public final class CopilotIntegration {
 
     public static final String PLUGIN_ID = "org.learningfromexperience.eclipse.agentdebug";
-    static final String COPILOT_UI = "com.microsoft.copilot.eclipse.ui";
+    /** Copilot's UI bundle, also the node of its settings. */
+    public static final String COPILOT_UI = "com.microsoft.copilot.eclipse.ui";
     static final String TEMPLATE = "copilot/agentic_debugger.agent.md";
 
     /** Our preference: on (default) = our tools only in the Agentic Debugger agent, without confirmations. */

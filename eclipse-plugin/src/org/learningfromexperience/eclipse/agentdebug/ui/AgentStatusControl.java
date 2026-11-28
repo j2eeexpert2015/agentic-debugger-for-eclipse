@@ -24,7 +24,7 @@ import org.learningfromexperience.agentdebug.report.activity.ActivityStore;
  * "● Agent: thinking · 8 s" when the agent works without the debugger and red "● Agent: waiting for a pause · 12 s"
  * (running, paused) while it debugs, the same colours as the Agent Activity banner (OPEN-48); green "finished" or
  * yellow "ended without finish" with the time taken at the end, empty when no agent has debugged yet (OPEN-61: then
- * "Agentic Debugger: check setup" in amber when the setup check found a problem; a click opens the preferences). A click opens the Agent Activity view. Added to the bottom trim by {@link StatusTrim}.
+ * "Agentic Debugger: 1 thing to fix" in amber when the setup check found a problem; a click opens the preferences). A click opens the Agent Activity view. Added to the bottom trim by {@link StatusTrim}.
  *
  * @author Ayan Dutta
  */
@@ -98,12 +98,16 @@ public final class AgentStatusControl {
         // While running, the dot blinks (filled, hollow) every second, like the view's live dot.
         boolean running = inv != null && !inv.finished();
         blink = running && !blink;
-        String setup = text == null ? SetupCheckRunner.problemLine() : null;
-        showingSetup = setup != null;
+        int problems = text == null ? SetupCheckRunner.problemCount() : 0;
+        showingSetup = problems > 0;
         if (showingSetup) {
             // OPEN-61: no investigation to show, but the setup check found something: a quiet note, never a popup.
-            label.setText("\u26A0 Agentic Debugger: check setup");
-            label.setToolTipText(setup + "\nClick to open Preferences > Agentic Debugger (setup check).");
+            // OPEN-69: says how many, lists them in the tooltip, and goes away by itself after a fix.
+            label.setText("\u26A0 Agentic Debugger: " + problems + (problems == 1 ? " thing to fix" : " things to fix"));
+            StringBuilder tip = new StringBuilder();
+            int n = 0;
+            for (String line : SetupCheckRunner.problemLines()) tip.append(++n).append(". ").append(line).append('\n');
+            label.setToolTipText(tip + "Click to open the setup check.");
             label.setForeground(ENDED);
             label.getParent().layout(true);
             return;
