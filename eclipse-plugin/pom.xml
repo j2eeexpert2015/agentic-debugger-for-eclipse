@@ -15,6 +15,25 @@
     <build>
       <plugins>
 
+        <!-- macOS (28 Nov, first all-platform run): the unit-test run failed while collecting dependencies ("Invalid
+             Collect Request: null") with the macOS-only fragment org.eclipse.jdt.launching.macosx among them; this
+             plugin does not need it, so it is left out of this module's build. Linux and Windows have no such
+             fragment, nothing changes there. Remove if the macOS run shows another cause. -->
+        <plugin>
+          <groupId>org.eclipse.tycho</groupId>
+          <artifactId>target-platform-configuration</artifactId>
+          <version>${tycho.version}</version>
+          <configuration>
+            <filters>
+              <filter>
+                <type>eclipse-plugin</type>
+                <id>org.eclipse.jdt.launching.macosx</id>
+                <removeAll/>
+              </filter>
+            </filters>
+          </configuration>
+        </plugin>
+
         <!-- Unit tests (folder "tests", declared as a test source folder in .classpath), JUnit 5.
              Tycho's documented way for plain unit tests in an eclipse-plugin module: maven-surefire-plugin
              with an explicit JUnit Platform provider (https://tycho.eclipseprojects.io/doc/master/TestingBundles.html,

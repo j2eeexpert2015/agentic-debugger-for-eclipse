@@ -312,6 +312,14 @@ by the assistant: any workflow (YAML parsed, the composite-site script run local
 
 ## 7. Last delivery
 
+`ci-cross-platform-4.zip` (28 Nov 22:00), after the first full run (Ayan 21:53): unit tests on macOS (JDK 21 and 25)
+failed in `eclipse-plugin` before any test ran: "Invalid Collect Request: null", the dependency list included the
+macOS-only fragment `org.eclipse.jdt.launching.macosx`. Fix attempt: `eclipse-plugin/pom.xml` filters that fragment out
+of the module's target platform (a guess, not proven); the workflow runs Maven with `-e`, so a failure shows its
+cause. Seen green at that point: unit tests on Linux (JDK 21, 25), UI tests on Windows and Linux.
+
+Before it:
+
 `ci-cross-platform-3.zip` (28 Nov 21:30), for branch `ci/open-73-test-names-all-platforms`, every change since `main`
 (also OPEN-71/72, local commands, test plan): Ayan 21:14 chose Windows as the only gate, Linux/macOS from time to time.
 `tests-all-platforms.yml`: a `plan` job picks systems and kinds (push to a work branch: Windows unit + UI; push to

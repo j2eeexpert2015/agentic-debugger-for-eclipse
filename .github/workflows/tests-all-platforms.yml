@@ -1,4 +1,3 @@
-# First full run: 28 Nov 2026
 # Tests on Windows, Linux and macOS (28 Nov 2026, docs/test-plan.md, docs/ci.md "What runs when").
 #   Push to a work branch (not docs-only):  Windows, unit tests + UI tests: the short check, for early feedback.
 #   Push to a ci/... branch:                all three systems, all four kinds (work on the pipelines themselves; the
@@ -82,7 +81,7 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
       - name: Build and unit tests
-        run: mvn -B -ntp clean verify -Drun=all-unit-tests-without-eclipse
+        run: mvn -B -ntp -e clean verify -Drun=all-unit-tests-without-eclipse
       - name: Results
         if: always()
         run: >
@@ -129,7 +128,7 @@ jobs:
           sleep 3
           DISPLAY=:99 metacity --sm-disable --replace > /dev/null 2>&1 &
       - name: UI tests (SWTBot)
-        run: mvn -B -ntp clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse
+        run: mvn -B -ntp -e clean verify -Drun=eclipse-plugin-ui-tests-with-temporary-eclipse
       - name: Results
         if: always()
         run: >-
@@ -194,7 +193,7 @@ jobs:
       - name: Test settings
         run: java dev-e2e/TestSteps.java settings && java dev-e2e/DevE2E.java config
       - name: Build, install into the test Eclipse, start it, debugger tests
-        run: mvn -B -ntp clean verify -Drun=eclipse-plugin-debugger-tests-with-test-eclipse -Dit.test=FullSuite
+        run: mvn -B -ntp -e clean verify -Drun=eclipse-plugin-debugger-tests-with-test-eclipse -Dit.test=FullSuite
       - name: Results
         if: always()
         run: >-
@@ -259,7 +258,7 @@ jobs:
       - name: Test settings
         run: java dev-e2e/TestSteps.java settings && java dev-e2e/DevE2E.java config
       - name: Build, install the zip, uninstall, reinstall, start, RegressionSuite
-        run: mvn -B -ntp clean verify -Drun=eclipse-plugin-install-tests-with-test-eclipse
+        run: mvn -B -ntp -e clean verify -Drun=eclipse-plugin-install-tests-with-test-eclipse
       - name: Results
         if: always()
         run: >-
